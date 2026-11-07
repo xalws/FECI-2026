@@ -1,0 +1,128 @@
+"""Tablas de la base de datos (SQLAlchemy). Cada clase = una tabla."""
+from datetime import datetime, timezone
+
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+def ahora() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+# ---------- Jerarquía académica ----------
+class Universidad(Base):
+    __tablename__ = "universidades"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(200), unique=True)
+
+
+class Carrera(Base):
+    __tablename__ = "carreras"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(200))
+    universidad_id: Mapped[int] = mapped_column(ForeignKey("universidades.id"))
+
+
+class Cuatrimestre(Base):
+    __tablename__ = "cuatrimestres"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(200))
+    carrera_id: Mapped[int] = mapped_column(ForeignKey("carreras.id"))
+
+
+class Materia(Base):
+    __tablename__ = "materias"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(200))
+    cuatrimestre_id: Mapped[int] = mapped_column(ForeignKey("cuatrimestres.id"))
+
+
+class Unidad(Base):
+    __tablename__ = "unidades"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(200))
+    materia_id: Mapped[int] = mapped_column(ForeignKey("materias.id"))
+
+
+class Tema(Base):
+    __tablename__ = "temas"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(200))
+    unidad_id: Mapped[int] = mapped_column(ForeignKey("unidades.id"))
+
+
+# ---------- Usuarios ----------
+class Usuario(Base):
+    __tablename__ = "usuarios"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str] = mapped_column(String(200), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(200))
+    rol: Mapped[str] = mapped_column(String(20))  # alumno | maestro | admin
+    activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class Asignacion(Base):
+    """Qué materias puede administrar cada maestro."""
+    __tablename__ = "asignaciones"
+    __table_args__ = (UniqueConstraint("maestro_id", "materia_id"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    maestro_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    materia_id: Mapped[int] = mapped_column(ForeignKey("materias.id"))
+
+
+# ---------- Material de entrenamiento ----------
+class Documento(Base):
+    __tablename__ = "documentos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tema_id: Mapped[int] = mapped_column(ForeignKey("temas.id"))
+    maestro_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    nombre_archivo: Mapped[str] = mapped_column(String(300))
+    num_chunks: Mapped[int] = mapped_column(default=0)
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+# ---------- Chats y quizzes ----------
+class Conversacion(Base):
+    __tablename__ = "conversaciones"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    alumno_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    tema_id: Mapped[int] = mapped_column(ForeignKey("temas.id"))
+    titulo: Mapped[str] = mapped_column(String(200), default="")
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class Mensaje(Base):
+    __tablename__ = "mensajes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conversacion_id: Mapped[int] = mapped_column(ForeignKey("conversaciones.id"))
+    rol: Mapped[str] = mapped_column(String(20))  # user | assistant
+    contenido: Mapped[str] = mapped_column(Text)
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class Quiz(Base):
+    __tablename__ = "quizzes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conversacion_id: Mapped[int] = mapped_column(ForeignKey("conversaciones.id"))
+    tema_id: Mapped[int] = mapped_column(ForeignKey("temas.id"))
+    pregunta: Mapped[str] = mapped_column(Text)
+    opciones: Mapped[list] = mapped_column(JSON)
+    indice_correcto: Mapped[int] = mapped_column()
+    explicacion: Mapped[str] = mapped_column(Text, default="")
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class RespuestaQuiz(Base):
+    __tablename__ = "respuestas_quiz"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    quiz_id: Mapped[int] = mapped_column(ForeignKey("quizzes.id"))
+    alumno_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    indice_elegido: Mapped[int] = mapped_column()
+    es_correcta: Mapped[bool] = mapped_column(Boolean)
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
