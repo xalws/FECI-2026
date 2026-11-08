@@ -8,7 +8,7 @@ user = require_login(["alumno"])
 st.title("Mi historial")
 
 texto = st.text_input("Buscar en mis conversaciones",
-                      placeholder="Tema, materia o palabras que aparezcan en el chat…")
+                      placeholder="")
 convs = chat.listar_conversaciones(user["id"], texto)
 if not convs:
     st.info("No se encontraron conversaciones con ese texto." if texto.strip()

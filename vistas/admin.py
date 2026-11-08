@@ -2,6 +2,7 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import select
 
+from core import perfil
 from core.auth import crear_usuario, require_login
 from core.db import get_session
 from core.ui import NIVELES, selector_cascada
@@ -12,7 +13,7 @@ user = require_login(["admin"])
 st.title("Administración")
 tab_cat, tab_usr, tab_asig = st.tabs(["Catálogo", "Usuarios", "Asignar maestros"])
 
-# ---------------------------------------------------------------- Catálogo
+# Catálogo
 with tab_cat:
     st.write("Crea universidades, carreras, cuatrimestres, materias, unidades y temas.")
     nombres_niveles = [n for n, _, _ in NIVELES]
@@ -37,7 +38,7 @@ with tab_cat:
             st.caption("Ya existen: " + ", ".join(existentes))
         with st.form("form_catalogo", clear_on_submit=True):
             nombre = st.text_input(f"Nombre de la nueva {nivel}" if nivel in ("carrera", "materia", "unidad")
-                                   else f"Nombre de {nivel}")
+                                   else f"Nombre del nuevo {nivel}")
             if st.form_submit_button("Crear"):
                 nombre = nombre.strip()
                 if not nombre:
@@ -53,7 +54,7 @@ with tab_cat:
                     st.success(f"Creado: {nombre}")
                     st.rerun()
 
-# ---------------------------------------------------------------- Usuarios
+# Usuarios
 with tab_usr:
     with st.form("form_usuario", clear_on_submit=True):
         c1, c2 = st.columns(2)
@@ -72,9 +73,32 @@ with tab_usr:
                              key="buscar_usuario").strip().lower()
     if filtro_u:
         usuarios = [u for u in usuarios if filtro_u in f"{u.nombre} {u.email} {u.rol}".lower()]
-    st.dataframe(pd.DataFrame([{"id": u.id, "nombre": u.nombre, "correo": u.email, "rol": u.rol,
-                                "activo": u.activo} for u in usuarios]),
-                 hide_index=True)
+    mapa = perfil.mapa_academico()
+    filas_u = []
+    for u in usuarios:
+        uni, car, cua = mapa.get(u.cuatrimestre_id, ("", "", ""))
+        filas_u.append({"id": u.id, "nombre": u.nombre, "correo": u.email, "rol": u.rol, "activo": u.activo,
+                        "universidad": uni, "carrera": car, "cuatrimestre/semestre": cua})
+    st.dataframe(pd.DataFrame(filas_u), hide_index=True)
+
+    #  Editar 
+    st.subheader("Datos académicos del alumno")
+    aviso = st.session_state.pop("aviso_edit", None)
+    if aviso:
+        st.success(aviso)
+    alumnos = {u.id: f"{u.nombre} ({u.email})" for u in usuarios if u.rol == "alumno"}
+    if not alumnos:
+        st.caption("No hay alumnos que coincidan con la búsqueda.")
+    else:
+        uid_al = st.selectbox("Alumno", list(alumnos), format_func=alumnos.get, key="edit_alumno")
+        actual = mapa.get(perfil.cuatrimestre_de(uid_al))
+        st.caption("Actual: " + " › ".join(actual) if actual else "Actual: sin universidad/cuatrimestre asignado")
+        st.write("Nuevo valor:")
+        sel_e = selector_cascada(hasta="cuatrimestre", prefix="edit_al", buscar=False)
+        if sel_e.get("cuatrimestre") and st.button("Guardar datos académicos"):
+            perfil.asignar_cuatrimestre(uid_al, sel_e["cuatrimestre"])
+            st.session_state["aviso_edit"] = f"Datos de {alumnos[uid_al]} actualizados."
+            st.rerun()
 
     st.caption("Activar / desactivar cuenta")
     otros = {u.id: f"{u.nombre} ({u.email})" for u in usuarios if u.id != user["id"]}
@@ -86,7 +110,7 @@ with tab_usr:
                 u.activo = not u.activo
             st.rerun()
 
-# ---------------------------------------------------------------- Asignaciones
+# Asignaciones
 with tab_asig:
     with get_session() as s:
         maestros = s.scalars(select(Usuario).where(Usuario.rol == "maestro", Usuario.activo.is_(True))).all()

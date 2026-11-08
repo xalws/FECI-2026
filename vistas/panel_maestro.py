@@ -11,7 +11,7 @@ user = require_login(["maestro", "admin"])
 
 st.title("Material de entrenamiento")
 
-# Maestro: solo sus materias. Admin: todas.
+# Maestro
 if user["rol"] == "admin":
     permitidas = None
 else:
@@ -21,9 +21,13 @@ else:
         st.info("El administrador todavía no te ha asignado materias.")
         st.stop()
 
-sel = selector_cascada(hasta="tema", materias_permitidas=permitidas, prefix="maestro")
+with st.sidebar:
+    st.divider()
+    st.markdown("### Elige el tema")
+    sel = selector_cascada(hasta="tema", materias_permitidas=permitidas, prefix="maestro")
 tema_id = sel.get("tema")
 if tema_id is None:
+    st.info("Elige el tema en el menú de la izquierda.")
     st.stop()
 
 st.divider()
@@ -31,7 +35,7 @@ st.subheader("Documentos de este tema")
 with get_session() as s:
     docs = s.scalars(select(Documento).where(Documento.tema_id == tema_id).order_by(Documento.id.desc())).all()
 if not docs:
-    st.caption("Aún no hay PDFs. La IA no responderá nada en este tema hasta que subas material.")
+    st.caption("Aún no hay PDFs.")
 filtro = st.text_input("Buscar documento", key="buscar_doc").strip().lower() if docs else ""
 visibles = [d for d in docs if filtro in d.nombre_archivo.lower()]
 if docs and not visibles:
@@ -52,7 +56,7 @@ if archivos and st.button("Procesar y entrenar", type="primary"):
     nombres_existentes = {d.nombre_archivo for d in docs}
     for f in archivos:
         if f.name in nombres_existentes:
-            st.warning(f"«{f.name}» ya existe en este tema; elimínalo primero si quieres reemplazarlo.")
+            st.warning(f"«{f.name}» ya existe en este tema, elimínalo primero si quieres reemplazarlo.")
             continue
         doc_id = None
         try:
@@ -67,5 +71,5 @@ if archivos and st.button("Procesar y entrenar", type="primary"):
             st.success(f"✅ {f.name}: {doc.num_chunks} fragmentos indexados.")
         except Exception as e:
             if doc_id:
-                rag.eliminar_documento(tema_id, doc_id)  
+                rag.eliminar_documento(tema_id, doc_id)  # limpia lo que haya quedado en Chroma
             st.error(f"❌ {f.name}: {e}")

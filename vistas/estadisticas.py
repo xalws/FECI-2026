@@ -1,3 +1,4 @@
+"""Dashboard de estadísticas para el maestro."""
 import streamlit as st
 from sqlalchemy import select
 
@@ -8,7 +9,7 @@ from models.schema import Asignacion
 
 user = require_login(["maestro", "admin"])
 
-st.title("Estadísticas de uso")
+st.title("📊 Estadísticas de uso")
 
 if user["rol"] == "admin":
     materias_ids = None
@@ -29,7 +30,7 @@ filtro = st.multiselect("Materias", materias, default=materias)
 msgs = msgs[msgs["materia"].isin(filtro)]
 resp = resp[resp["materia"].isin(filtro)]
 
-buscar = st.text_input("Buscar alumno o tema", placeholder="Nombre del alumno o del tema…").strip()
+buscar = st.text_input("🔍 Buscar alumno o tema", placeholder="Nombre del alumno o del tema…").strip()
 if buscar:
     def _coincide(df):
         return (df["alumno"].astype(str).str.contains(buscar, case=False, regex=False)

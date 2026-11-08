@@ -1,4 +1,3 @@
-"""Hash de contraseñas con bcrypt (nunca se guardan en texto plano)."""
 import bcrypt
 
 

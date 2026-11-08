@@ -1,4 +1,3 @@
-"""Cliente de Groq + prompts. El modelo SOLO puede usar el contexto que le damos."""
 import json
 import time
 
@@ -30,14 +29,13 @@ _client = None
 def _groq() -> Groq:
     global _client
     if not GROQ_API_KEY:
-        raise RuntimeError("Falta GROQ_API_KEY en tu archivo .env")
+        raise RuntimeError("Error con la conexión al LLM")
     if _client is None:
         _client = Groq(api_key=GROQ_API_KEY)
     return _client
 
 
 def _llamar(mensajes: list[dict], temperature: float = 0.1, json_mode: bool = False, reintentos: int = 3) -> str:
-    """Llama a Groq con reintentos (el plan gratuito tiene límite de peticiones por minuto)."""
     ultimo_error = None
     for intento in range(reintentos):
         try:
@@ -51,15 +49,15 @@ def _llamar(mensajes: list[dict], temperature: float = 0.1, json_mode: bool = Fa
         except RuntimeError:
             raise
         except (AuthenticationError, PermissionDeniedError):  # no tiene caso reintentar
-            raise RuntimeError("Groq rechazó tu API key (401). Revisa GROQ_API_KEY en el .env: debe empezar con "
-                               "'gsk_', sin comillas ni espacios, y debes reiniciar la app después de cambiarla.")
+            raise RuntimeError("Rechazo de GROQ "
+                               ".")
         except NotFoundError:
-            raise RuntimeError(f"El modelo '{GROQ_MODEL}' no existe en Groq. Cambia GROQ_MODEL en el .env "
-                               "(lista en console.groq.com/docs/models).")
-        except RateLimitError as e:  # el plan gratuito limita tokens por minuto: hay que esperar más
+            raise RuntimeError(f"El modelo '{GROQ_MODEL}' no existe en Groq."
+                               "")
+        except RateLimitError as e: 
             ultimo_error = e
             time.sleep(8 * (intento + 1))
-        except Exception as e:  # red, etc.
+        except Exception as e: 
             ultimo_error = e
             time.sleep(2 * (intento + 1))
     raise RuntimeError(f"No se pudo contactar a Groq (límite del plan gratuito o problema de red). Detalle: {ultimo_error}")
@@ -70,7 +68,6 @@ def _formatear_contexto(fragmentos: list[dict]) -> str:
 
 
 def responder(tema: str, pregunta: str, fragmentos: list[dict], historial: list[dict]) -> str:
-    # Sin contexto relevante => ni siquiera se llama al LLM (no puede inventar).
     if not fragmentos:
         return SIN_INFO
     mensajes = [{"role": "system", "content": SYSTEM_TUTOR.format(tema=tema, sin_info=SIN_INFO)}]

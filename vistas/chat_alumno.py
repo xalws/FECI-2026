@@ -1,6 +1,6 @@
 import streamlit as st
 
-from core import chat, llm, quiz, rag
+from core import chat, llm, perfil, quiz, rag
 from core.auth import require_login
 from core.ui import nombre_tema, selector_cascada
 
@@ -9,10 +9,26 @@ ss = st.session_state
 
 st.title("Chat de estudio")
 
-# Selección en cascada
-sel = selector_cascada(hasta="tema", prefix="chat")
+cuat_id = perfil.cuatrimestre_de(user["id"])
+if cuat_id is None:
+    st.subheader("Completa tu perfil")
+    st.write("Elige tu universidad, carrera y cuatrimestre/semestre.")
+    sel_perfil = selector_cascada(hasta="cuatrimestre", prefix="perfil", buscar=False)
+    if sel_perfil.get("cuatrimestre") and st.button("Guardar perfil", type="primary"):
+        perfil.asignar_cuatrimestre(user["id"], sel_perfil["cuatrimestre"])
+        st.rerun()
+    st.stop()
+
+with st.sidebar:
+    st.divider()
+    datos = perfil.datos_academicos(cuat_id)
+    if datos:
+        st.caption("Icono bonito" + " · ".join(datos))
+    st.markdown("### Elige tu tema")
+    sel = selector_cascada(hasta="tema", prefix="chat", cuatrimestre_id=cuat_id)
 tema_id = sel.get("tema")
 if tema_id is None:
+    st.info("Elige materia, unidad y tema en el menú de la izquierda para empezar.")
     st.stop()
 tema_nombre = nombre_tema(tema_id)
 

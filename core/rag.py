@@ -1,4 +1,3 @@
-"""RAG: LlamaIndex (chunks + embeddings) + ChromaDB (una colección por tema)."""
 import random
 
 import chromadb
@@ -11,7 +10,7 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 from core.config import CHROMA_PATH, EMBED_MODEL, MIN_SCORE, TOP_K
 
 
-@st.cache_resource(show_spinner="Cargando modelo de embeddings (la primera vez descarga ~200 MB)...")
+@st.cache_resource(show_spinner="Cargando modelo (la primera vez descarga ~200 MB)...")
 def _embed_model():
     return FastEmbedEmbedding(model_name=EMBED_MODEL)
 
@@ -22,12 +21,10 @@ def _client():
 
 
 def _coleccion(tema_id: int):
-    # "cosine" => la distancia está entre 0 y 2, y similitud = 1 - distancia
     return _client().get_or_create_collection(f"tema_{tema_id}", metadata={"hnsw:space": "cosine"})
 
 
 def indexar(tema_id: int, documentos: list[Document]) -> int:
-    """Divide en chunks, calcula embeddings y guarda en Chroma. Devuelve # de chunks."""
     splitter = SentenceSplitter(chunk_size=800, chunk_overlap=100)
     nodos = splitter.get_nodes_from_documents(documentos)
     vector_store = ChromaVectorStore(chroma_collection=_coleccion(tema_id))
@@ -37,7 +34,6 @@ def indexar(tema_id: int, documentos: list[Document]) -> int:
 
 
 def buscar(tema_id: int, consulta: str) -> list[dict]:
-    """Fragmentos más parecidos a la consulta. Lista vacía si nada supera MIN_SCORE."""
     col = _coleccion(tema_id)
     if col.count() == 0:
         return []
@@ -54,7 +50,6 @@ def buscar(tema_id: int, consulta: str) -> list[dict]:
 
 
 def chunks_aleatorios(tema_id: int, n: int = 3) -> list[dict]:
-    """Fragmentos al azar del tema (para generar quizzes y ejercicios variados)."""
     col = _coleccion(tema_id)
     if col.count() == 0:
         return []

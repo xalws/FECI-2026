@@ -1,4 +1,4 @@
-"""Estadísticas para el maestro (consultas SQL + agregaciones con Pandas)."""
+# Estadísticas para el maestro 
 import pandas as pd
 from sqlalchemy import text
 
@@ -30,7 +30,6 @@ JOIN materias ma ON ma.id = un.materia_id
 
 
 def cargar(materias_ids: list[int] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Devuelve (mensajes, respuestas_quiz). materias_ids=None => todas las materias."""
     with engine.connect() as conn:
         msgs = pd.read_sql(text(SQL_MENSAJES), conn)
         resp = pd.read_sql(text(SQL_RESPUESTAS), conn)

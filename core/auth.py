@@ -1,15 +1,14 @@
-"""Login, registro y control de acceso por rol."""
 import streamlit as st
 from sqlalchemy import select
 
 from core.db import get_session, init_db
 from core.passwords import hash_password, verificar_password
-from models.schema import Usuario
+from models.schema import Cuatrimestre, Usuario
 
 
 @st.cache_resource
 def iniciar_db() -> bool:
-    """Se ejecuta una sola vez por proceso: crea tablas y admin inicial."""
+    # Crea tablas y admin inicial.
     init_db()
     return True
 
@@ -22,7 +21,8 @@ def login(email: str, password: str) -> dict | None:
     return None
 
 
-def crear_usuario(nombre: str, email: str, password: str, rol: str) -> tuple[bool, str]:
+def crear_usuario(nombre: str, email: str, password: str, rol: str,
+                  cuatrimestre_id: int | None = None) -> tuple[bool, str]:
     nombre, email = nombre.strip(), email.strip().lower()
     if not nombre or "@" not in email:
         return False, "Escribe un nombre y un correo válido."
@@ -33,7 +33,10 @@ def crear_usuario(nombre: str, email: str, password: str, rol: str) -> tuple[boo
     with get_session() as s:
         if s.scalar(select(Usuario.id).where(Usuario.email == email)):
             return False, "Ya existe un usuario con ese correo."
-        s.add(Usuario(nombre=nombre, email=email, password_hash=hash_password(password), rol=rol))
+        if cuatrimestre_id is not None and s.get(Cuatrimestre, cuatrimestre_id) is None:
+            return False, "El cuatrimestre elegido no existe."
+        s.add(Usuario(nombre=nombre, email=email, password_hash=hash_password(password), rol=rol,
+                      cuatrimestre_id=cuatrimestre_id if rol == "alumno" else None))
     return True, "Usuario creado."
 
 
@@ -43,21 +46,20 @@ def cerrar_sesion() -> None:
 
 
 def barra_lateral(user: dict) -> None:
-    st.sidebar.markdown(f"👤 **{user['nombre']}**  \nRol: `{user['rol']}`")
+    st.sidebar.markdown(f" **{user['nombre']}**  \nRol: `{user['rol']}`")
     if st.sidebar.button("Cerrar sesión"):
         cerrar_sesion()
         st.rerun()
 
 
 def require_login(roles: list[str] | None = None) -> dict:
-    """Llamar al inicio de cada página. Detiene la página si no hay sesión o el rol no sirve."""
     iniciar_db()
     user = st.session_state.get("user")
     if not user:
         st.warning("Inicia sesión para continuar.")
         st.stop()
     if roles and user["rol"] not in roles:
-        st.error("🚫 No tienes permiso para ver esta página.")
+        st.error("No tienes permiso para ver esta página.")
         st.stop()
     barra_lateral(user)
     return user

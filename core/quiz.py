@@ -1,11 +1,9 @@
-"""Generar quizzes y evaluar las respuestas del alumno."""
 from core import llm, rag
 from core.db import get_session
 from models.schema import Quiz, RespuestaQuiz
 
 
 def crear_quiz(tema_id: int, conversacion_id: int) -> dict | None:
-    """Crea un quiz con fragmentos al azar del tema. None si el tema no tiene material."""
     fragmentos = rag.chunks_aleatorios(tema_id, 3)
     if not fragmentos:
         return None

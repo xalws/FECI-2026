@@ -1,4 +1,3 @@
-"""Guardar y leer el historial de chats."""
 from sqlalchemy import or_, select
 
 from core.db import get_session

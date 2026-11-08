@@ -1,4 +1,3 @@
-"""Tablas de la base de datos (SQLAlchemy). Cada clase = una tabla."""
 from datetime import datetime, timezone
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
@@ -13,7 +12,7 @@ class Base(DeclarativeBase):
     pass
 
 
-# ---------- Jerarquía académica ----------
+# Jerarquía académica 
 class Universidad(Base):
     __tablename__ = "universidades"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -55,20 +54,22 @@ class Tema(Base):
     unidad_id: Mapped[int] = mapped_column(ForeignKey("unidades.id"))
 
 
-# ---------- Usuarios ----------
+# Usuarios 
 class Usuario(Base):
     __tablename__ = "usuarios"
     id: Mapped[int] = mapped_column(primary_key=True)
     nombre: Mapped[str] = mapped_column(String(200))
     email: Mapped[str] = mapped_column(String(200), unique=True)
     password_hash: Mapped[str] = mapped_column(String(200))
-    rol: Mapped[str] = mapped_column(String(20))  # alumno | maestro | admin
+    # alumno | maestro | admin
+    rol: Mapped[str] = mapped_column(String(20))  
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Alumnos
+    cuatrimestre_id: Mapped[int | None] = mapped_column(ForeignKey("cuatrimestres.id"), nullable=True)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
 class Asignacion(Base):
-    """Qué materias puede administrar cada maestro."""
     __tablename__ = "asignaciones"
     __table_args__ = (UniqueConstraint("maestro_id", "materia_id"),)
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -76,7 +77,7 @@ class Asignacion(Base):
     materia_id: Mapped[int] = mapped_column(ForeignKey("materias.id"))
 
 
-# ---------- Material de entrenamiento ----------
+# Material de entrenamiento 
 class Documento(Base):
     __tablename__ = "documentos"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -87,7 +88,7 @@ class Documento(Base):
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
-# ---------- Chats y quizzes ----------
+# Chats y quizzes 
 class Conversacion(Base):
     __tablename__ = "conversaciones"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -101,7 +102,7 @@ class Mensaje(Base):
     __tablename__ = "mensajes"
     id: Mapped[int] = mapped_column(primary_key=True)
     conversacion_id: Mapped[int] = mapped_column(ForeignKey("conversaciones.id"))
-    rol: Mapped[str] = mapped_column(String(20))  # user | assistant
+    rol: Mapped[str] = mapped_column(String(20)) 
     contenido: Mapped[str] = mapped_column(Text)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
