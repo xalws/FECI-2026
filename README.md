@@ -12,6 +12,10 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
   carrera y cuatrimestre desde el menú lateral.
 - Tres vistas separadas en la página de estudio: **Conversación**, **Ejercicio práctico** y **Examen**. Cada una
   guarda su propia conversación en el historial.
+- **Conversación guiada por el tutor:** en un chat nuevo el tutor saluda y pregunta si inician la lección o hay una
+  pregunta. Al volver a una conversación anterior (se elige en el selector de arriba) pregunta si quieres
+  retroalimentación, continuar donde lo dejaron u otra pregunta. También entiende órdenes escritas como
+  «comencemos», «continuemos» o «dame retroalimentación», que no son preguntas sobre el contenido.
 - **Examen** de varias preguntas (de 3 a 10) en **modo concentración**: mientras dura, se oculta el menú lateral,
   la conversación y las otras vistas. Después de cada pregunta se ve la respuesta correcta y su explicación. La
   dificultad empieza según su nivel en el tema, sube un nivel cuando acierta y baja uno cuando falla (básica,
@@ -68,6 +72,7 @@ core/               Lógica
   niveles.py          XP, niveles por tema y avance por unidad de la retícula
   reticula.py         lectura del programa de asignatura y creación de materia, unidades y temas
   material.py         subida de PDFs de toda la materia, repartidos por temas
+  tutoria.py          el tutor como guía: iniciar la lección, continuarla, retroalimentar, detectar órdenes
   progreso.py         nivel por tema, ejercicios calificados
   actividad.py        registro del tiempo de uso
   sospechas.py        reglas de actividad a revisar

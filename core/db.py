@@ -29,6 +29,7 @@ COLUMNAS_NUEVAS = [
     ("usuarios", "cuatrimestre_id", "INTEGER REFERENCES cuatrimestres(id)"),
     ("temas", "objetivos", "TEXT"),
     ("quizzes", "dificultad", "INTEGER"),
+    ("conversaciones", "tipo", "VARCHAR(20)"),
 ]
 
 

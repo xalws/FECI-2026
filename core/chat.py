@@ -1,12 +1,15 @@
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from core.db import get_session
 from models.schema import Conversacion, Materia, Mensaje, PreguntaSinRespuesta, Tema, Unidad
 
+# Títulos que usaban los ejercicios y exámenes antes de que existiera la columna «tipo»
+TITULOS_ANTIGUOS_NO_CHAT = ("Examen", "Ejercicio práctico", "Quiz")
 
-def crear_conversacion(alumno_id: int, tema_id: int, titulo: str = "") -> int:
+
+def crear_conversacion(alumno_id: int, tema_id: int, titulo: str = "", tipo: str = "chat") -> int:
     with get_session() as s:
-        c = Conversacion(alumno_id=alumno_id, tema_id=tema_id, titulo=titulo[:200])
+        c = Conversacion(alumno_id=alumno_id, tema_id=tema_id, titulo=titulo[:200], tipo=tipo)
         s.add(c)
         s.flush()
         return c.id
@@ -31,6 +34,20 @@ def listar_mensajes(conversacion_id: int) -> list[dict]:
         filas = s.scalars(select(Mensaje).where(Mensaje.conversacion_id == conversacion_id)
                           .order_by(Mensaje.id)).all()
         return [{"rol": m.rol, "contenido": m.contenido} for m in filas]
+
+
+def conversaciones_del_tema(alumno_id: int, tema_id: int, limite: int = 20) -> list[dict]:
+    # Conversaciones de chat (no ejercicios ni exámenes) del alumno en un tema que ya tienen mensajes.
+    with get_session() as s:
+        con_mensajes = select(Mensaje.conversacion_id).group_by(Mensaje.conversacion_id)
+        q = (select(Conversacion, func.count(Mensaje.id))
+             .join(Mensaje, Mensaje.conversacion_id == Conversacion.id)
+             .where(Conversacion.alumno_id == alumno_id, Conversacion.tema_id == tema_id,
+                    or_(Conversacion.tipo.is_(None), Conversacion.tipo == "chat"),
+                    Conversacion.titulo.notin_(TITULOS_ANTIGUOS_NO_CHAT),
+                    Conversacion.id.in_(con_mensajes))
+             .group_by(Conversacion.id).order_by(Conversacion.id.desc()).limit(limite))
+        return [{"id": c.id, "fecha": c.fecha, "titulo": c.titulo, "mensajes": n} for c, n in s.execute(q).all()]
 
 
 def listar_conversaciones(alumno_id: int, texto: str = "") -> list[dict]:

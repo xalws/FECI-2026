@@ -1,6 +1,6 @@
 import streamlit as st
 
-from core import chat, examen, llm, niveles, perfil, progreso, quiz, rag
+from core import chat, examen, llm, niveles, perfil, progreso, quiz, rag, tutoria
 from core.auth import require_login
 from core.llm import DIFICULTADES
 from core.ui import nombre_tema, selector_cascada
@@ -72,14 +72,18 @@ with st.sidebar:
 # Cada vista tiene su propia conversación; si cambia el tema se empieza de cero
 for clave in ("conv_id", "conv_ejercicio", "conv_examen", "examen", "examen_resumen", "ejercicio"):
     ss.setdefault(clave, None)
+ss.setdefault("intro_hecha", set())  # conversaciones donde el tutor ya saludó o dio la bienvenida de regreso
 if ss.get("tema_activo") != tema_id:
     ss.tema_activo = tema_id
     for clave in ("conv_id", "conv_ejercicio", "conv_examen", "examen", "examen_resumen", "ejercicio"):
         ss[clave] = None
+    ss.intro_hecha = set()
+
+TIPOS = {"conv_id": "chat", "conv_ejercicio": "ejercicio", "conv_examen": "examen"}
 
 
 def nueva_conversacion(clave: str, titulo: str) -> int:
-    ss[clave] = chat.crear_conversacion(user["id"], tema_id, titulo)
+    ss[clave] = chat.crear_conversacion(user["id"], tema_id, titulo, TIPOS[clave])
     return ss[clave]
 
 
@@ -105,21 +109,96 @@ def texto_fuentes(fragmentos: list[dict]) -> str:
 # ----------------------------------------------------------------------------------------------------------
 # Vista 1: conversación
 # ----------------------------------------------------------------------------------------------------------
-def vista_conversacion() -> None:
-    if st.button("Nueva conversación"):
-        ss.conv_id = None
-        st.rerun()
-    if ss.conv_id:
-        for m in chat.listar_mensajes(ss.conv_id):
-            with st.chat_message(m["rol"]):
-                st.markdown(m["contenido"])
-    else:
-        st.caption(f"Pregúntame lo que quieras sobre **{tema_nombre}**.")
+def _clave_intro(conv_id: int | None) -> str:
+    return "nueva" if conv_id is None else f"conv{conv_id}"
 
-    pregunta = st.chat_input("Escribe tu pregunta sobre este tema…")
+
+def cambiar_conversacion() -> None:
+    # Al elegir otra conversación, el tutor vuelve a dar la bienvenida (de regreso o de chat nuevo).
+    ss.conv_id = ss["conv_picker"] or None  # 0 = «Nueva conversación»
+    ss.intro_hecha.discard(_clave_intro(ss.conv_id))
+
+
+def fragmentos_para(historial: list[dict]) -> list[dict]:
+    # Material relacionado con lo último que preguntó el alumno; si no hay nada, fragmentos al azar del tema.
+    preguntas = [m["contenido"] for m in historial if m["rol"] == "user"]
+    encontrados = rag.buscar(tema_id, preguntas[-1]) if preguntas else []
+    return encontrados or rag.chunks_aleatorios(tema_id, 3)
+
+
+def accion_tutor(intencion: str, texto_alumno: str | None = None) -> None:
+    # El tutor guía la conversación: inicia la lección, la retoma, da retroalimentación o saluda.
+    try:
+        with st.spinner("Pensando…"):
+            conv = ss.conv_id or nueva_conversacion(
+                "conv_id", f"Lección: {tema_nombre}" if intencion == "iniciar" else (texto_alumno or "Conversación"))
+            historial = chat.listar_mensajes(conv)
+            if texto_alumno:
+                chat.guardar_mensaje(conv, "user", texto_alumno)
+            if intencion == "saludo":
+                respuesta = tutoria.SALUDO.format(tema=tema_nombre)
+            elif intencion == "retro":
+                respuesta = tutoria.retroalimentar(tema_nombre, historial, fragmentos_para(historial))
+            elif intencion == "continuar" and historial:
+                respuesta = tutoria.continuar_leccion(tema_nombre, historial, fragmentos_para(historial), prog["nivel"])
+            else:  # iniciar (o continuar sin nada previo)
+                respuesta = tutoria.iniciar_leccion(tema_nombre, tutoria.objetivos_del_tema(tema_id),
+                                                    rag.chunks_aleatorios(tema_id, 3), prog["nivel"])
+            chat.guardar_mensaje(conv, "assistant", respuesta)
+        ss.intro_hecha.update({"nueva", _clave_intro(conv)})
+        st.rerun()
+    except Exception as e:
+        st.error(str(e))
+
+
+def vista_conversacion() -> None:
+    previas = chat.conversaciones_del_tema(user["id"], tema_id)
+    # Se usa 0 y no None para «Nueva conversación»: con None Streamlit mostraría «Choose an option»
+    etiquetas = {0: "➕ Nueva conversación",
+                 **{c["id"]: f"{c['fecha']:%d/%m %H:%M} · {c['titulo'][:38]}" for c in previas}}
+    if ss.conv_id and ss.conv_id not in etiquetas:
+        etiquetas[ss.conv_id] = "Conversación actual"
+    ss["conv_picker"] = ss.conv_id or 0  # sincroniza el selector antes de crearlo
+    st.selectbox("Conversación", list(etiquetas), format_func=etiquetas.get, key="conv_picker",
+                 on_change=cambiar_conversacion, label_visibility="collapsed")
+
+    mensajes = chat.listar_mensajes(ss.conv_id) if ss.conv_id else []
+    for m in mensajes:
+        with st.chat_message(m["rol"]):
+            st.markdown(m["contenido"])
+
+    if _clave_intro(ss.conv_id) not in ss.intro_hecha:
+        with st.chat_message("assistant"):
+            if not mensajes:
+                st.markdown(f"¡Hola! Soy tu tutor de **{tema_nombre}**. ¿Iniciamos la lección o tienes una pregunta?")
+                b1, b2 = st.columns(2)
+                if b1.button("▶️ Iniciar la lección", type="primary", key="btn_iniciar"):
+                    accion_tutor("iniciar")
+                if b2.button("❓ Tengo una pregunta", key="btn_pregunta"):
+                    ss.intro_hecha.add("nueva")
+                    st.rerun()
+            else:
+                st.markdown("¡Qué bueno verte de nuevo! Retomamos esta conversación. ¿Qué prefieres?")
+                b1, b2, b3 = st.columns(3)
+                if b1.button("📝 Retroalimentación", key="btn_retro"):
+                    accion_tutor("retro")
+                if b2.button("▶️ Continuar donde lo dejamos", type="primary", key="btn_continuar"):
+                    accion_tutor("continuar")
+                if b3.button("❓ Otra pregunta", key="btn_otra"):
+                    ss.intro_hecha.add(_clave_intro(ss.conv_id))
+                    st.rerun()
+    elif not mensajes:
+        st.caption(f"Pregúntame lo que quieras sobre **{tema_nombre}**. También puedes escribir «comencemos».")
+
+    pregunta = st.chat_input("Escribe tu pregunta o «comencemos»…")
     if not pregunta:
         return
+    intencion = tutoria.detectar_intencion(pregunta)
+    if intencion:  # «comencemos», «continuemos», «hola»…: no son preguntas sobre el contenido
+        accion_tutor(intencion, pregunta)
+        return
     conv = ss.conv_id or nueva_conversacion("conv_id", pregunta)
+    ss.intro_hecha.update({"nueva", _clave_intro(conv)})
     historial = chat.listar_mensajes(conv)
     fragmentos = rag.buscar(tema_id, construir_consulta(historial, pregunta))
     chat.guardar_mensaje(conv, "user", pregunta)

@@ -128,6 +128,8 @@ class Conversacion(Base):
     alumno_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
     tema_id: Mapped[int] = mapped_column(ForeignKey("temas.id"))
     titulo: Mapped[str] = mapped_column(String(200), default="")
+    # chat | ejercicio | examen (las conversaciones antiguas no lo tienen y se tratan como chat)
+    tipo: Mapped[str | None] = mapped_column(String(20), nullable=True)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
