@@ -15,6 +15,28 @@ def ya_subido(materia_id: int, nombre_archivo: str) -> bool:
                                                    Documento.nombre_archivo == nombre_archivo)) is not None
 
 
+def estado_tema(tema_id: int) -> str:
+    # «ok» (hay fragmentos), «sin_indice» (hay un PDF registrado pero su contenido no está en la base) o
+    # «sin_material» (nunca se subió nada).
+    with get_session() as s:
+        if s.scalar(select(func.count()).select_from(Fragmento).where(Fragmento.tema_id == tema_id)):
+            return "ok"
+        if s.scalar(select(func.count()).select_from(Documento).where(Documento.tema_id == tema_id)):
+            return "sin_indice"
+    return "sin_material"
+
+
+MENSAJES_SIN_MATERIAL = {
+    "sin_material": "El maestro todavía no ha subido material para este tema.",
+    "sin_indice": ("El material de este tema ya fue cargado, pero su contenido todavía no está disponible para el "
+                   "tutor. Avísale a tu maestro para que lo vuelva a cargar. Mientras tanto, puedes estudiar otros temas."),
+}
+
+
+def mensaje_sin_material(tema_id: int) -> str:
+    return MENSAJES_SIN_MATERIAL.get(estado_tema(tema_id), MENSAJES_SIN_MATERIAL["sin_material"])
+
+
 def cobertura(materia_id: int) -> list[dict]:
     # Por cada tema de la retícula: cuántos fragmentos reales tiene y qué documentos hay registrados.
     # estado: «ok» (con material), «sin_material» (nada) o «sin_indice» (hay un documento registrado pero sus

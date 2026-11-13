@@ -332,6 +332,20 @@ class TestSubirAMateria(BaseDatos):
         self.assertEqual(set(despues.values()), {"sin_material"})
         self.assertFalse(material.ya_subido(r["materia_id"], "apuntes.pdf"))
 
+    def test_estado_y_mensaje_de_un_tema_sin_contenido_disponible(self):
+        from models.schema import Fragmento
+        r = reticula.crear_desde_reticula(RETICULA, "U Estado", "Carrera", "Cuatrimestre 1")
+        a, b, c = [t["id"] for t in reticula.temas_de_materia(r["materia_id"])]
+        with get_session() as s:
+            s.add(Documento(tema_id=b, maestro_id=1, nombre_archivo="x.pdf", num_chunks=21))  # registrado, sin fragmentos
+            d = Documento(tema_id=c, maestro_id=1, nombre_archivo="y.pdf", num_chunks=1)
+            s.add(d)
+            s.flush()
+            s.add(Fragmento(tema_id=c, documento_id=d.id, texto="x", embedding=[0.1]))
+        self.assertEqual([material.estado_tema(t) for t in (a, b, c)], ["sin_material", "sin_indice", "ok"])
+        self.assertIn("todavía no ha subido", material.mensaje_sin_material(a))
+        self.assertIn("ya fue cargado", material.mensaje_sin_material(b))
+
     def test_materia_sin_temas_da_error_claro(self):
         with get_session() as s:
             from models.schema import Carrera, Cuatrimestre, Universidad

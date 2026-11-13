@@ -49,8 +49,19 @@ class TestRespuestasDelTutor(unittest.TestCase):
         with mock.patch.object(llm, "_llamar") as m:
             r = tutoria.iniciar_leccion("Metrología", "Saber: definir metrología.", [], "normal")
         m.assert_not_called()
-        self.assertIn("Todavía no hay material", r)
+        self.assertIn("Por ahora no puedo dar la lección", r)
         self.assertIn("definir metrología", r)
+
+    def test_sin_material_distingue_nunca_subido_de_subido_pero_no_disponible(self):
+        with mock.patch.object(llm, "_llamar") as m:
+            nunca = tutoria.iniciar_leccion("Aislantes", "Saber: x", [], "normal", "sin_material")
+            no_disp = tutoria.iniciar_leccion("Aislantes", "Saber: x", [], "normal", "sin_indice")
+        m.assert_not_called()
+        self.assertIn("todavía no ha subido", nunca)
+        self.assertNotIn("ya fue cargado", nunca)
+        self.assertIn("ya fue cargado", no_disp)  # el material existe pero no está disponible
+        self.assertIn("lo vuelva a cargar", no_disp)
+        self.assertNotIn("todavía no ha subido", no_disp)  # ya no se culpa al maestro de algo que sí hizo
 
     def test_continuar_incluye_la_conversacion(self):
         historial = [{"rol": "user", "contenido": "¿Qué es medir?"}, {"rol": "assistant", "contenido": "Medir es comparar."}]

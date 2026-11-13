@@ -1,6 +1,6 @@
 import streamlit as st
 
-from core import chat, examen, llm, niveles, perfil, progreso, quiz, rag, tutoria
+from core import chat, examen, llm, material, niveles, perfil, progreso, quiz, rag, tutoria
 from core.auth import require_login
 from core.llm import DIFICULTADES
 from core.ui import nombre_tema, selector_cascada
@@ -146,8 +146,9 @@ def accion_tutor(intencion: str, texto_alumno: str | None = None) -> None:
             elif intencion == "continuar" and historial:
                 respuesta = tutoria.continuar_leccion(tema_nombre, historial, fragmentos_para(historial), prog["nivel"])
             else:  # iniciar (o continuar sin nada previo)
-                respuesta = tutoria.iniciar_leccion(tema_nombre, tutoria.objetivos_del_tema(tema_id),
-                                                    rag.chunks_aleatorios(tema_id, 3), prog["nivel"])
+                frags = rag.chunks_aleatorios(tema_id, 3)
+                respuesta = tutoria.iniciar_leccion(tema_nombre, tutoria.objetivos_del_tema(tema_id), frags,
+                                                    prog["nivel"], "ok" if frags else material.estado_tema(tema_id))
             chat.guardar_mensaje(conv, "assistant", respuesta)
         ss.intro_hecha.update({"nueva", _clave_intro(conv)})
         st.rerun()
@@ -236,7 +237,7 @@ def vista_ejercicio() -> None:
                     enunciado = llm.responder(tema_nombre, "Plantéame un ejercicio práctico sobre este tema.",
                                               fragmentos, [], prog["nivel"])
                 if not fragmentos or enunciado == llm.SIN_INFO:
-                    st.warning("El maestro todavía no ha subido material para este tema.")
+                    st.warning(material.mensaje_sin_material(tema_id))
                     return
                 conv = nueva_conversacion("conv_ejercicio", "Ejercicio práctico")
                 chat.guardar_mensaje(conv, "assistant", enunciado)
@@ -370,7 +371,7 @@ def vista_examen_en_curso() -> None:
                 st.error(error)
                 st.button("Reintentar")  # al pulsarlo la página se ejecuta de nuevo y vuelve a intentar
             else:
-                st.warning("El maestro todavía no ha subido material para este tema.")
+                st.warning(material.mensaje_sin_material(tema_id))
             if st.button("Salir del examen"):
                 ss.examen = None
                 st.rerun()

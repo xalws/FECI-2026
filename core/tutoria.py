@@ -75,12 +75,15 @@ def _sistema(plantilla: str, tema: str, nivel: str) -> str:
     return plantilla.format(tema=tema) + (f"\n{extra[3:]}" if extra else "")  # sin el «6.» del prompt del chat
 
 
-def iniciar_leccion(tema: str, objetivos: str, fragmentos: list[dict], nivel: str = "normal") -> str:
+def iniciar_leccion(tema: str, objetivos: str, fragmentos: list[dict], nivel: str = "normal",
+                    estado_material: str = "sin_material") -> str:
     if not fragmentos:
-        base = (f"Todavía no hay material de **{tema}**. " +
+        que_pasa = ("El material de este tema ya fue cargado, pero su contenido todavía no está disponible para mí. "
+                    "Avísale a tu maestro para que lo vuelva a cargar." if estado_material == "sin_indice"
+                    else "El maestro todavía no ha subido el contenido de este tema.")
+        return (f"Por ahora no puedo dar la lección de **{tema}**. {que_pasa} " +
                 (f"Según la retícula, en este tema veremos:\n\n{objetivos}\n\n" if objetivos else "") +
-                "Cuando el maestro suba el contenido podremos empezar. Mientras tanto, ¿tienes alguna pregunta?")
-        return base
+                "Mientras tanto, puedes estudiar otro tema.")
     usuario = (f"OBJETIVOS DEL TEMA:\n{objetivos or '(no hay)'}\n\nCONTEXTO:\n{llm._formatear_contexto(fragmentos)}")
     mensajes = [{"role": "system", "content": _sistema(SYSTEM_INICIAR, tema, nivel)},
                 {"role": "user", "content": usuario}]
