@@ -10,10 +10,13 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
 - Chat de estudio por tema. La respuesta incluye las fuentes (archivo y página del PDF).
 - Puede estudiar las materias de su cuatrimestre o elegir **«Todas las materias»**, y cambiar su universidad,
   carrera y cuatrimestre desde el menú lateral.
-- **Examen de varias preguntas** (de 3 a 10) con dificultad progresiva: empieza según su nivel en el tema,
-  sube un nivel cuando acierta y baja uno cuando falla. Hay 4 niveles: básica, intermedia, avanzada y experta.
-  Al terminar muestra el resultado y la dificultad más alta que resolvió.
-- Ejercicios prácticos que la IA califica de 0 a 10.
+- Tres vistas separadas en la página de estudio: **Conversación**, **Ejercicio práctico** y **Examen**. Cada una
+  guarda su propia conversación en el historial.
+- **Examen** de varias preguntas (de 3 a 10) en **modo concentración**: mientras dura, se oculta el menú lateral,
+  la conversación y las otras vistas. Después de cada pregunta se ve la respuesta correcta y su explicación. La
+  dificultad empieza según su nivel en el tema, sube un nivel cuando acierta y baja uno cuando falla (básica,
+  intermedia, avanzada y experta). Al terminar muestra el resultado y la dificultad más alta que resolvió.
+- **Ejercicio práctico** en su propia pantalla: el enunciado, tu respuesta y la calificación de la IA (0 a 10).
 - La explicación y el nivel inicial se adaptan por tema: modo *refuerzo* si le cuesta (menos de 50% de
   aciertos), *normal*, o *avanzado* (80% o más).
 - Las preguntas priorizan el material de lo que el alumno falló y evitan repetir las recientes.

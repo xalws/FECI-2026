@@ -1,5 +1,6 @@
 """Retícula de una materia: lectura del PDF del programa de asignatura y creación de unidades y temas."""
 import re
+import time
 import unicodedata
 
 from PyPDF2 import PdfReader
@@ -9,17 +10,19 @@ from core import llm
 from core.db import get_session
 from models.schema import Asignacion, Carrera, Cuatrimestre, Materia, Tema, Unidad, Universidad
 
-MAX_CARACTERES = 14000  # lo que se manda a la IA (el plan gratuito de Groq tiene límite de tokens)
+PAUSA_ENTRE_PARTES = 15  # segundos
+PARTE_MAX = 11000 # caracteres por llamada a la IA (el plan gratuito de Groq tiene límite de tokens)
 _RUIDO = re.compile(r"^(ELABORÓ|APROBÓ|F-DA-|REVISÓ|VIGENTE).*$", re.M)
 _CORTES = ("Proceso Enseñanza", "Proceso de Evaluación")
+_CUATRIMESTRE = re.compile(r"Cuatrimestre\s+Créditos\s+Modalidad\s+Horas por semana\s+Horas Totales\s+\w+\s+(\d{1,2})\s+\d")
 
 
-def texto_para_ia(archivo) -> str:
-    # Devuelve solo lo útil del PDF: portada con la asignatura y las páginas de unidades y temas.
+def paginas_utiles(archivo) -> list[str]:
+    # Texto de la portada (asignatura, carrera, cuatrimestre) y de las páginas de unidades y temas, sin ruido.
     lector = PdfReader(archivo)
     if lector.is_encrypted:
         raise ValueError("El PDF está cifrado.")
-    partes = []
+    paginas, previa_con_temas = [], False
     for i, pagina in enumerate(lector.pages):
         texto = _RUIDO.sub("", pagina.extract_text() or "")
         texto = re.sub(r"[ \t]+", " ", texto)
@@ -29,12 +32,60 @@ def texto_para_ia(archivo) -> str:
         for corte in _CORTES:  # lo que viene después no son temas
             if corte in texto:
                 texto = texto.split(corte, 1)[0].strip()
-        if i == 0 or "Unidad de Aprendizaje" in texto or re.search(r"\bTemas\b", texto) or partes and partes[-1][0]:
-            partes.append((("Unidad de Aprendizaje" in texto) or ("Temas" in texto), texto))
-    resultado = "\n\n".join(t for _, t in partes if t)
-    if len(resultado) < 100:
+        con_temas = "Unidad de Aprendizaje" in texto or bool(re.search(r"\bTemas\b", texto))
+        if texto and (i == 0 or con_temas or previa_con_temas):
+            paginas.append(texto)
+        previa_con_temas = con_temas
+    if sum(len(p) for p in paginas) < 100:
         raise ValueError("No se encontró texto en el PDF. Si es un escaneo no será posible leerlo.")
-    return resultado[:MAX_CARACTERES]
+    return paginas
+
+
+def texto_para_ia(archivo) -> str:
+    return "\n\n".join(paginas_utiles(archivo))
+
+
+def cuatrimestre_del_texto(portada: str) -> str:
+    # La tabla de la portada trae el número del cuatrimestre; se lee con una regla fija porque es más fiable
+    # que pedírselo a la IA.
+    m = _CUATRIMESTRE.search(re.sub(r"\s+", " ", portada))
+    return f"Cuatrimestre {int(m.group(1))}" if m else ""
+
+
+def dividir_en_partes(paginas: list[str], limite: int = PARTE_MAX) -> list[str]:
+    # Agrupa unidades completas (nunca parte una a la mitad) en bloques de a lo más `limite` caracteres.
+    # Cada bloque lleva la portada para que la IA sepa la asignatura.
+    portada, resto = paginas[0], paginas[1:]
+    unidades: list[list[str]] = []
+    for p in resto:
+        if "Unidad de Aprendizaje" in p or not unidades:
+            unidades.append([p])
+        else:
+            unidades[-1].append(p)
+    partes, actual, largo = [], [], len(portada)
+    for u in unidades:
+        tamano = sum(len(p) for p in u)
+        if actual and largo + tamano > limite:
+            partes.append("\n\n".join([portada] + [p for x in actual for p in x]))
+            actual, largo = [], len(portada)
+        actual.append(u)
+        largo += tamano
+    if actual or not partes:
+        partes.append("\n\n".join([portada] + [p for x in actual for p in x]))
+    return partes
+
+
+def unir_resultados(resultados: list[dict]) -> dict:
+    # Junta las unidades de varios bloques; si una unidad se repite, mezcla sus temas sin duplicar.
+    datos = {**resultados[0], "unidades": []}
+    por_nombre: dict[str, dict] = {}
+    for r in resultados:
+        for u in r["unidades"]:
+            destino = por_nombre.setdefault(_normalizar(u["nombre"]), {"nombre": u["nombre"], "temas": []})
+            vistos = {_normalizar(t["nombre"]) for t in destino["temas"]}
+            destino["temas"] += [t for t in u["temas"] if _normalizar(t["nombre"]) not in vistos]
+    datos["unidades"] = list(por_nombre.values())
+    return datos
 
 
 def _normalizar(texto: str) -> str:
@@ -88,9 +139,22 @@ def temas_de_materia(materia_id: int) -> list[dict]:
                           .join(Unidad, Unidad.id == Tema.unidad_id)
                           .where(Unidad.materia_id == materia_id)
                           .order_by(Unidad.id, Tema.id)).all()
-    return [{"id": i, "nombre": n, "unidad": u, "descripcion": f"{n}. {o or ''}".strip()} for i, n, o, u in filas]
+    # La unidad ayuda a distinguir temas de nombre parecido (p. ej. «Mallas y nodos» en CD y en CA).
+    return [{"id": i, "nombre": n, "unidad": u, "descripcion": f"{u}. {n}. {o or ''}".strip()}
+            for i, n, o, u in filas]
 
 
 def extraer(archivo) -> dict:
     # PDF de retícula -> {"materia", "carrera", "cuatrimestre", "unidades": [{"nombre", "temas": [...]}]}
-    return llm.extraer_reticula(texto_para_ia(archivo))
+    paginas = paginas_utiles(archivo)
+    partes = dividir_en_partes(paginas)
+    resultados = []
+    for i, parte in enumerate(partes):
+        if i:
+            time.sleep(PAUSA_ENTRE_PARTES)  # respeta el límite de tokens por minuto de Groq
+        resultados.append(llm.extraer_reticula(parte))
+    datos = unir_resultados(resultados)
+    cuatrimestre = cuatrimestre_del_texto(paginas[0])
+    if cuatrimestre:
+        datos["cuatrimestre"] = cuatrimestre
+    return datos

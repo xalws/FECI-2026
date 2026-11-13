@@ -160,6 +160,38 @@ class TestLlmReticula(unittest.TestCase):
         self.assertEqual(set(llm.DIFICULTAD_QUIZ), set(llm.DIFICULTADES))
 
 
+class TestLecturaDeReticulas(unittest.TestCase):
+    def test_cuatrimestre_se_lee_de_la_tabla_de_la_portada(self):
+        base = "Tipo de competencia Cuatrimestre Créditos Modalidad Horas por semana Horas Totales {} Escolarizada 7 105"
+        self.assertEqual(reticula.cuatrimestre_del_texto(base.format("Base 1 6.56")), "Cuatrimestre 1")
+        self.assertEqual(reticula.cuatrimestre_del_texto(base.format("Específica\n2 5.63")), "Cuatrimestre 2")
+        self.assertEqual(reticula.cuatrimestre_del_texto("sin tabla"), "")
+
+    def test_las_unidades_no_se_parten_al_dividir(self):
+        paginas = ["PORTADA", "Unidad de Aprendizaje I " + "a" * 50, "sigue unidad I " + "b" * 50,
+                   "Unidad de Aprendizaje II " + "c" * 50, "Unidad de Aprendizaje III " + "d" * 50]
+        partes = reticula.dividir_en_partes(paginas, limite=200)
+        self.assertGreater(len(partes), 1)
+        self.assertTrue(all(p.startswith("PORTADA") for p in partes))
+        con_i = [p for p in partes if "Unidad de Aprendizaje I " in p][0]
+        self.assertIn("sigue unidad I", con_i)  # la continuación viaja con su unidad
+        for marca in ("Unidad de Aprendizaje II ", "Unidad de Aprendizaje III "):
+            self.assertEqual(sum(marca in p for p in partes), 1)  # cada unidad en un solo bloque
+
+    def test_un_documento_corto_va_en_un_solo_bloque(self):
+        self.assertEqual(len(reticula.dividir_en_partes(["P", "Unidad de Aprendizaje I x", "Unidad de Aprendizaje II y"])), 1)
+
+    def test_unir_resultados_no_duplica_unidades_ni_temas(self):
+        a = {"materia": "M", "carrera": "C", "cuatrimestre": "", "unidades": [
+            {"nombre": "Álgebra", "temas": [{"nombre": "T1", "objetivos": ""}]}]}
+        b = {"materia": "M", "carrera": "C", "cuatrimestre": "", "unidades": [
+            {"nombre": "ALGEBRA", "temas": [{"nombre": "t1", "objetivos": ""}, {"nombre": "T2", "objetivos": ""}]},
+            {"nombre": "Trigonometría", "temas": [{"nombre": "T3", "objetivos": ""}]}]}
+        r = reticula.unir_resultados([a, b])
+        self.assertEqual([u["nombre"] for u in r["unidades"]], ["Álgebra", "Trigonometría"])
+        self.assertEqual([t["nombre"] for t in r["unidades"][0]["temas"]], ["T1", "T2"])
+
+
 class TestClasificacion(unittest.TestCase):
     def test_asigna_el_tema_mas_parecido_y_respeta_el_umbral(self):
         temas = [[1.0, 0.0], [0.0, 1.0]]
