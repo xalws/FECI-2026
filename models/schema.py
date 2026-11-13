@@ -88,7 +88,25 @@ class Documento(Base):
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
-# Chats y quizzes 
+# Registro de actividad (para calcular el tiempo de uso)
+class Actividad(Base):
+    __tablename__ = "actividad"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+# Preguntas que el tutor no pudo responder con el material (indican material faltante)
+class PreguntaSinRespuesta(Base):
+    __tablename__ = "preguntas_sin_respuesta"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    alumno_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    tema_id: Mapped[int] = mapped_column(ForeignKey("temas.id"))
+    pregunta: Mapped[str] = mapped_column(Text)
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+# Chats y quizzes
 class Conversacion(Base):
     __tablename__ = "conversaciones"
     id: Mapped[int] = mapped_column(primary_key=True)

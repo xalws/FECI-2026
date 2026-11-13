@@ -1,6 +1,7 @@
 import streamlit as st
 from sqlalchemy import select
 
+from core import actividad
 from core.db import get_session, init_db
 from core.passwords import hash_password, verificar_password
 from models.schema import Cuatrimestre, Usuario
@@ -61,5 +62,6 @@ def require_login(roles: list[str] | None = None) -> dict:
     if roles and user["rol"] not in roles:
         st.error("No tienes permiso para ver esta página.")
         st.stop()
+    actividad.registrar(user["id"])
     barra_lateral(user)
     return user

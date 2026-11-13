@@ -1,4 +1,5 @@
 import json
+import re
 import time
 
 from groq import AuthenticationError, Groq, NotFoundError, PermissionDeniedError, RateLimitError
@@ -23,13 +24,25 @@ pregunta de opción múltiple en español. Responde SOLO con JSON con este forma
 Reglas: 4 opciones, solo una correcta, "indice_correcto" va de 0 a 3, varía la posición de la correcta,
 y la explicación debe apoyarse en el contexto. No inventes datos que no estén en el contexto."""
 
+# Ajuste del estilo según el rendimiento del alumno en el tema (ver core/progreso.py)
+AJUSTE_TUTOR = {
+    "apoyo": ("6. NIVEL DEL ALUMNO: le está costando este tema. Explica despacio, en pasos cortos, con "
+              "ejemplos sencillos del contexto, y confirma al final si quedó claro."),
+    "avanzado": ("6. NIVEL DEL ALUMNO: domina este tema. Sé más conciso, profundiza y propón ejercicios "
+                 "más retadores."),
+}
+AJUSTE_QUIZ = {
+    "apoyo": "Dificultad: básica. Pregunta directa sobre un concepto central, con distractores claramente distintos.",
+    "avanzado": "Dificultad: alta. Pide aplicar o relacionar conceptos, con distractores plausibles.",
+}
+
 _client = None
 
 
 def _groq() -> Groq:
     global _client
     if not GROQ_API_KEY:
-        raise RuntimeError("Error con la conexión al LLM")
+        raise RuntimeError("Falta GROQ_API_KEY. Agrégala en el archivo .env y reinicia la aplicación.")
     if _client is None:
         _client = Groq(api_key=GROQ_API_KEY)
     return _client
@@ -49,11 +62,11 @@ def _llamar(mensajes: list[dict], temperature: float = 0.1, json_mode: bool = Fa
         except RuntimeError:
             raise
         except (AuthenticationError, PermissionDeniedError):  # no tiene caso reintentar
-            raise RuntimeError("Rechazo de GROQ "
-                               ".")
+            raise RuntimeError("Groq rechazó la solicitud: la API key es inválida, fue revocada o no tiene "
+                               "permiso para este modelo. Revisa GROQ_API_KEY en el archivo .env.")
         except NotFoundError:
-            raise RuntimeError(f"El modelo '{GROQ_MODEL}' no existe en Groq."
-                               "")
+            raise RuntimeError(f"El modelo '{GROQ_MODEL}' no existe en Groq. "
+                               "Revisa GROQ_MODEL o usa el valor por defecto.")
         except RateLimitError as e: 
             ultimo_error = e
             time.sleep(8 * (intento + 1))
@@ -63,23 +76,34 @@ def _llamar(mensajes: list[dict], temperature: float = 0.1, json_mode: bool = Fa
     raise RuntimeError(f"No se pudo contactar a Groq (límite del plan gratuito o problema de red). Detalle: {ultimo_error}")
 
 
+def _formato_latex(texto: str) -> str:
+    # Streamlit solo dibuja fórmulas con $...$ y $$...$$, no con \[...\] ni \(...\).
+    texto = re.sub(r"\\\[(.+?)\\\]", lambda m: "$$" + m.group(1).strip() + "$$", texto, flags=re.S)
+    return re.sub(r"\\\((.+?)\\\)", lambda m: "$" + m.group(1).strip() + "$", texto, flags=re.S)
+
+
 def _formatear_contexto(fragmentos: list[dict]) -> str:
     return "\n\n---\n\n".join(f["texto"] for f in fragmentos)
 
 
-def responder(tema: str, pregunta: str, fragmentos: list[dict], historial: list[dict]) -> str:
+def responder(tema: str, pregunta: str, fragmentos: list[dict], historial: list[dict],
+              nivel: str = "normal") -> str:
     if not fragmentos:
         return SIN_INFO
-    mensajes = [{"role": "system", "content": SYSTEM_TUTOR.format(tema=tema, sin_info=SIN_INFO)}]
+    sistema = SYSTEM_TUTOR.format(tema=tema, sin_info=SIN_INFO)
+    if nivel in AJUSTE_TUTOR:
+        sistema += "\n" + AJUSTE_TUTOR[nivel]
+    mensajes = [{"role": "system", "content": sistema}]
     for m in historial[-6:]:
         mensajes.append({"role": m["rol"], "content": m["contenido"]})
     mensajes.append({"role": "user",
                      "content": f"CONTEXTO:\n{_formatear_contexto(fragmentos)}\n\nMENSAJE DEL ALUMNO: {pregunta}"})
-    return _llamar(mensajes, temperature=0.1).strip()
+    return _formato_latex(_llamar(mensajes, temperature=0.1).strip())
 
 
-def generar_quiz(fragmentos: list[dict]) -> dict:
-    mensajes = [{"role": "system", "content": SYSTEM_QUIZ},
+def generar_quiz(fragmentos: list[dict], nivel: str = "normal") -> dict:
+    sistema = SYSTEM_QUIZ + ("\n" + AJUSTE_QUIZ[nivel] if nivel in AJUSTE_QUIZ else "")
+    mensajes = [{"role": "system", "content": sistema},
                 {"role": "user", "content": f"CONTEXTO:\n{_formatear_contexto(fragmentos)}"}]
     for _ in range(3):
         crudo = _llamar(mensajes, temperature=0.4, json_mode=True)

@@ -29,6 +29,27 @@ JOIN materias ma ON ma.id = un.materia_id
 """
 
 
+SQL_SIN_RESPUESTA = """
+SELECT p.pregunta, p.fecha, u.nombre AS alumno, t.nombre AS tema,
+       ma.id AS materia_id, ma.nombre AS materia
+FROM preguntas_sin_respuesta p
+JOIN usuarios u ON u.id = p.alumno_id
+JOIN temas t ON t.id = p.tema_id
+JOIN unidades un ON un.id = t.unidad_id
+JOIN materias ma ON ma.id = un.materia_id
+ORDER BY p.id DESC
+"""
+
+
+def preguntas_sin_respuesta(materias_ids: list[int] | None = None) -> pd.DataFrame:
+    # Preguntas que el tutor no pudo contestar: señal de material que falta subir.
+    with engine.connect() as conn:
+        df = pd.read_sql(text(SQL_SIN_RESPUESTA), conn)
+    if materias_ids is not None:
+        df = df[df["materia_id"].isin(materias_ids)]
+    return df.drop(columns="materia_id").reset_index(drop=True)
+
+
 def cargar(materias_ids: list[int] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     with engine.connect() as conn:
         msgs = pd.read_sql(text(SQL_MENSAJES), conn)

@@ -1,8 +1,9 @@
 """Dashboard de estadísticas para el maestro."""
+import pandas as pd
 import streamlit as st
 from sqlalchemy import select
 
-from core import stats
+from core import actividad, sospechas, stats
 from core.auth import require_login
 from core.db import get_session
 from models.schema import Asignacion
@@ -79,3 +80,32 @@ with c:
 with d:
     st.subheader("Preguntas de quiz más falladas")
     st.dataframe(stats.preguntas_mas_falladas(resp), hide_index=True)
+
+st.divider()
+st.subheader("❓ Preguntas sin respuesta (falta material)")
+sin_resp = stats.preguntas_sin_respuesta(materias_ids)
+if sin_resp.empty:
+    st.caption("El tutor ha podido responder todas las preguntas.")
+else:
+    st.dataframe(sin_resp, hide_index=True)
+    st.caption("Son preguntas que el tutor no pudo contestar con el material subido. Conviene agregar ese contenido.")
+
+e, f = st.columns(2)
+with e:
+    st.subheader("⏱️ Tiempo en la app")
+    ids = sorted(set(msgs["alumno_id"]) | set(resp["alumno_id"]))
+    nombres = {**dict(zip(msgs["alumno_id"], msgs["alumno"])), **dict(zip(resp["alumno_id"], resp["alumno"]))}
+    segs = actividad.tiempo_por_alumno([int(i) for i in ids])
+    df_t = pd.DataFrame([{"alumno": nombres[i], "minutos": round(segs.get(int(i), 0) / 60, 1)} for i in ids])
+    st.dataframe(df_t.sort_values("minutos", ascending=False), hide_index=True)
+    st.caption("Suma el tiempo entre acciones; las pausas de más de 5 minutos no cuentan.")
+with f:
+    st.subheader("🔎 Actividad a revisar")
+    alertas = sospechas.cargar_y_evaluar(materias_ids)
+    if buscar:
+        alertas = alertas[alertas["alumno"].astype(str).str.contains(buscar, case=False, regex=False)]
+    if alertas.empty:
+        st.caption("Sin señales de actividad inusual.")
+    else:
+        st.dataframe(alertas, hide_index=True)
+    st.caption("Son indicios, no prueba de que el alumno haya hecho trampa. Conviene revisarlos con él.")

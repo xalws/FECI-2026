@@ -1,6 +1,6 @@
 import streamlit as st
 
-from core import chat, llm, perfil, quiz, rag
+from core import chat, llm, perfil, progreso, quiz, rag
 from core.auth import require_login
 from core.ui import nombre_tema, selector_cascada
 
@@ -23,7 +23,7 @@ with st.sidebar:
     st.divider()
     datos = perfil.datos_academicos(cuat_id)
     if datos:
-        st.caption("Icono bonito" + " · ".join(datos))
+        st.caption(" · ".join(datos))
     st.markdown("### Elige tu tema")
     sel = selector_cascada(hasta="tema", prefix="chat", cuatrimestre_id=cuat_id)
 tema_id = sel.get("tema")
@@ -31,6 +31,14 @@ if tema_id is None:
     st.info("Elige materia, unidad y tema en el menú de la izquierda para empezar.")
     st.stop()
 tema_nombre = nombre_tema(tema_id)
+prog = progreso.progreso_tema(user["id"], tema_id)
+NIVELES = {"apoyo": "refuerzo", "normal": "normal", "avanzado": "avanzado"}
+with st.sidebar:
+    if prog["total"]:
+        st.caption(f"Tu progreso en este tema: {prog['aciertos']}/{prog['total']} aciertos "
+                   f"({prog['porcentaje']}%) · modo {NIVELES[prog['nivel']]}")
+    else:
+        st.caption("Aún no has respondido quizzes de este tema.")
 
 # Si cambia el tema, se empieza una conversación nueva
 ss.setdefault("conv_id", None)
@@ -72,6 +80,17 @@ def construir_consulta(historial: list[dict], pregunta: str) -> str:
     return pregunta
 
 
+def texto_fuentes(fragmentos: list[dict]) -> str:
+    # Lista única de "archivo, pág. N" de los 3 fragmentos más parecidos a la pregunta.
+    vistas = []
+    for f in sorted(fragmentos, key=lambda f: f.get("score", 0), reverse=True)[:3]:
+        if f.get("archivo"):
+            fuente = f"{f['archivo']}, pág. {f['pagina']}" if f.get("pagina") else f["archivo"]
+            if fuente not in vistas:
+                vistas.append(fuente)
+    return f"\n\n*Fuentes: {'; '.join(vistas)}*" if vistas else ""
+
+
 # Mensaje nuevo o ejercicio
 pregunta = st.chat_input("Escribe tu pregunta sobre este tema…")
 if pregunta or accion == "ejercicio":
@@ -90,7 +109,11 @@ if pregunta or accion == "ejercicio":
     with st.chat_message("assistant"):
         try:
             with st.spinner("Pensando…"):
-                respuesta = llm.responder(tema_nombre, texto, fragmentos, historial)
+                respuesta = llm.responder(tema_nombre, texto, fragmentos, historial, prog["nivel"])
+            if respuesta != llm.SIN_INFO:
+                respuesta += texto_fuentes(fragmentos)
+            elif pregunta:
+                chat.registrar_sin_respuesta(user["id"], tema_id, pregunta)
             st.markdown(respuesta)
             chat.guardar_mensaje(conv, "assistant", respuesta)
         except Exception as e:
@@ -101,7 +124,7 @@ if accion == "quiz":
     conv = asegurar_conversacion("Quiz")
     try:
         with st.spinner("Generando quiz…"):
-            ss.quiz_activo = quiz.crear_quiz(tema_id, conv)
+            ss.quiz_activo = quiz.crear_quiz(tema_id, conv, prog["nivel"])
         if ss.quiz_activo is None:
             st.warning("El maestro todavía no ha subido material para este tema.")
     except Exception as e:

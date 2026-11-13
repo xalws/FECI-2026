@@ -3,11 +3,11 @@ from core.db import get_session
 from models.schema import Quiz, RespuestaQuiz
 
 
-def crear_quiz(tema_id: int, conversacion_id: int) -> dict | None:
+def crear_quiz(tema_id: int, conversacion_id: int, nivel: str = "normal") -> dict | None:
     fragmentos = rag.chunks_aleatorios(tema_id, 3)
     if not fragmentos:
         return None
-    d = llm.generar_quiz(fragmentos)
+    d = llm.generar_quiz(fragmentos, nivel)
     with get_session() as s:
         q = Quiz(conversacion_id=conversacion_id, tema_id=tema_id, pregunta=d["pregunta"],
                  opciones=d["opciones"], indice_correcto=d["indice_correcto"], explicacion=d["explicacion"])

@@ -10,6 +10,7 @@ iniciar_db()
 PAGINAS_POR_ROL = {
     "alumno": [
         ("vistas/chat_alumno.py", "Chat de estudio", "", "chat"),
+        ("vistas/mi_progreso.py", "Mi progreso", "", "progreso"),
         ("vistas/historial.py", "Mi historial", "", "historial"),
     ],
     "maestro": [

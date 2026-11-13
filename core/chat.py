@@ -1,7 +1,7 @@
 from sqlalchemy import or_, select
 
 from core.db import get_session
-from models.schema import Conversacion, Materia, Mensaje, Tema, Unidad
+from models.schema import Conversacion, Materia, Mensaje, PreguntaSinRespuesta, Tema, Unidad
 
 
 def crear_conversacion(alumno_id: int, tema_id: int, titulo: str = "") -> int:
@@ -15,6 +15,15 @@ def crear_conversacion(alumno_id: int, tema_id: int, titulo: str = "") -> int:
 def guardar_mensaje(conversacion_id: int, rol: str, contenido: str) -> None:
     with get_session() as s:
         s.add(Mensaje(conversacion_id=conversacion_id, rol=rol, contenido=contenido))
+
+
+def registrar_sin_respuesta(alumno_id: int, tema_id: int, pregunta: str) -> None:
+    # Guarda la pregunta para que el maestro vea qué material falta subir.
+    try:
+        with get_session() as s:
+            s.add(PreguntaSinRespuesta(alumno_id=alumno_id, tema_id=tema_id, pregunta=pregunta[:1000]))
+    except Exception:
+        pass  # no debe romper el chat
 
 
 def listar_mensajes(conversacion_id: int) -> list[dict]:
