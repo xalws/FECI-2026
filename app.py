@@ -14,11 +14,13 @@ PAGINAS_POR_ROL = {
         ("vistas/historial.py", "Mi historial", "", "historial"),
     ],
     "maestro": [
+        ("vistas/reticula.py", "Retícula", "", "reticula"),
         ("vistas/panel_maestro.py", "Material de la IA", "", "material"),
         ("vistas/estadisticas.py", "Estadísticas", "", "estadisticas"),
     ],
     "admin": [
         ("vistas/admin.py", "Administración", "", "admin"),
+        ("vistas/reticula.py", "Retícula", "", "reticula"),
         ("vistas/panel_maestro.py", "Material de la IA", "", "material"),
         ("vistas/estadisticas.py", "Estadísticas", "", "estadisticas"),
     ],

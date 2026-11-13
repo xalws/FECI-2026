@@ -1,7 +1,7 @@
 import streamlit as st
 from sqlalchemy import select
 
-from core import pdf_loader, rag
+from core import material, pdf_loader, rag, reticula
 from core.auth import require_login
 from core.db import get_session
 from core.ui import selector_cascada
@@ -26,6 +26,44 @@ with st.sidebar:
     st.markdown("### Elige el tema")
     sel = selector_cascada(hasta="tema", materias_permitidas=permitidas, prefix="maestro")
 tema_id = sel.get("tema")
+materia_id = sel.get("materia")
+if materia_id is None:
+    st.info("Elige la materia en el menú de la izquierda.")
+    st.stop()
+
+modo = st.radio("¿Dónde quieres subir el material?",
+                ["Toda la materia (se reparte por los temas de la retícula)", "Un tema específico"],
+                horizontal=True)
+if modo.startswith("Toda"):
+    temas_materia = reticula.temas_de_materia(materia_id)
+    st.subheader("Subir material de toda la materia")
+    if not temas_materia:
+        st.info("Esta materia todavía no tiene temas. Primero sube su programa en la página «Retícula».")
+        st.stop()
+    st.caption(f"La app asigna cada fragmento del PDF al tema de la retícula que mejor lo describe "
+               f"({len(temas_materia)} temas). Lo que no se parezca a ningún tema no se guarda.")
+    archivos_m = st.file_uploader("Elige uno o más PDFs (con texto, no escaneados)", type="pdf",
+                                  accept_multiple_files=True, key="pdf_materia")
+    if archivos_m and st.button("Procesar y repartir por temas", type="primary"):
+        for f in archivos_m:
+            if material.ya_subido(materia_id, f.name):
+                st.warning(f"«{f.name}» ya está en esta materia, elimínalo primero si quieres reemplazarlo.")
+                continue
+            try:
+                with st.spinner(f"Procesando {f.name}…"):
+                    r = material.subir_a_materia(f, f.name, materia_id, user["id"])
+                if r["por_tema"]:
+                    st.success(f"✅ {f.name}: material repartido en {len(r['por_tema'])} tema(s).")
+                    st.dataframe([{"tema": t, "fragmentos": n} for t, n in r["por_tema"].items()],
+                                 hide_index=True)
+                else:
+                    st.warning(f"{f.name}: ningún fragmento se parece a los temas de la retícula.")
+                if r["sin_tema"]:
+                    st.caption(f"{r['sin_tema']} fragmento(s) no se parecían a ningún tema y no se guardaron.")
+            except Exception as e:
+                st.error(f"❌ {f.name}: {e}")
+    st.stop()
+
 if tema_id is None:
     st.info("Elige el tema en el menú de la izquierda.")
     st.stop()

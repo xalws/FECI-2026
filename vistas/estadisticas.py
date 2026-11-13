@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import select
 
-from core import actividad, sospechas, stats
+from core import actividad, niveles, sospechas, stats
 from core.auth import require_login
 from core.db import get_session
 from models.schema import Asignacion
@@ -90,6 +90,18 @@ else:
     st.dataframe(sin_resp, hide_index=True)
     st.caption("Son preguntas que el tutor no pudo contestar con el material subido. Conviene agregar ese contenido.")
 
+st.subheader("📚 Avance por unidad (retícula)")
+materias_con_datos = dict(zip(resp["materia_id"], resp["materia"]))
+if not materias_con_datos:
+    st.caption("Todavía no hay alumnos con quizzes en estas materias.")
+else:
+    mid = int(st.selectbox("Materia", list(materias_con_datos), format_func=materias_con_datos.get,
+                           key="avance_materia"))
+    de_la_materia = resp[resp["materia_id"] == mid]
+    alumnos_materia = {int(i): n for i, n in zip(de_la_materia["alumno_id"], de_la_materia["alumno"])}
+    st.dataframe(niveles.tabla_avance(mid, alumnos_materia), hide_index=True)
+    st.caption("Nivel y % de avance de cada alumno por unidad. Se calcula con los XP de sus preguntas y ejercicios.")
+
 e, f = st.columns(2)
 with e:
     st.subheader("⏱️ Tiempo en la app")
@@ -99,6 +111,10 @@ with e:
     df_t = pd.DataFrame([{"alumno": nombres[i], "minutos": round(segs.get(int(i), 0) / 60, 1)} for i in ids])
     st.dataframe(df_t.sort_values("minutos", ascending=False), hide_index=True)
     st.caption("Suma el tiempo entre acciones; las pausas de más de 5 minutos no cuentan.")
+    resumen_csv = stats.resumen_por_alumno(msgs, resp, dict(zip(df_t["alumno"], df_t["minutos"])))
+    st.download_button("⬇️ Descargar resumen por alumno (CSV)",
+                       resumen_csv.to_csv(index=False).encode("utf-8-sig"),
+                       file_name="resumen_alumnos.csv", mime="text/csv")
 with f:
     st.subheader("🔎 Actividad a revisar")
     alertas = sospechas.cargar_y_evaluar(materias_ids)

@@ -1,13 +1,27 @@
 from sqlalchemy import select
 
 from core.db import get_session
-from models.schema import Materia, Quiz, RespuestaQuiz, Tema, Unidad
+from models.schema import IntentoEjercicio, Materia, Quiz, RespuestaQuiz, Tema, Unidad
 
 # Cuántas respuestas recientes cuentan y cuántas se necesitan para opinar
 VENTANA = 10
 MIN_INTENTOS = 3
 UMBRAL_APOYO = 50      # menos de este % de aciertos: al alumno le cuesta
 UMBRAL_AVANZADO = 80   # este % o más: domina el tema
+
+
+def guardar_intento(alumno_id: int, tema_id: int, enunciado: str, respuesta: str,
+                    puntaje: int, retroalimentacion: str) -> None:
+    with get_session() as s:
+        s.add(IntentoEjercicio(alumno_id=alumno_id, tema_id=tema_id, enunciado=enunciado, respuesta=respuesta,
+                               puntaje=puntaje, retroalimentacion=retroalimentacion))
+
+
+def resumen_ejercicios(alumno_id: int) -> dict:
+    # Cantidad de ejercicios calificados y promedio (0 a 10) del alumno.
+    with get_session() as s:
+        puntajes = list(s.scalars(select(IntentoEjercicio.puntaje).where(IntentoEjercicio.alumno_id == alumno_id)))
+    return {"intentos": len(puntajes), "promedio": round(sum(puntajes) / len(puntajes), 1) if puntajes else None}
 
 
 def _nivel(total: int, pct: float | None) -> str:

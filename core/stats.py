@@ -85,6 +85,19 @@ def aciertos_por_tema(resp: pd.DataFrame) -> pd.DataFrame:
     return g.drop(columns="aciertos").reset_index()
 
 
+def resumen_por_alumno(msgs: pd.DataFrame, resp: pd.DataFrame, minutos: dict[str, float]) -> pd.DataFrame:
+    # Una fila por alumno con su actividad, para exportar a CSV.
+    nombres = sorted(set(msgs["alumno"]) | set(resp["alumno"]))
+    filas = []
+    for n in nombres:
+        preguntas = int(((msgs["alumno"] == n) & (msgs["rol"] == "user")).sum())
+        r = resp[resp["alumno"] == n]
+        filas.append({"alumno": n, "preguntas": preguntas, "quizzes": int(len(r)),
+                      "% aciertos": round(float(r["es_correcta"].mean() * 100), 1) if len(r) else None,
+                      "minutos en la app": minutos.get(n, 0.0)})
+    return pd.DataFrame(filas, columns=["alumno", "preguntas", "quizzes", "% aciertos", "minutos en la app"])
+
+
 def alumnos_mas_activos(msgs: pd.DataFrame, top: int = 10) -> pd.DataFrame:
     u = msgs[msgs["rol"] == "user"]
     return u.groupby("alumno").size().rename("preguntas").sort_values(ascending=False).head(top).reset_index()

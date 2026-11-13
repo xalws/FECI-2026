@@ -37,7 +37,9 @@ EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
  # fragmentos que se recuperan por pregunta
 TOP_K = 4 
 # similitud mínima 
-MIN_SCORE = float(_get("MIN_SCORE", "0.25"))  
+MIN_SCORE = float(_get("MIN_SCORE", "0.25"))
+# similitud mínima para asignar un fragmento a un tema de la retícula
+UMBRAL_TEMA = float(_get("UMBRAL_TEMA", "0.30"))
 
 ADMIN_EMAIL = _get("ADMIN_EMAIL", "admin@gmail.com")
 ADMIN_PASSWORD = _get("ADMIN_PASSWORD", "admin123")

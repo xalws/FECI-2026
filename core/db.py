@@ -24,11 +24,20 @@ def get_session():
         s.close()
 
 
+# (tabla, columna, definición) de columnas agregadas después de crear las tablas
+COLUMNAS_NUEVAS = [
+    ("usuarios", "cuatrimestre_id", "INTEGER REFERENCES cuatrimestres(id)"),
+    ("temas", "objetivos", "TEXT"),
+    ("quizzes", "dificultad", "INTEGER"),
+]
+
+
 def _migrar() -> None:
-    columnas = {c["name"] for c in inspect(engine).get_columns("usuarios")}
-    if "cuatrimestre_id" not in columnas:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE usuarios ADD COLUMN cuatrimestre_id INTEGER REFERENCES cuatrimestres(id)"))
+    insp = inspect(engine)
+    for tabla, columna, definicion in COLUMNAS_NUEVAS:
+        if columna not in {c["name"] for c in insp.get_columns(tabla)}:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {columna} {definicion}"))
 
 
 def init_db() -> None:

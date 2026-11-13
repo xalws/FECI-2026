@@ -52,6 +52,8 @@ class Tema(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     nombre: Mapped[str] = mapped_column(String(200))
     unidad_id: Mapped[int] = mapped_column(ForeignKey("unidades.id"))
+    # Lo que el alumno debe saber y saber hacer en este tema (viene de la retícula)
+    objetivos: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 # Usuarios 
@@ -106,6 +108,19 @@ class PreguntaSinRespuesta(Base):
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
+# Ejercicios prácticos calificados por la IA
+class IntentoEjercicio(Base):
+    __tablename__ = "intentos_ejercicio"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    alumno_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    tema_id: Mapped[int] = mapped_column(ForeignKey("temas.id"))
+    enunciado: Mapped[str] = mapped_column(Text)
+    respuesta: Mapped[str] = mapped_column(Text)
+    puntaje: Mapped[int] = mapped_column()  # 0 a 10
+    retroalimentacion: Mapped[str] = mapped_column(Text, default="")
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
 # Chats y quizzes
 class Conversacion(Base):
     __tablename__ = "conversaciones"
@@ -134,6 +149,7 @@ class Quiz(Base):
     opciones: Mapped[list] = mapped_column(JSON)
     indice_correcto: Mapped[int] = mapped_column()
     explicacion: Mapped[str] = mapped_column(Text, default="")
+    dificultad: Mapped[int | None] = mapped_column(nullable=True)  # 1 (básica) a 4 (experta)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 

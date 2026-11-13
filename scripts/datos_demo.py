@@ -18,7 +18,7 @@ from sqlalchemy import delete, select  # noqa: E402
 
 from core.db import get_session, init_db  # noqa: E402
 from core.passwords import hash_password  # noqa: E402
-from models.schema import (Actividad, Asignacion, Carrera, Conversacion, Cuatrimestre, Documento, Materia,  # noqa: E402
+from models.schema import (Actividad, Asignacion, Carrera, Conversacion, Cuatrimestre, Documento, IntentoEjercicio, Materia,  # noqa: E402
                            Mensaje, PreguntaSinRespuesta, Quiz, RespuestaQuiz, Tema, Unidad,
                            Universidad, Usuario)
 
@@ -49,6 +49,7 @@ def borrar() -> None:
             s.execute(delete(Mensaje).where(Mensaje.conversacion_id.in_(convs)))
             s.execute(delete(Conversacion).where(Conversacion.id.in_(convs)))
         if uids:
+            s.execute(delete(IntentoEjercicio).where(IntentoEjercicio.alumno_id.in_(uids)))
             s.execute(delete(Actividad).where(Actividad.usuario_id.in_(uids)))
             s.execute(delete(PreguntaSinRespuesta).where(PreguntaSinRespuesta.alumno_id.in_(uids)))
             s.execute(delete(Asignacion).where(Asignacion.maestro_id.in_(uids)))
