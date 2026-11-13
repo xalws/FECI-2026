@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from core import actividad, niveles, progreso
+from core import actividad, material, niveles, progreso
 from core.auth import require_login
 
 user = require_login(["alumno"])
@@ -43,6 +43,14 @@ else:
     m1.metric("Nivel de la materia", f"Nivel {av['nivel']}", av["nombre_nivel"],
               delta_color="off", delta_arrow="off")
     m2.progress(av["porcentaje"] / 100, text=f"{av['porcentaje']}% de la materia · {av['xp']} XP en total")
+    st.markdown("#### 👉 Qué estudiar ahora")
+    con_material = {c["tema_id"] for c in material.cobertura(elegida) if c["estado"] == "ok"}
+    sugeridos = niveles.siguiente_recomendado(av, con_material)
+    if not sugeridos:
+        st.success("Ya dominas todos los temas que tienen material en esta materia. ¡Muy bien!")
+    for sug in sugeridos:
+        st.markdown(f"**{sug['tema']}** · {sug['unidad']}  \n{sug['razon']}")
+    st.caption("Ve a «Chat de estudio», elige ese tema y practica con un examen o un ejercicio.")
     for u in av["unidades"]:
         with st.expander(f"{u['nombre']} — nivel {u['nivel']} ({u['nombre_nivel']}) · {u['porcentaje']}%",
                          expanded=u["porcentaje"] > 0):

@@ -23,6 +23,22 @@ def nuevo_examen(total: int, nivel: str) -> dict:
     return {"total": total, "numero": 1, "dificultad": dificultad_inicial(nivel), "resultados": [], "quiz": None}
 
 
+def nuevo_repaso(preguntas: list[dict], nivel: str) -> dict:
+    # Repaso de errores: no se generan preguntas nuevas, se vuelven a plantear las que el alumno falló.
+    ex = nuevo_examen(len(preguntas), nivel)
+    ex["tipo"], ex["cola"] = "repaso", list(preguntas)
+    return ex
+
+
+def resumen_repaso(examen: dict) -> str:
+    res = examen["resultados"]
+    corregidas = sum(1 for r in res if r["acerto"])
+    detalle = "\n".join(f"- Pregunta {r['numero']}: {'✅ corregida' if r['acerto'] else '❌ sigue pendiente'}" for r in res)
+    cierre = ("¡Excelente, ya dominas esas preguntas!" if corregidas == len(res)
+              else "Las que siguen pendientes volverán a aparecer en «Repasar errores».")
+    return f"**Repaso terminado: corregiste {corregidas} de {len(res)} errores.**\n\n{detalle}\n\n{cierre}"
+
+
 def registrar_resultado(examen: dict, acerto: bool) -> dict:
     # Guarda el resultado de la pregunta actual y prepara la siguiente.
     examen["resultados"].append({"numero": examen["numero"], "dificultad": examen["dificultad"], "acerto": acerto})
@@ -51,7 +67,7 @@ def progreso_texto(nivel_antes: int, xp_antes: int, despues: dict) -> str:
 def resumen_texto(examen: dict) -> str:
     res = examen["resultados"]
     aciertos = sum(1 for r in res if r["acerto"])
-    detalle = "\n".join(f"- Pregunta {r['numero']} ({DIFICULTADES[r['dificultad']]}): "
+    detalle = "\n".join(f"- Pregunta {r['numero']} ({DIFICULTADES.get(r['dificultad'], '—')}): "
                         f"{'✅' if r['acerto'] else '❌'}" for r in res)
     mas_alta = max((r["dificultad"] for r in res if r["acerto"]), default=None)
     nivel = (f"La dificultad más alta que lograste resolver fue **{DIFICULTADES[mas_alta]}**."

@@ -50,6 +50,19 @@ def crear_quiz(tema_id: int, conversacion_id: int, dificultad: int = 2,
         return {"id": q.id, "dificultad": dificultad, **d}
 
 
+def preguntas_pendientes(alumno_id: int, tema_id: int, limite: int = 10) -> list[dict]:
+    # Preguntas que el alumno falló y cuya última respuesta sigue siendo incorrecta (las más recientes primero).
+    with get_session() as s:
+        filas = s.execute(select(Quiz, RespuestaQuiz.es_correcta, RespuestaQuiz.id)
+                          .join(RespuestaQuiz, RespuestaQuiz.quiz_id == Quiz.id)
+                          .where(RespuestaQuiz.alumno_id == alumno_id, Quiz.tema_id == tema_id)
+                          .order_by(RespuestaQuiz.id)).all()
+    ultima = {q.id: (q, bool(ok), rid) for q, ok, rid in filas}  # la última respuesta de cada pregunta
+    falladas = sorted((v for v in ultima.values() if not v[1]), key=lambda v: -v[2])
+    return [{"id": q.id, "pregunta": q.pregunta, "opciones": q.opciones, "indice_correcto": q.indice_correcto,
+             "explicacion": q.explicacion, "dificultad": q.dificultad} for q, _, _ in falladas[:limite]]
+
+
 def evaluar(quiz_id: int, alumno_id: int, indice_elegido: int) -> dict:
     with get_session() as s:
         q = s.get(Quiz, quiz_id)

@@ -2,15 +2,51 @@
 import streamlit as st
 from sqlalchemy import select
 
-from core import reticula
+from core import niveles, reticula
 from core.auth import require_login
 from core.db import get_session
-from models.schema import Carrera, Cuatrimestre, Universidad
+from models.schema import Asignacion, Carrera, Cuatrimestre, Universidad
 
 user = require_login(["maestro", "admin"])
 ss = st.session_state
 
 st.title("Retícula de la materia")
+modo = st.radio("¿Qué quieres hacer?", ["Subir una retícula nueva", "Editar una materia existente"],
+                horizontal=True, label_visibility="collapsed")
+
+if modo.startswith("Editar"):
+    st.write("Corrige los nombres de la materia, de sus unidades y de sus temas, y lo que el alumno debe saber y "
+             "saber hacer. Cambiar un nombre **no afecta** el material ni el avance de los alumnos.")
+    if user["rol"] == "admin":
+        permitidas = None
+    else:
+        with get_session() as s:
+            permitidas = set(s.scalars(select(Asignacion.materia_id).where(Asignacion.maestro_id == user["id"])))
+    materias = {i: n for i, n in niveles.materias_disponibles().items() if permitidas is None or i in permitidas}
+    if not materias:
+        st.info("No tienes materias con retícula para editar.")
+        st.stop()
+    materia_id = st.selectbox("Materia", list(materias), format_func=materias.get, key="editar_materia")
+    est = reticula.estructura(materia_id)
+    with st.form(f"form_editar_{materia_id}"):
+        nueva_materia = st.text_input("Nombre de la materia", value=est["nombre"])
+        unidades_nuevas, temas_nuevos = {}, {}
+        for u in est["unidades"]:
+            st.divider()
+            unidades_nuevas[u["id"]] = st.text_input("Unidad", value=u["nombre"], key=f"u_{u['id']}")
+            for t in u["temas"]:
+                c1, c2 = st.columns([2, 3])
+                nombre = c1.text_input("Tema", value=t["nombre"], key=f"tn_{t['id']}")
+                objetivos = c2.text_area("Saber / Saber hacer", value=t["objetivos"], key=f"to_{t['id']}", height=90)
+                temas_nuevos[t["id"]] = {"nombre": nombre, "objetivos": objetivos}
+        if st.form_submit_button("Guardar cambios", type="primary"):
+            try:
+                n = reticula.actualizar(materia_id, nueva_materia, unidades_nuevas, temas_nuevos)
+                st.success(f"Listo: {n} cambio(s) guardado(s)." if n else "No había cambios que guardar.")
+            except ValueError as e:
+                st.error(str(e))
+    st.stop()
+
 st.write("Sube el **programa de la asignatura** (PDF). La app lee sus unidades y temas y crea la materia. "
          "Después, el material de clase se reparte entre esos temas.")
 

@@ -18,9 +18,9 @@ from sqlalchemy import delete, select  # noqa: E402
 
 from core.db import get_session, init_db  # noqa: E402
 from core.passwords import hash_password  # noqa: E402
-from models.schema import (Actividad, Asignacion, Carrera, Conversacion, Cuatrimestre, Documento, IntentoEjercicio, Materia,  # noqa: E402
-                           Mensaje, PreguntaSinRespuesta, Quiz, RespuestaQuiz, Tema, Unidad,
-                           Universidad, Usuario)
+from models.schema import (Actividad, Asignacion, Carrera, Conversacion, Cuatrimestre, Documento, Fragmento,  # noqa: E402
+                           IntentoEjercicio, Materia, Mensaje, PreguntaSinRespuesta, Quiz, RespuestaQuiz, Tema,
+                           Unidad, Universidad, Usuario)
 
 DOMINIO = "@demo.local"
 PASSWORD_DEMO = "demo1234"
@@ -40,6 +40,9 @@ def borrar() -> None:
                 .join(Cuatrimestre, Cuatrimestre.id == Materia.cuatrimestre_id)
                 .join(Carrera, Carrera.id == Cuatrimestre.carrera_id)
                 .where(Carrera.universidad_id == uni.id)))
+        if temas:  # primero los PDF: apuntan al maestro que los subió y bloquearían borrar su cuenta
+            s.execute(delete(Fragmento).where(Fragmento.tema_id.in_(temas)))
+            s.execute(delete(Documento).where(Documento.tema_id.in_(temas)))
         convs = list(s.scalars(select(Conversacion.id).where(Conversacion.alumno_id.in_(uids)))) if uids else []
         quizzes = list(s.scalars(select(Quiz.id).where(Quiz.conversacion_id.in_(convs)))) if convs else []
         if quizzes:
@@ -54,30 +57,12 @@ def borrar() -> None:
             s.execute(delete(PreguntaSinRespuesta).where(PreguntaSinRespuesta.alumno_id.in_(uids)))
             s.execute(delete(Asignacion).where(Asignacion.maestro_id.in_(uids)))
             s.execute(delete(Usuario).where(Usuario.id.in_(uids)))
-        if temas:
-            s.execute(delete(Documento).where(Documento.tema_id.in_(temas)))
-            _borrar_indices(temas)
         if uni:
             for modelo, col, ids in _jerarquia(s, uni.id):
                 if ids:
                     s.execute(delete(modelo).where(col.in_(ids)))
             s.execute(delete(Universidad).where(Universidad.id == uni.id))
     print("Datos de ejemplo eliminados.")
-
-
-def _borrar_indices(temas: list[int]) -> None:
-    # Elimina de ChromaDB el material indexado de esos temas (si existe).
-    try:
-        import chromadb
-        from core.config import CHROMA_PATH
-        cliente = chromadb.PersistentClient(path=CHROMA_PATH)
-        for t in temas:
-            try:
-                cliente.delete_collection(f"tema_{t}")
-            except Exception:
-                pass
-    except Exception as e:
-        print("No se pudo limpiar el índice de ChromaDB:", e)
 
 
 def _jerarquia(s, uni_id: int):

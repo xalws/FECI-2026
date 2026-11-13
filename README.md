@@ -20,6 +20,10 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
   la conversación y las otras vistas. Después de cada pregunta se ve la respuesta correcta y su explicación. La
   dificultad empieza según su nivel en el tema, sube un nivel cuando acierta y baja uno cuando falla (básica,
   intermedia, avanzada y experta). Al terminar muestra el resultado y la dificultad más alta que resolvió.
+- **🔁 Repasar errores:** las preguntas que fallaste y todavía no has acertado, con su respuesta y explicación, y
+  una práctica sin distracciones que las vuelve a plantear. Las que corriges salen de la lista.
+- **Qué estudiar ahora** (en «Mi progreso»): sugiere los siguientes temas según la retícula y tus niveles: primero
+  reforzar lo de precisión baja, luego continuar lo empezado y después un tema nuevo. Solo propone temas con material.
 - **Ejercicio práctico** en su propia pantalla: el enunciado, tu respuesta y la calificación de la IA (0 a 10).
 - La explicación y el nivel inicial se adaptan por tema: modo *refuerzo* si le cuesta (menos de 50% de
   aciertos), *normal*, o *avanzado* (80% o más).
@@ -39,10 +43,15 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
 - **Retícula:** sube el programa de la asignatura (PDF). La IA extrae las unidades, los temas y lo que el
   alumno debe saber y saber hacer en cada uno, muestra una vista previa y crea la materia con su universidad,
   carrera y cuatrimestre. Si la materia ya existe, la completa sin duplicar.
+- **Editar la retícula:** renombrar la materia, las unidades y los temas, y corregir lo que el alumno debe saber
+  y saber hacer. Cambiar un nombre no afecta el material ni el avance de los alumnos (cuelgan del tema, no de
+  su nombre).
 - **Avance por unidad:** en Estadísticas, el nivel y el % de cada alumno por unidad de la retícula.
 - **Material:** sube los PDFs de toda la materia y la app reparte cada fragmento entre los temas de la
   retícula según su parecido (lo que no se parece a ningún tema no se guarda). También puede subir un PDF
   a un tema específico. Los PDF deben tener texto, no ser escaneos.
+- **Cobertura de la materia:** qué temas ya tienen material, cuáles no, y los temas con un PDF registrado
+  cuyo contenido no está en la base. Desde ahí también se puede borrar un PDF.
 - Estadísticas: preguntas por tema, aciertos, alumnos más activos, preguntas de quiz más falladas.
 - **Preguntas sin respuesta:** lo que el tutor no pudo contestar, es decir, material que falta subir.
 - **Tiempo en la app** por alumno y **actividad a revisar** (respuestas demasiado rápidas, ráfagas de
@@ -54,8 +63,10 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
 
 ## Cómo funciona
 
-1. El PDF se divide en fragmentos y se guarda en ChromaDB, una colección por tema.
-2. Cuando el alumno pregunta, se buscan los fragmentos más parecidos (embeddings locales con FastEmbed).
+1. El PDF se divide en fragmentos y cada uno se guarda con su vector en la tabla `fragmentos` de la base de
+   datos compartida (así todas las personas que usen la app ven el mismo contenido).
+2. Cuando el alumno pregunta, se buscan los fragmentos más parecidos (embeddings locales con FastEmbed y
+   similitud coseno).
 3. Groq recibe los fragmentos como contexto y responde solo con ellos. Si el material no contiene la
    respuesta, el tutor lo dice y la pregunta se guarda para el maestro.
 
@@ -66,7 +77,7 @@ app.py              Router principal: páginas según el rol
 core/               Lógica
   auth.py             login, usuarios y sesión
   llm.py              prompts y llamadas a Groq (tutor, quiz, calificación)
-  rag.py              indexado y búsqueda en ChromaDB
+  rag.py              indexado y búsqueda por significado (tabla `fragmentos` de la base de datos)
   quiz.py             generación y evaluación de preguntas
   examen.py           reglas del examen con dificultad progresiva
   niveles.py          XP, niveles por tema y avance por unidad de la retícula
@@ -137,8 +148,18 @@ demo.
 2. Pulsa **Create API Key** y copia la clave (empieza con `gsk_`).
 3. Pégala en `.env` como `GROQ_API_KEY`.
 
-Sin `DATABASE_URL` la app usa una base SQLite local (`local.db`). El material indexado (`chroma_data/`) se
-guarda siempre en tu computadora, no en la nube.
+Sin `DATABASE_URL` la app usa una base SQLite local (`local.db`).
+
+**Si venías usando una versión anterior** (el material indexado estaba en la carpeta local `chroma_data/`), copia
+ese material a la base de datos una sola vez con el entorno virtual activo:
+
+```bash
+python scripts/migrar_chroma_a_bd.py
+```
+
+Es seguro repetirlo (salta lo ya copiado) y no borra `chroma_data/`. Hazlo en **cada computadora** donde se subió
+material con la versión anterior; si no, esos temas aparecen en el panel de cobertura como «Documento sin contenido
+indexado» y el tutor no podrá responder con ellos.
 
 ## Parte 3 - Ejecución
 

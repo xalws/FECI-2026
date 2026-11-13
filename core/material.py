@@ -1,9 +1,9 @@
 """Subida de material: un PDF de toda la materia que se reparte entre los temas de su retícula."""
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from core import pdf_loader, rag, reticula
 from core.db import get_session
-from models.schema import Documento
+from models.schema import Documento, Fragmento
 
 
 def ya_subido(materia_id: int, nombre_archivo: str) -> bool:
@@ -13,6 +13,41 @@ def ya_subido(materia_id: int, nombre_archivo: str) -> bool:
     with get_session() as s:
         return s.scalar(select(Documento.id).where(Documento.tema_id.in_(ids),
                                                    Documento.nombre_archivo == nombre_archivo)) is not None
+
+
+def cobertura(materia_id: int) -> list[dict]:
+    # Por cada tema de la retícula: cuántos fragmentos reales tiene y qué documentos hay registrados.
+    # estado: «ok» (con material), «sin_material» (nada) o «sin_indice» (hay un documento registrado pero sus
+    # fragmentos no están en la base, p. ej. porque se subió antes de que el índice fuera compartido).
+    temas = reticula.temas_de_materia(materia_id)
+    if not temas:
+        return []
+    ids = [t["id"] for t in temas]
+    with get_session() as s:
+        fragmentos = dict(s.execute(select(Fragmento.tema_id, func.count()).where(Fragmento.tema_id.in_(ids))
+                                    .group_by(Fragmento.tema_id)).all())
+        docs: dict[int, list] = {}
+        for d in s.scalars(select(Documento).where(Documento.tema_id.in_(ids)).order_by(Documento.id)):
+            docs.setdefault(d.tema_id, []).append({"id": d.id, "archivo": d.nombre_archivo, "fecha": d.fecha})
+    filas = []
+    for t in temas:
+        n, documentos = fragmentos.get(t["id"], 0), docs.get(t["id"], [])
+        estado = "ok" if n else ("sin_indice" if documentos else "sin_material")
+        filas.append({"tema_id": t["id"], "tema": t["nombre"], "unidad": t["unidad"], "fragmentos": n,
+                      "documentos": documentos, "estado": estado})
+    return filas
+
+
+def eliminar_archivo(materia_id: int, nombre_archivo: str) -> int:
+    # Borra un PDF de la materia (sus documentos y fragmentos en todos los temas). Devuelve cuántos documentos.
+    ids = [t["id"] for t in reticula.temas_de_materia(materia_id)]
+    with get_session() as s:
+        docs = s.scalars(select(Documento).where(Documento.tema_id.in_(ids),
+                                                 Documento.nombre_archivo == nombre_archivo)).all()
+        for d in docs:
+            rag.eliminar_documento(d.tema_id, d.id)
+            s.delete(d)
+        return len(docs)
 
 
 def subir_a_materia(archivo, nombre_archivo: str, materia_id: int, maestro_id: int) -> dict:

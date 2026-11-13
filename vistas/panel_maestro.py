@@ -42,6 +42,32 @@ if modo.startswith("Toda"):
         st.stop()
     st.caption(f"La app asigna cada fragmento del PDF al tema de la retícula que mejor lo describe "
                f"({len(temas_materia)} temas). Lo que no se parezca a ningún tema no se guarda.")
+
+    # Cobertura: qué temas ya tienen material y cuáles faltan
+    cob = material.cobertura(materia_id)
+    con_material = sum(1 for c in cob if c["estado"] == "ok")
+    st.markdown("#### Cobertura de la materia")
+    st.progress(con_material / len(cob), text=f"{con_material} de {len(cob)} temas con material")
+    ESTADOS = {"ok": "✅ Con material", "sin_material": "❌ Sin material",
+               "sin_indice": "⚠️ Documento sin contenido indexado"}
+    st.dataframe([{"Unidad": c["unidad"], "Tema": c["tema"], "Estado": ESTADOS[c["estado"]],
+                   "Fragmentos": c["fragmentos"],
+                   "PDFs": ", ".join(sorted({d["archivo"] for d in c["documentos"]}))} for c in cob],
+                 hide_index=True)
+    if any(c["estado"] == "sin_indice" for c in cob):
+        st.warning("Hay temas con un PDF registrado cuyo contenido no está en la base de datos (se subió cuando el "
+                   "índice todavía era local). Para recuperarlo, quien lo subió debe ejecutar "
+                   "`python scripts/migrar_chroma_a_bd.py` en su computadora, o volver a subir el PDF.")
+    pdfs = sorted({d["archivo"] for c in cob for d in c["documentos"]})
+    if pdfs:
+        with st.expander(f"PDFs de esta materia ({len(pdfs)})"):
+            for nombre in pdfs:
+                a, b = st.columns([5, 1])
+                a.write(nombre)
+                if b.button("Eliminar", key=f"del_pdf_{nombre}"):
+                    material.eliminar_archivo(materia_id, nombre)
+                    st.rerun()
+    st.markdown("#### Subir material")
     archivos_m = st.file_uploader("Elige uno o más PDFs (con texto, no escaneados)", type="pdf",
                                   accept_multiple_files=True, key="pdf_materia")
     if archivos_m and st.button("Procesar y repartir por temas", type="primary"):

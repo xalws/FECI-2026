@@ -144,6 +144,55 @@ def temas_de_materia(materia_id: int) -> list[dict]:
             for i, n, o, u in filas]
 
 
+def estructura(materia_id: int) -> dict:
+    # La materia con sus unidades y temas (con ids), para poder editarlos.
+    with get_session() as s:
+        materia = s.get(Materia, materia_id)
+        filas = s.execute(select(Unidad.id, Unidad.nombre, Tema.id, Tema.nombre, Tema.objetivos)
+                          .outerjoin(Tema, Tema.unidad_id == Unidad.id)
+                          .where(Unidad.materia_id == materia_id).order_by(Unidad.id, Tema.id)).all()
+    unidades: dict[int, dict] = {}
+    for uid, unombre, tid, tnombre, objetivos in filas:
+        u = unidades.setdefault(uid, {"id": uid, "nombre": unombre, "temas": []})
+        if tid is not None:
+            u["temas"].append({"id": tid, "nombre": tnombre, "objetivos": objetivos or ""})
+    return {"id": materia_id, "nombre": materia.nombre if materia else "", "unidades": list(unidades.values())}
+
+
+def actualizar(materia_id: int, materia: str | None = None, unidades: dict[int, str] | None = None,
+               temas: dict[int, dict] | None = None) -> int:
+    # Guarda los nombres y objetivos editados. `temas` es {tema_id: {"nombre", "objetivos"}}.
+    # Solo cambia lo que de verdad es distinto y devuelve cuántos registros modificó.
+    # Los ids deben ser de esta materia; el material y el progreso de los alumnos cuelgan del id, no del nombre.
+    cambios = 0
+    with get_session() as s:
+        m = s.get(Materia, materia_id)
+        if m is None:
+            raise ValueError("La materia no existe.")
+        if materia is not None and materia.strip() != m.nombre:
+            if not materia.strip():
+                raise ValueError("El nombre de la materia no puede estar vacío.")
+            m.nombre, cambios = materia.strip(), cambios + 1
+        for uid, nombre in (unidades or {}).items():
+            u = s.get(Unidad, uid)
+            if u is None or u.materia_id != materia_id:
+                raise ValueError("Una unidad no pertenece a esta materia.")
+            if not nombre.strip():
+                raise ValueError("El nombre de una unidad no puede estar vacío.")
+            if nombre.strip() != u.nombre:
+                u.nombre, cambios = nombre.strip(), cambios + 1
+        for tid, datos in (temas or {}).items():
+            t = s.get(Tema, tid)
+            if t is None or s.get(Unidad, t.unidad_id).materia_id != materia_id:
+                raise ValueError("Un tema no pertenece a esta materia.")
+            nombre, objetivos = datos["nombre"].strip(), (datos.get("objetivos") or "").strip()
+            if not nombre:
+                raise ValueError("El nombre de un tema no puede estar vacío.")
+            if nombre != t.nombre or objetivos != (t.objetivos or ""):
+                t.nombre, t.objetivos, cambios = nombre, objetivos or None, cambios + 1
+    return cambios
+
+
 def extraer(archivo) -> dict:
     # PDF de retícula -> {"materia", "carrera", "cuatrimestre", "unidades": [{"nombre", "temas": [...]}]}
     paginas = paginas_utiles(archivo)

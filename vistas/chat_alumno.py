@@ -8,8 +8,12 @@ from core.ui import nombre_tema, selector_cascada
 user = require_login(["alumno"])
 ss = st.session_state
 
-MODOS = ["💬 Conversación", "✍️ Ejercicio práctico", "📝 Examen"]
+MODOS = ["💬 Conversación", "✍️ Ejercicio práctico", "📝 Examen", "🔁 Repasar errores"]
 LETRAS = "ABCD"
+
+
+def nombre_dificultad(d) -> str:
+    return DIFICULTADES.get(d, "")  # las preguntas antiguas no guardaron su dificultad
 
 
 def ocultar_barra_lateral() -> None:
@@ -22,7 +26,7 @@ def ocultar_barra_lateral() -> None:
 en_examen = ss.get("examen") is not None
 if en_examen:
     ocultar_barra_lateral()
-st.title("Examen" if en_examen else "Estudio")
+st.title(("Repaso de errores" if ss.examen.get("tipo") == "repaso" else "Examen") if en_examen else "Estudio")
 
 cuat_id = perfil.cuatrimestre_de(user["id"])
 if cuat_id is None:
@@ -70,12 +74,12 @@ with st.sidebar:
                 text=f"Nivel del tema: {estado['nivel']} · {estado['nombre_nivel']} ({siguiente})")
 
 # Cada vista tiene su propia conversación; si cambia el tema se empieza de cero
-for clave in ("conv_id", "conv_ejercicio", "conv_examen", "examen", "examen_resumen", "ejercicio"):
+for clave in ("conv_id", "conv_ejercicio", "conv_examen", "examen", "examen_resumen", "repaso_resumen", "ejercicio"):
     ss.setdefault(clave, None)
 ss.setdefault("intro_hecha", set())  # conversaciones donde el tutor ya saludó o dio la bienvenida de regreso
 if ss.get("tema_activo") != tema_id:
     ss.tema_activo = tema_id
-    for clave in ("conv_id", "conv_ejercicio", "conv_examen", "examen", "examen_resumen", "ejercicio"):
+    for clave in ("conv_id", "conv_ejercicio", "conv_examen", "examen", "examen_resumen", "repaso_resumen", "ejercicio"):
         ss[clave] = None
     ss.intro_hecha = set()
 
@@ -304,20 +308,23 @@ def responder_examen(q: dict, eleccion: int) -> None:
     r = quiz.evaluar(q["id"], user["id"], eleccion)
     veredicto = "✅ ¡Correcto!" if r["es_correcta"] else "❌ Incorrecto"
     opciones_txt = "\n".join(f"- {LETRAS[i]}) {o}" for i, o in enumerate(q["opciones"]))
+    dif = nombre_dificultad(q.get("dificultad"))
+    repaso = ex.get("tipo") == "repaso"
     chat.guardar_mensaje(
         ss.conv_examen, "assistant",
-        f"**Quiz {ex['numero']}/{ex['total']} (dificultad {DIFICULTADES[q['dificultad']]}):** {q['pregunta']}\n\n"
-        f"{opciones_txt}\n\n**Tu respuesta:** {LETRAS[eleccion]} — {veredicto}\n\n"
+        f"**{'Repaso' if repaso else 'Quiz'} {ex['numero']}/{ex['total']}{f' (dificultad {dif})' if dif else ''}:** "
+        f"{q['pregunta']}\n\n{opciones_txt}\n\n**Tu respuesta:** {LETRAS[eleccion]} — {veredicto}\n\n"
         f"**Respuesta correcta:** {LETRAS[r['indice_correcto']]}\n\n{r['explicacion']}")
     ex["revision"] = {"numero": ex["numero"], "pregunta": q["pregunta"], "opciones": q["opciones"],
-                      "dificultad": q["dificultad"], "elegida": eleccion, "correcta": r["indice_correcto"],
+                      "dificultad": q.get("dificultad"), "elegida": eleccion, "correcta": r["indice_correcto"],
                       "acerto": r["es_correcta"], "explicacion": r["explicacion"]}
     examen.registrar_resultado(ex, r["es_correcta"])
     if examen.terminado(ex):
         despues = niveles.estado_tema(user["id"], tema_id)
-        resumen = examen.resumen_texto(ex) + "\n\n" + examen.progreso_texto(ex["nivel_inicial"], ex["xp_inicial"], despues)
+        base = examen.resumen_repaso(ex) if repaso else examen.resumen_texto(ex)
+        resumen = base + "\n\n" + examen.progreso_texto(ex["nivel_inicial"], ex["xp_inicial"], despues)
         chat.guardar_mensaje(ss.conv_examen, "assistant", resumen)
-        ss.examen_resumen = resumen
+        ss["repaso_resumen" if repaso else "examen_resumen"] = resumen
         ex["fase"] = "final"
     st.rerun()
 
@@ -329,7 +336,8 @@ def vista_examen_en_curso() -> None:
 
     rev = ex.get("revision")
     if rev:  # retroalimentación de la pregunta que acabas de contestar
-        st.caption(f"Pregunta {rev['numero']} · dificultad {DIFICULTADES[rev['dificultad']]}")
+        d = nombre_dificultad(rev["dificultad"])
+        st.caption(f"Pregunta {rev['numero']}" + (f" · dificultad {d}" if d and ex.get("tipo") != "repaso" else ""))
         st.markdown(f"**{rev['pregunta']}**")
         for i, o in enumerate(rev["opciones"]):
             marca = "✅" if i == rev["correcta"] else ("❌" if i == rev["elegida"] else "▫️")
@@ -348,6 +356,8 @@ def vista_examen_en_curso() -> None:
             st.rerun()
         return
 
+    if ex["quiz"] is None and ex.get("cola"):  # repaso: se vuelven a plantear las preguntas falladas
+        ex["quiz"] = ex["cola"].pop(0)
     if ex["quiz"] is None:
         error = ""
         try:
@@ -366,7 +376,8 @@ def vista_examen_en_curso() -> None:
                 st.rerun()
             return
     q = ex["quiz"]
-    st.caption(f"Pregunta {ex['numero']} de {ex['total']} · dificultad {DIFICULTADES[q['dificultad']]}")
+    d = nombre_dificultad(q.get("dificultad"))
+    st.caption(f"Pregunta {ex['numero']} de {ex['total']}" + (f" · dificultad {d}" if d and ex.get("tipo") != "repaso" else ""))
     st.markdown(f"### {q['pregunta']}")
     eleccion = st.radio("Elige una opción", range(4), index=None, key=f"quiz_{q['id']}",
                         format_func=lambda i: f"{LETRAS[i]}) {q['opciones'][i]}", label_visibility="collapsed")
@@ -389,10 +400,39 @@ def vista_examen() -> None:
 
 
 # ----------------------------------------------------------------------------------------------------------
+# Vista 4: repasar errores (las preguntas que fallaste y todavía no has acertado)
+# ----------------------------------------------------------------------------------------------------------
+def vista_repaso() -> None:
+    if ss.repaso_resumen:
+        st.success("Resultado de tu último repaso")
+        st.markdown(ss.repaso_resumen)
+        st.divider()
+    pendientes = quiz.preguntas_pendientes(user["id"], tema_id, 10)
+    if not pendientes:
+        st.success("No tienes errores pendientes en este tema. ¡Sigue así!")
+        st.caption("Aquí aparecen las preguntas que fallaste y que todavía no has contestado bien.")
+        return
+    st.write(f"Tienes **{len(pendientes)}** pregunta(s) fallada(s) sin corregir en **{tema_nombre}**. "
+             "Puedes revisar la respuesta de cada una o practicarlas de nuevo, de a una, sin distracciones.")
+    for i, q in enumerate(pendientes, 1):
+        with st.expander(f"{i}. {q['pregunta'][:100]}"):
+            for j, o in enumerate(q["opciones"]):
+                st.markdown(f"{'✅' if j == q['indice_correcto'] else '▫️'} **{LETRAS[j]})** {o}")
+            st.markdown(q["explicacion"])
+    if st.button(f"Practicar mis errores ({min(len(pendientes), 5)})", type="primary"):
+        nueva_conversacion("conv_examen", "Repaso de errores")
+        ss.examen = examen.nuevo_repaso(pendientes[:5], prog["nivel"])
+        ss.examen["xp_inicial"], ss.examen["nivel_inicial"] = estado["xp_efectivo"], estado["nivel"]
+        ss.examen["fase"] = "pregunta"
+        ss.repaso_resumen = None
+        st.rerun()
+
+
+# ----------------------------------------------------------------------------------------------------------
 # Selector de vista (durante un examen se bloquea para no distraerse)
 # ----------------------------------------------------------------------------------------------------------
 if ss.examen is not None:
-    ss["modo_chat"] = MODOS[2]
+    ss["modo_chat"] = MODOS[3] if ss.examen.get("tipo") == "repaso" else MODOS[2]  # al terminar, vuelves a tu pestaña
     vista_examen_en_curso()
 else:
     modo = st.radio("Modo", MODOS, horizontal=True, key="modo_chat", label_visibility="collapsed")
@@ -401,5 +441,7 @@ else:
         vista_conversacion()
     elif modo == MODOS[1]:
         vista_ejercicio()
-    else:
+    elif modo == MODOS[2]:
         vista_examen()
+    else:
+        vista_repaso()

@@ -108,6 +108,20 @@ class PreguntaSinRespuesta(Base):
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
+# Fragmentos del material de cada tema con su vector, para buscar por significado. Viven en la base de datos
+# compartida (antes estaban en una carpeta local) para que toda persona que use la app vea el mismo contenido.
+class Fragmento(Base):
+    __tablename__ = "fragmentos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tema_id: Mapped[int] = mapped_column(ForeignKey("temas.id"), index=True)
+    # Sin llave foránea a propósito: el fragmento se guarda mientras el documento aún se está registrando
+    documento_id: Mapped[int | None] = mapped_column(index=True, nullable=True)
+    texto: Mapped[str] = mapped_column(Text)
+    archivo: Mapped[str] = mapped_column(String(300), default="")
+    pagina: Mapped[int | None] = mapped_column(nullable=True)
+    embedding: Mapped[list] = mapped_column(JSON)
+
+
 # Ejercicios prácticos calificados por la IA
 class IntentoEjercicio(Base):
     __tablename__ = "intentos_ejercicio"

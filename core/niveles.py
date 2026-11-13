@@ -94,6 +94,30 @@ def avance_materia(alumno_id: int, materia_id: int) -> dict:
             "nivel": nivel, "nombre_nivel": NOMBRES[nivel], "xp": sum(t["xp"] for t in todos)}
 
 
+def siguiente_recomendado(av: dict, con_material: set[int] | None = None, limite: int = 3) -> list[dict]:
+    # Qué estudiar ahora, en el orden de la retícula: primero lo que hay que reforzar (precisión baja), luego lo
+    # que ya empezó y no llega a Avanzado y, si falta, el primer tema que aún no ha tocado.
+    # `con_material`: ids de temas que tienen material (no se recomienda estudiar lo que no tiene contenido).
+    temas = [(u["nombre"], t) for u in av["unidades"] for t in u["temas"]
+             if con_material is None or t["id"] in con_material]
+    refuerzo = [x for x in temas if x[1]["limitado"]]
+    en_curso = [x for x in temas if not x[1]["limitado"] and 0 < x[1]["nivel"] < 3]
+    nuevos = [x for x in temas if x[1]["nivel"] == 0]
+    elegidos = (refuerzo + en_curso)[:limite]
+    elegidos += nuevos[:max(0, limite - len(elegidos))]
+    salida = []
+    for unidad, t in elegidos:
+        if t["limitado"]:
+            razon = f"Refuerza: tu precisión es baja ({t['aciertos']} de {t['intentos']} aciertos)."
+        elif t["nivel"] > 0:
+            falta = f" Te faltan {t['siguiente_xp'] - t['xp_efectivo']} XP para el siguiente nivel." if t["siguiente_xp"] else ""
+            razon = f"Continúa: vas en nivel {t['nivel']} ({t['nombre_nivel']}).{falta}"
+        else:
+            razon = "Empieza: todavía no lo has practicado."
+        salida.append({"tema_id": t["id"], "tema": t["nombre"], "unidad": unidad, "razon": razon})
+    return salida
+
+
 def materias_disponibles() -> dict[int, str]:
     # Materias que ya tienen temas (id -> «Materia · Carrera · Cuatrimestre»).
     with get_session() as s:

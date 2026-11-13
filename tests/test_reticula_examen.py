@@ -237,6 +237,41 @@ class TestCrearDesdeReticula(BaseDatos):
             self.assertIsNotNone(s.scalar(select(Asignacion.id).where(Asignacion.maestro_id == maestro_id,
                                                                       Asignacion.materia_id == r["materia_id"])))
 
+    def test_editar_la_reticula_cambia_solo_lo_distinto(self):
+        r = reticula.crear_desde_reticula(RETICULA, "U Editar", "Carrera", "Cuatrimestre 1")
+        mid = r["materia_id"]
+        est = reticula.estructura(mid)
+        self.assertEqual([u["nombre"] for u in est["unidades"]], ["Principios y leyes", "Análisis en CD"])
+        u1, u2 = est["unidades"]
+        t_leyes = u1["temas"][0]
+
+        # sin cambios -> nada se modifica
+        self.assertEqual(reticula.actualizar(mid, est["nombre"], {u["id"]: u["nombre"] for u in est["unidades"]},
+                                             {t["id"]: {"nombre": t["nombre"], "objetivos": t["objetivos"]}
+                                              for u in est["unidades"] for t in u["temas"]}), 0)
+        n = reticula.actualizar(mid, "  Circuitos Eléctricos I ", {u2["id"]: "Análisis en corriente directa"},
+                                {t_leyes["id"]: {"nombre": "Leyes de Ohm y Kirchhoff", "objetivos": "Saber: nuevo"}})
+        self.assertEqual(n, 3)
+        nuevo = reticula.estructura(mid)
+        self.assertEqual(nuevo["nombre"], "Circuitos Eléctricos I")
+        self.assertEqual(nuevo["unidades"][1]["nombre"], "Análisis en corriente directa")
+        self.assertEqual(nuevo["unidades"][0]["temas"][0]["nombre"], "Leyes de Ohm y Kirchhoff")
+        self.assertEqual(nuevo["unidades"][0]["temas"][0]["id"], t_leyes["id"])  # el id (y con él el progreso) se conserva
+
+    def test_editar_rechaza_nombres_vacios_y_ids_ajenos(self):
+        a = reticula.crear_desde_reticula(RETICULA, "U Editar 2", "Carrera", "Cuatrimestre 1")["materia_id"]
+        otra = {**RETICULA, "materia": "Otra materia"}
+        b = reticula.crear_desde_reticula(otra, "U Editar 2", "Carrera", "Cuatrimestre 1")["materia_id"]
+        ea, eb = reticula.estructura(a), reticula.estructura(b)
+        with self.assertRaises(ValueError):
+            reticula.actualizar(a, unidades={ea["unidades"][0]["id"]: "   "})
+        with self.assertRaises(ValueError):
+            reticula.actualizar(a, temas={ea["unidades"][0]["temas"][0]["id"]: {"nombre": ""}})
+        with self.assertRaises(ValueError):  # un tema de la materia B no se puede editar desde la A
+            reticula.actualizar(a, temas={eb["unidades"][0]["temas"][0]["id"]: {"nombre": "x"}})
+        with self.assertRaises(ValueError):
+            reticula.actualizar(a, unidades={eb["unidades"][0]["id"]: "x"})
+
     def test_repetir_no_duplica_y_ignora_acentos_y_mayusculas(self):
         a = reticula.crear_desde_reticula(RETICULA, "U Repetida", "Carrera", "Cuatrimestre 1")
         cambiada = json.loads(json.dumps(RETICULA))
@@ -274,6 +309,28 @@ class TestSubirAMateria(BaseDatos):
             self.assertEqual(sorted(d.num_chunks for d in docs), [1, 2])
         self.assertTrue(material.ya_subido(r["materia_id"], "apuntes.pdf"))
         self.assertFalse(material.ya_subido(r["materia_id"], "otro.pdf"))
+
+    def test_cobertura_distingue_material_faltante_e_indice_ausente(self):
+        from models.schema import Fragmento
+        r = reticula.crear_desde_reticula(RETICULA, "U Cobertura", "Carrera", "Cuatrimestre 1")
+        temas = reticula.temas_de_materia(r["materia_id"])
+        with get_session() as s:  # tema 0: documento con fragmentos; tema 1: documento SIN fragmentos
+            for t, con_fragmento in ((temas[0], True), (temas[1], False)):
+                d = Documento(tema_id=t["id"], maestro_id=1, nombre_archivo="apuntes.pdf", num_chunks=1)
+                s.add(d)
+                s.flush()
+                if con_fragmento:
+                    s.add(Fragmento(tema_id=t["id"], documento_id=d.id, texto="x", embedding=[0.1, 0.2]))
+        cob = {c["tema"]: c for c in material.cobertura(r["materia_id"])}
+        self.assertEqual(cob["Leyes básicas"]["estado"], "ok")
+        self.assertEqual(cob["Circuitos resistivos"]["estado"], "sin_indice")
+        self.assertEqual(cob["Mallas y nodos"]["estado"], "sin_material")
+        self.assertEqual(cob["Leyes básicas"]["fragmentos"], 1)
+
+        self.assertEqual(material.eliminar_archivo(r["materia_id"], "apuntes.pdf"), 2)
+        despues = {c["tema"]: c["estado"] for c in material.cobertura(r["materia_id"])}
+        self.assertEqual(set(despues.values()), {"sin_material"})
+        self.assertFalse(material.ya_subido(r["materia_id"], "apuntes.pdf"))
 
     def test_materia_sin_temas_da_error_claro(self):
         with get_session() as s:
