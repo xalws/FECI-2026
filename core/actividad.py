@@ -1,4 +1,5 @@
 import time
+from datetime import date, datetime, timedelta, timezone, tzinfo
 
 import streamlit as st
 from sqlalchemy import select
@@ -45,3 +46,27 @@ def tiempo_por_alumno(alumno_ids: list[int]) -> dict[int, float]:
     for uid, fecha in filas:
         por_alumno[uid].append(fecha)
     return {uid: segundos_de_uso(m) for uid, m in por_alumno.items()}
+
+
+def dias_seguidos(dias: set[date], hoy: date) -> int:
+    # Días consecutivos con actividad que terminan hoy, o ayer si hoy todavía no ha entrado.
+    dia = hoy if hoy in dias else hoy - timedelta(days=1)
+    racha = 0
+    while dia in dias:
+        racha += 1
+        dia -= timedelta(days=1)
+    return racha
+
+
+def racha_dias(usuario_id: int, zona: tzinfo) -> int:
+    # Racha de días seguidos usando la app, contados en la zona horaria del alumno.
+    desde = datetime.now(timezone.utc) - timedelta(days=366)
+    try:
+        with get_session() as s:
+            fechas = s.scalars(select(Actividad.fecha).where(Actividad.usuario_id == usuario_id,
+                                                             Actividad.fecha >= desde)).all()
+    except Exception:
+        return 0
+    # SQLite devuelve las fechas sin zona; se guardaron en UTC
+    dias = {(f if f.tzinfo else f.replace(tzinfo=timezone.utc)).astimezone(zona).date() for f in fechas}
+    return dias_seguidos(dias, datetime.now(zona).date())

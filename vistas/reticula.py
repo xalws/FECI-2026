@@ -5,16 +5,20 @@ from sqlalchemy import select
 from core import niveles, reticula
 from core.auth import require_login
 from core.db import get_session
+from core.estilo import encabezado, titulo
 from models.schema import Asignacion, Carrera, Cuatrimestre, Universidad
 
 user = require_login(["maestro", "admin"])
 ss = st.session_state
 
-st.title("Retícula de la materia")
-modo = st.radio("¿Qué quieres hacer?", ["Subir una retícula nueva", "Editar una materia existente"],
-                horizontal=True, label_visibility="collapsed")
+encabezado("Retícula de la materia", "Sube el programa de la asignatura para crear sus unidades y temas, o corrige "
+           "una materia que ya existe.", "layers")
+modo = st.radio("¿Qué quieres hacer?", [":material/upload_file: Subir una retícula nueva",
+                                        ":material/edit: Editar una materia existente"],
+                horizontal=True, label_visibility="collapsed", key="modo_reticula")
+st.write("")
 
-if modo.startswith("Editar"):
+if modo.endswith("Editar una materia existente"):
     st.write("Corrige los nombres de la materia, de sus unidades y de sus temas, y lo que el alumno debe saber y "
              "saber hacer. Cambiar un nombre **no afecta** el material ni el avance de los alumnos.")
     if user["rol"] == "admin":
@@ -31,15 +35,15 @@ if modo.startswith("Editar"):
     with st.form(f"form_editar_{materia_id}"):
         nueva_materia = st.text_input("Nombre de la materia", value=est["nombre"])
         unidades_nuevas, temas_nuevos = {}, {}
-        for u in est["unidades"]:
-            st.divider()
+        for i, u in enumerate(est["unidades"], 1):
+            titulo("layers", f"Unidad {i}", nivel=4)
             unidades_nuevas[u["id"]] = st.text_input("Unidad", value=u["nombre"], key=f"u_{u['id']}")
             for t in u["temas"]:
                 c1, c2 = st.columns([2, 3])
                 nombre = c1.text_input("Tema", value=t["nombre"], key=f"tn_{t['id']}")
                 objetivos = c2.text_area("Saber / Saber hacer", value=t["objetivos"], key=f"to_{t['id']}", height=90)
                 temas_nuevos[t["id"]] = {"nombre": nombre, "objetivos": objetivos}
-        if st.form_submit_button("Guardar cambios", type="primary"):
+        if st.form_submit_button("Guardar cambios", type="primary", icon=":material/save:"):
             try:
                 n = reticula.actualizar(materia_id, nueva_materia, unidades_nuevas, temas_nuevos)
                 st.success(f"Listo: {n} cambio(s) guardado(s)." if n else "No había cambios que guardar.")
@@ -47,25 +51,25 @@ if modo.startswith("Editar"):
                 st.error(str(e))
     st.stop()
 
-st.write("Sube el **programa de la asignatura** (PDF). La app lee sus unidades y temas y crea la materia. "
-         "Después, el material de clase se reparte entre esos temas.")
-
-archivo = st.file_uploader("PDF de la retícula", type="pdf", key="pdf_reticula")
-if archivo and st.button("Leer retícula", type="primary"):
-    try:
-        with st.spinner("Leyendo la retícula…"):
-            ss.reticula_pendiente = {"datos": reticula.extraer(archivo), "archivo": archivo.name}
-    except Exception as e:
-        ss.pop("reticula_pendiente", None)
-        st.error(str(e))
+with st.container(border=True):
+    titulo("upload", "Programa de la asignatura", nivel=4)
+    st.write("Sube el **programa de la asignatura** (PDF). La app lee sus unidades y temas y crea la materia. "
+             "Después, el material de clase se reparte entre esos temas.")
+    archivo = st.file_uploader("PDF de la retícula", type="pdf", key="pdf_reticula")
+    if archivo and st.button("Leer retícula", type="primary", icon=":material/document_scanner:"):
+        try:
+            with st.spinner("Leyendo la retícula…"):
+                ss.reticula_pendiente = {"datos": reticula.extraer(archivo), "archivo": archivo.name}
+        except Exception as e:
+            ss.pop("reticula_pendiente", None)
+            st.error(str(e), icon=":material/error:")
 
 pend = ss.get("reticula_pendiente")
 if not pend:
     st.stop()
 
 datos = pend["datos"]
-st.divider()
-st.subheader(datos["materia"])
+titulo("book", datos["materia"])
 n_temas = sum(len(u["temas"]) for u in datos["unidades"])
 st.caption(f"{len(datos['unidades'])} unidades y {n_temas} temas encontrados en «{pend['archivo']}».")
 for i, u in enumerate(datos["unidades"], 1):
@@ -96,7 +100,7 @@ def _buscar(s, modelo, nombre: str, **filtros):
     return None
 
 
-st.subheader("¿Dónde guardarla?")
+titulo("cap", "¿Dónde guardarla?")
 with get_session() as s:
     unis = [u.nombre for u in s.scalars(select(Universidad).order_by(Universidad.nombre))]
 uni = elegir_o_crear("Universidad", unis, "", "ret_uni")
@@ -116,7 +120,7 @@ if uni and car:
                                                         .where(Cuatrimestre.carrera_id == c_fila.id))]
 cua = elegir_o_crear("Cuatrimestre / semestre", cuatrimestres, datos["cuatrimestre"], "ret_cua")
 
-if st.button("Crear materia y temas", type="primary"):
+if st.button("Crear materia y temas", type="primary", icon=":material/add_circle:"):
     if not (uni and car and cua):
         st.error("Completa universidad, carrera y cuatrimestre.")
     else:

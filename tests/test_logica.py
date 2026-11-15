@@ -40,6 +40,15 @@ class TestActividad(unittest.TestCase):
     def test_sin_marcas(self):
         self.assertEqual(actividad.segundos_de_uso([]), 0)
 
+    def test_racha_de_dias(self):
+        hoy = T0.date()
+        dias = {hoy, hoy - timedelta(days=1), hoy - timedelta(days=2), hoy - timedelta(days=5)}
+        self.assertEqual(actividad.dias_seguidos(dias, hoy), 3)
+        # si hoy todavía no entra, la racha de ayer sigue viva
+        self.assertEqual(actividad.dias_seguidos(dias - {hoy}, hoy), 2)
+        self.assertEqual(actividad.dias_seguidos({hoy - timedelta(days=3)}, hoy), 0)
+        self.assertEqual(actividad.dias_seguidos(set(), hoy), 0)
+
 
 def _respuestas(alumno_id, nombre, n, tarda, entre, correctas):
     filas = []

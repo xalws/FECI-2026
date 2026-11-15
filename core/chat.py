@@ -65,5 +65,14 @@ def listar_conversaciones(alumno_id: int, texto: str = "") -> list[dict]:
                             Tema.nombre.icontains(texto, autoescape=True),
                             Materia.nombre.icontains(texto, autoescape=True),
                             Conversacion.id.in_(en_mensajes)))
-        return [{"id": c.id, "fecha": c.fecha, "titulo": c.titulo, "tema": t, "materia": m}
+        return [{"id": c.id, "fecha": c.fecha, "titulo": c.titulo, "tema": t, "materia": m, "tipo": _tipo(c)}
                 for c, t, m in s.execute(q).all()]
+
+
+def _tipo(c: Conversacion) -> str:
+    # Las conversaciones antiguas no tienen «tipo»: se deduce de su título
+    if c.tipo:
+        return c.tipo
+    if c.titulo in TITULOS_ANTIGUOS_NO_CHAT:
+        return "ejercicio" if c.titulo == "Ejercicio práctico" else "examen"
+    return "chat"

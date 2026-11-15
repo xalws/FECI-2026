@@ -60,6 +60,16 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
 
 **Administrador**
 - Crea usuarios, asigna materias a maestros y ve lo mismo que el maestro.
+- **Restablece la contraseña** de cualquier usuario que la olvidó (en «Mi cuenta»).
+
+**Todos los roles**
+- **Mi cuenta:** cambiar la propia contraseña (pide la actual y una confirmación). El mínimo son 6 caracteres y el
+  máximo 72 bytes.
+- Si el administrador olvida la suya, se restablece desde la terminal, con el entorno virtual activo y el `.env`:
+
+```bash
+python scripts/restablecer_password.py correo@ejemplo.com
+```
 
 ## Cómo funciona
 
@@ -74,7 +84,10 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
 
 ```
 app.py              Router principal: páginas según el rol
+.streamlit/         config.toml: tema visual (colores, tipografías, menú lateral)
+assets/             Logo e ícono de la app
 core/               Lógica
+  estilo.py           diseño compartido: encabezados, tarjetas, íconos, gráficas y hoja de estilos
   auth.py             login, usuarios y sesión
   llm.py              prompts y llamadas a Groq (tutor, quiz, calificación)
   rag.py              indexado y búsqueda por significado (tabla `fragmentos` de la base de datos)
@@ -85,12 +98,13 @@ core/               Lógica
   material.py         subida de PDFs de toda la materia, repartidos por temas
   tutoria.py          el tutor como guía: iniciar la lección, continuarla, retroalimentar, detectar órdenes
   progreso.py         nivel por tema, ejercicios calificados
-  actividad.py        registro del tiempo de uso
+  actividad.py        registro del tiempo de uso y racha de días seguidos
   sospechas.py        reglas de actividad a revisar
   stats.py            consultas de estadísticas para el maestro
+  cuenta.py           cambio y restablecimiento de contraseñas
   chat.py, perfil.py, pdf_loader.py, db.py, config.py, passwords.py, ui.py
 models/schema.py    Tablas (SQLAlchemy)
-vistas/             Pantallas de Streamlit (login, chat, progreso, historial, admin, maestro, estadísticas)
+vistas/             Pantallas de Streamlit (login, estudio, progreso, historial, cuenta, admin, maestro, estadísticas)
 scripts/            datos_demo.py: crea o borra datos de ejemplo
 tests/              Pruebas automáticas
 ```

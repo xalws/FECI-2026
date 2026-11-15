@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from core import perfil
 from core.auth import crear_usuario, require_login
 from core.db import get_session
+from core.estilo import datos, encabezado, titulo
 from core.ui import NIVELES, selector_cascada
 from models.schema import Asignacion, Carrera, Cuatrimestre, Materia, Universidad, Usuario
 
@@ -12,57 +13,11 @@ user = require_login(["admin"])
 
 ROLES = {"admin": "Admin", "maestro": "Maestro", "alumno": "Alumno"}
 
-# Iconos SVG 
-SVG = {
-    "shield": '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
-    "book": '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/>',
-    "user_plus": '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>',
-    "users": '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-    "cap": '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
-    "lock": '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
-    "link": '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
-}
-
-
-def titulo(icono: str, texto: str, nivel: int = 3):
-    size = 30 if nivel == 1 else 22
-    st.markdown(
-        f'<div class="tit"><svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
-        f'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-        f'stroke-linecap="round" stroke-linejoin="round">{SVG[icono]}</svg><h{nivel}>{texto}</h{nivel}></div>',
-        unsafe_allow_html=True,
-    )
-
-
-# Estilo
-st.markdown(
-    """
-    <style>
-    /* Encabezados con icono SVG */
-    .tit { display: flex; align-items: center; gap: .6rem; margin: .6rem 0 .4rem; }
-    .tit h1, .tit h2, .tit h3 { margin: 0; padding: 0; }
-    .tit svg { flex-shrink: 0; }
-
-    /* Tarjetas de métricas */
-    div[data-testid="stMetric"] {
-        background: rgba(128, 128, 128, 0.08);
-        border: 1px solid rgba(128, 128, 128, 0.25);
-        border-radius: 12px;
-        padding: 14px 18px;
-    }
-    
-    /* Pestañas más grandes */
-    button[data-baseweb="tab"] { font-size: 1.05rem; padding: 10px 18px; }
-    /* Botones redondeados */
-    .stButton > button, .stFormSubmitButton > button { border-radius: 10px; font-weight: 600; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# Los íconos, títulos y estilos vienen de core/estilo.py (compartidos por todas las pantallas)
 
 # Encabezado
-titulo("shield", "Panel de administración", nivel=1)
-st.caption(f"Sesión iniciada como **{user['nombre']}**" if "nombre" in user else "Sesión de administrador")
+encabezado("Panel de administración", "Catálogo académico, cuentas de usuario y materias de cada maestro.",
+           "shield", chips=[("user", f"Sesión de {user['nombre']}")])
 
 # Resumen (métricas)
 with get_session() as s:
@@ -71,11 +26,14 @@ with get_session() as s:
     total_alumnos = s.scalar(select(func.count(Usuario.id)).where(Usuario.rol == "alumno")) or 0
     total_asig = s.scalar(select(func.count(Asignacion.id))) or 0
 
-m1, m2, m3, m4 = st.columns(4)
-m1.metric(":material/group: Usuarios", total_usuarios)
-m2.metric(":material/co_present: Maestros", total_maestros)
-m3.metric(":material/school: Alumnos", total_alumnos)
-m4.metric(":material/link: Asignaciones", total_asig)
+datos([{"icono": "users", "etiqueta": "Usuarios", "valor": total_usuarios, "detalle": "cuentas registradas",
+        "tono": "indigo"},
+       {"icono": "user", "etiqueta": "Maestros", "valor": total_maestros, "detalle": "pueden subir material",
+        "tono": "violeta"},
+       {"icono": "cap", "etiqueta": "Alumnos", "valor": total_alumnos, "detalle": "estudian con el tutor",
+        "tono": "cielo"},
+       {"icono": "link", "etiqueta": "Asignaciones", "valor": total_asig, "detalle": "materias con maestro",
+        "tono": "verde"}])
 
 st.write("")
 tab_cat, tab_usr, tab_asig = st.tabs([
@@ -126,10 +84,10 @@ with tab_cat:
                             st.error("Ya existe uno con ese nombre.")
                         else:
                             with get_session() as s:
-                                datos = {"nombre": nombre}
+                                valores = {"nombre": nombre}
                                 if fk:
-                                    datos[fk] = padre_id
-                                s.add(modelo(**datos))
+                                    valores[fk] = padre_id
+                                s.add(modelo(**valores))
                             st.toast(f"Creado: {nombre}", icon=":material/check_circle:")
                             st.rerun()
 

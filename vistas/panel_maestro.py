@@ -4,56 +4,16 @@ from sqlalchemy import select
 from core import material, pdf_loader, rag, reticula
 from core.auth import require_login
 from core.db import get_session
+from core.estilo import datos, encabezado, fecha_local, titulo
 from core.ui import selector_cascada
 from models.schema import Asignacion, Documento
 
 user = require_login(["maestro", "admin"])
 
-# Iconos SVG 
-SVG = {
-    "book": '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/>',
-    "upload": '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
-    "file": '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
-    "chart": '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
-}
+# Los íconos, títulos y estilos vienen de core/estilo.py (compartidos por todas las pantallas)
 
-
-def titulo(icono: str, texto: str, nivel: int = 3):
-    """Encabezado con icono SVG en línea."""
-    size = 30 if nivel == 1 else 22
-    st.markdown(
-        f'<div class="tit"><svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
-        f'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-        f'stroke-linecap="round" stroke-linejoin="round">{SVG[icono]}</svg><h{nivel}>{texto}</h{nivel}></div>',
-        unsafe_allow_html=True,
-    )
-
-
-# Estilo
-st.markdown(
-    """
-    <style>
-    /* Encabezados con icono SVG */
-    .tit { display: flex; align-items: center; gap: .6rem; margin: .6rem 0 .4rem; }
-    .tit h1, .tit h2, .tit h3 { margin: 0; padding: 0; }
-    .tit svg { flex-shrink: 0; }
-
-    /* Tarjetas de métricas */
-    div[data-testid="stMetric"] {
-        background: rgba(128, 128, 128, 0.08);
-        border: 1px solid rgba(128, 128, 128, 0.25);
-        border-radius: 12px;
-        padding: 14px 18px;
-    }
-
-    /* Botones redondeados */
-    .stButton > button, .stFormSubmitButton > button { border-radius: 10px; font-weight: 600; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-titulo("book", "Material de entrenamiento", nivel=1)
+encabezado("Material de entrenamiento", "Sube los PDFs con los que el tutor responde a tus alumnos y revisa qué temas "
+           "ya tienen material.", "upload")
 
 # Maestro
 if user["rol"] == "admin":
@@ -75,12 +35,13 @@ if materia_id is None:
     st.info("Elige la materia en el menú de la izquierda.")
     st.stop()
 
-with st.container(border=True):
-    modo = st.radio("¿Dónde quieres subir el material?",
-                    ["Toda la materia (se reparte por los temas de la retícula)", "Un tema específico"],
-                    horizontal=True)
+st.caption("¿Dónde quieres subir el material?")
+modo = st.radio("¿Dónde quieres subir el material?",
+                [":material/account_tree: Toda la materia (se reparte por los temas de la retícula)",
+                 ":material/topic: Un tema específico"],
+                horizontal=True, label_visibility="collapsed", key="modo_material")
 
-if modo.startswith("Toda"):
+if "Toda la materia" in modo:
     temas_materia = reticula.temas_de_materia(materia_id)
     titulo("upload", "Subir material de toda la materia")
     if not temas_materia:
@@ -96,11 +57,12 @@ if modo.startswith("Toda"):
     pdfs = sorted({d["archivo"] for c in cob for d in c["documentos"]})
 
     titulo("chart", "Cobertura de la materia")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric(":material/list: Temas", len(cob))
-    m2.metric(":material/check_circle: Con material", con_material)
-    m3.metric(":material/error: Sin material", sin_material)
-    m4.metric(":material/picture_as_pdf: PDFs", len(pdfs))
+    datos([{"icono": "layers", "etiqueta": "Temas", "valor": len(cob), "detalle": "en la retícula", "tono": "indigo"},
+           {"icono": "check", "etiqueta": "Con material", "valor": con_material, "detalle": "listos para el tutor",
+            "tono": "verde"},
+           {"icono": "x", "etiqueta": "Sin material", "valor": sin_material, "detalle": "conviene subir PDFs",
+            "tono": "ambar"},
+           {"icono": "file", "etiqueta": "PDFs", "valor": len(pdfs), "detalle": "en esta materia", "tono": "violeta"}])
     st.progress(con_material / len(cob), text=f"{con_material} de {len(cob)} temas con material")
 
     ESTADOS = {"ok": "Con material", "sin_material": "Sin material",
@@ -165,7 +127,7 @@ if docs and not visibles:
 for d in visibles:
     with st.container(border=True):
         a, b = st.columns([5, 1], vertical_alignment="center")
-        a.write(f"**{d.nombre_archivo}** — {d.num_chunks} fragmentos — {d.fecha:%d/%m/%Y %H:%M}")
+        a.write(f"**{d.nombre_archivo}** — {d.num_chunks} fragmentos — {fecha_local(d.fecha):%d/%m/%Y %H:%M}")
         if b.button("Eliminar", key=f"del_{d.id}", icon=":material/delete:"):
             rag.eliminar_documento(tema_id, d.id)
             with get_session() as s:

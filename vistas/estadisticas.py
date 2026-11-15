@@ -5,70 +5,27 @@ from sqlalchemy import select
 from core import actividad, niveles, sospechas, stats
 from core.auth import require_login
 from core.db import get_session
+from core.estilo import datos, encabezado, grafica_barras, grafica_fechas, titulo, zona_horaria
 from models.schema import Asignacion
 
 user = require_login(["maestro", "admin"])
 
-# Iconos SVG 
-SVG = {
-    "chart": '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
-    "message": '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
-    "check": '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
-    "x": '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>',
-    "calendar": '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
-    "users": '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-    "help": '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
-    "layers": '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
-    "clock": '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
-    "search": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
-}
-
-
-def titulo(icono: str, texto: str, nivel: int = 3):
-    """Encabezado con icono SVG en línea."""
-    size = 30 if nivel == 1 else 22
-    st.markdown(
-        f'<div class="tit"><svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
-        f'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-        f'stroke-linecap="round" stroke-linejoin="round">{SVG[icono]}</svg><h{nivel}>{texto}</h{nivel}></div>',
-        unsafe_allow_html=True,
-    )
-
-
-# Estilo
-st.markdown(
-    """
-    <style>
-    /* Encabezados con icono SVG */
-    .tit { display: flex; align-items: center; gap: .6rem; margin: .6rem 0 .4rem; }
-    .tit h1, .tit h2, .tit h3 { margin: 0; padding: 0; }
-    .tit svg { flex-shrink: 0; }
-
-    /* Tarjetas de métricas */
-    div[data-testid="stMetric"] {
-        background: rgba(128, 128, 128, 0.08);
-        border: 1px solid rgba(128, 128, 128, 0.25);
-        border-radius: 12px;
-        padding: 14px 18px;
-    }
-    
-    /* Botones redondeados */
-    .stButton > button, .stDownloadButton > button { border-radius: 10px; font-weight: 600; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-titulo("chart", "Estadísticas de uso", nivel=1)
+# Los íconos, títulos y estilos vienen de core/estilo.py (compartidos por todas las pantallas)
 
 if user["rol"] == "admin":
     materias_ids = None
 else:
     with get_session() as s:
         materias_ids = list(s.scalars(select(Asignacion.materia_id).where(Asignacion.maestro_id == user["id"])))
-    if not materias_ids:
-        st.info("El administrador todavía no te ha asignado materias.")
-        st.stop()
+if materias_ids is None:
+    alcance = "Todas las materias"
+else:
+    alcance = f"{len(materias_ids)} {'materia asignada' if len(materias_ids) == 1 else 'materias asignadas'}"
+encabezado("Estadísticas de uso", "Cómo usan tus alumnos el tutor: preguntas, aciertos, avance y tiempo de estudio.",
+           "chart", chips=[("layers", alcance)])
+if materias_ids is not None and not materias_ids:
+    st.info("El administrador todavía no te ha asignado materias.", icon=":material/info:")
+    st.stop()
 
 msgs, resp = stats.cargar(materias_ids)
 if msgs.empty and resp.empty:
@@ -96,13 +53,15 @@ if msgs.empty and resp.empty:
 
 # Resumen
 r = stats.resumen(msgs, resp)
-m1, m2, m3, m4 = st.columns(4)
-m1.metric(":material/chat: Preguntas de alumnos", r["preguntas"])
-m2.metric(":material/group: Alumnos activos", r["alumnos_activos"])
-m3.metric(":material/quiz: Quizzes respondidos", r["quizzes_respondidos"])
-m4.metric(":material/target: % de aciertos", f"{r['pct_aciertos']:.1f}%")
+datos([{"icono": "message", "etiqueta": "Preguntas de alumnos", "valor": r["preguntas"],
+        "detalle": "hechas al tutor", "tono": "indigo"},
+       {"icono": "users", "etiqueta": "Alumnos activos", "valor": r["alumnos_activos"],
+        "detalle": "con preguntas o quizzes", "tono": "violeta"},
+       {"icono": "help", "etiqueta": "Quizzes respondidos", "valor": r["quizzes_respondidos"],
+        "detalle": "en exámenes y repasos", "tono": "cielo"},
+       {"icono": "target", "etiqueta": "Aciertos", "valor": f"{r['pct_aciertos']:.1f}%",
+        "detalle": "promedio de los quizzes", "tono": "verde"}])
 
-st.divider()
 a, b = st.columns(2)
 with a:
     with st.container(border=True):
@@ -111,7 +70,7 @@ with a:
         if df.empty:
             st.caption("Sin datos.")
         else:
-            st.bar_chart(df.set_index("tema")["preguntas"])
+            grafica_barras(df, "tema", "preguntas", "Preguntas")
 with b:
     with st.container(border=True):
         titulo("check", "% de aciertos por tema")
@@ -119,16 +78,26 @@ with b:
         if df.empty:
             st.caption("Sin quizzes respondidos.")
         else:
-            st.bar_chart(df.set_index("tema")["% aciertos"])
-            st.dataframe(df, hide_index=True)
+            grafica_barras(df, "tema", "% aciertos", "% de aciertos", maximo=100)
+            st.dataframe(df, hide_index=True, column_config={
+                "tema": st.column_config.TextColumn("Tema", width="medium"),
+                "intentos": st.column_config.NumberColumn("Intentos", width="small"),
+                "% aciertos": st.column_config.ProgressColumn("% de aciertos", min_value=0, max_value=100,
+                                                              format="%.0f%%", width="small")})
 
 with st.container(border=True):
     titulo("calendar", "Uso por fecha")
-    df = stats.uso_por_fecha(msgs)
+    # los días se cuentan en la hora local del maestro, no en UTC
+    df = stats.uso_por_fecha(msgs.assign(fecha=msgs["fecha"].dt.tz_convert(zona_horaria())))
     if df.empty:
         st.caption("Sin datos.")
     else:
-        st.line_chart(df["preguntas"])
+        por_dia = df.reset_index()
+        por_dia.columns = ["fecha", "preguntas"]
+        por_dia["fecha"] = pd.to_datetime(por_dia["fecha"])
+        # los días sin preguntas cuentan como 0 (si no, la línea une días lejanos)
+        por_dia = por_dia.set_index("fecha").asfreq("D", fill_value=0).reset_index()
+        grafica_fechas(por_dia, "fecha", "preguntas", "Preguntas")
 
 c, d = st.columns(2)
 with c:
@@ -146,7 +115,10 @@ sin_resp = stats.preguntas_sin_respuesta(materias_ids)
 if sin_resp.empty:
     st.caption("El tutor ha podido responder todas las preguntas.")
 else:
-    st.dataframe(sin_resp, hide_index=True)
+    if "fecha" in sin_resp:
+        sin_resp["fecha"] = pd.to_datetime(sin_resp["fecha"], utc=True).dt.tz_convert(zona_horaria())
+    st.dataframe(sin_resp, hide_index=True,
+                 column_config={"fecha": st.column_config.DatetimeColumn("fecha", format="DD/MM/YYYY HH:mm")})
     st.caption("Son preguntas que el tutor no pudo contestar con el material subido. Conviene agregar ese contenido.")
 
 titulo("layers", "Avance por unidad (retícula)")

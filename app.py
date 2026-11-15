@@ -1,40 +1,47 @@
 # Router principal
+from pathlib import Path
+
 import streamlit as st
 
+from core import tema
 from core.auth import iniciar_db
+from core.estilo import aplicar_estilo
 
 st.set_page_config(page_title="Tutor Universitario", page_icon="🎓", layout="wide")
 iniciar_db()
+tema.restaurar_sesion()  # tras cambiar de modo claro/oscuro la página se recarga: vuelve a su sesión
+aplicar_estilo()
 
-# rol
+ASSETS = Path(__file__).parent / "assets"
+
+# (ruta, título, ícono, url)
+CHAT = ("vistas/chat_alumno.py", "Estudio", ":material/school:", "chat")
+PROGRESO = ("vistas/mi_progreso.py", "Mi progreso", ":material/insights:", "progreso")
+HISTORIAL = ("vistas/historial.py", "Mi historial", ":material/history:", "historial")
+CUENTA = ("vistas/cuenta.py", "Mi cuenta", ":material/manage_accounts:", "cuenta")
+RETICULA = ("vistas/reticula.py", "Retícula", ":material/account_tree:", "reticula")
+MATERIAL = ("vistas/panel_maestro.py", "Material de la IA", ":material/upload_file:", "material")
+ESTADISTICAS = ("vistas/estadisticas.py", "Estadísticas", ":material/monitoring:", "estadisticas")
+ADMIN = ("vistas/admin.py", "Administración", ":material/admin_panel_settings:", "admin")
+
+# rol -> secciones del menú
 PAGINAS_POR_ROL = {
-    "alumno": [
-        ("vistas/chat_alumno.py", "Chat de estudio", "", "chat"),
-        ("vistas/mi_progreso.py", "Mi progreso", "", "progreso"),
-        ("vistas/historial.py", "Mi historial", "", "historial"),
-    ],
-    "maestro": [
-        ("vistas/reticula.py", "Retícula", "", "reticula"),
-        ("vistas/panel_maestro.py", "Material de la IA", "", "material"),
-        ("vistas/estadisticas.py", "Estadísticas", "", "estadisticas"),
-    ],
-    "admin": [
-        ("vistas/admin.py", "Administración", "", "admin"),
-        ("vistas/reticula.py", "Retícula", "", "reticula"),
-        ("vistas/panel_maestro.py", "Material de la IA", "", "material"),
-        ("vistas/estadisticas.py", "Estadísticas", "", "estadisticas"),
-    ],
+    "alumno": {"Aprender": [CHAT, PROGRESO, HISTORIAL], "Cuenta": [CUENTA]},
+    "maestro": {"Docencia": [RETICULA, MATERIAL, ESTADISTICAS], "Cuenta": [CUENTA]},
+    "admin": {"Administración": [ADMIN], "Docencia": [RETICULA, MATERIAL, ESTADISTICAS], "Cuenta": [CUENTA]},
 }
 
 user = st.session_state.get("user")
-paginas = PAGINAS_POR_ROL.get(user["rol"]) if user else None
+secciones = PAGINAS_POR_ROL.get(user["rol"]) if user else None
 
-if paginas:
-    nav = st.navigation([st.Page(ruta, title=titulo, icon=icono, url_path=url)
-                         for ruta, titulo, icono, url in paginas])
+if secciones:
+    st.logo(str(ASSETS / "logo.svg"), icon_image=str(ASSETS / "icono.svg"), size="large")
+    nav = st.navigation({seccion: [st.Page(ruta, title=titulo, icon=icono, url_path=url)
+                                   for ruta, titulo, icono, url in paginas]
+                         for seccion, paginas in secciones.items()})
 else:
     # sesión inválida o rol desconocido
-    st.session_state.pop("user", None)  
-    nav = st.navigation([st.Page("vistas/login.py", title="Iniciar sesión", icon="", url_path="login")],
+    st.session_state.pop("user", None)
+    nav = st.navigation([st.Page("vistas/login.py", title="Iniciar sesión", icon=":material/login:", url_path="login")],
                         position="hidden")
 nav.run()
