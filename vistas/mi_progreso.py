@@ -6,7 +6,47 @@ from core.auth import require_login
 
 user = require_login(["alumno"])
 
-st.title("Mi progreso")
+# Iconos SVG 
+SVG = {
+    "trending": '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+    "layers": '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+    "bulb": '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
+    "chart": '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+}
+
+
+def titulo(icono: str, texto: str, nivel: int = 3):
+    """Encabezado con icono SVG en línea."""
+    size = 30 if nivel == 1 else 22
+    st.markdown(
+        f'<div class="tit"><svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
+        f'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+        f'stroke-linecap="round" stroke-linejoin="round">{SVG[icono]}</svg><h{nivel}>{texto}</h{nivel}></div>',
+        unsafe_allow_html=True,
+    )
+
+
+# Estilo
+st.markdown(
+    """
+    <style>
+    /* Encabezados con icono SVG */
+    .tit { display: flex; align-items: center; gap: .6rem; margin: .6rem 0 .4rem; }
+    .tit h1, .tit h2, .tit h3 { margin: 0; padding: 0; }
+    .tit svg { flex-shrink: 0; }
+    /* Tarjetas de métricas */
+    div[data-testid="stMetric"] {
+        background: rgba(128, 128, 128, 0.08);
+        border: 1px solid rgba(128, 128, 128, 0.25);
+        border-radius: 12px;
+        padding: 14px 18px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+titulo("trending", "Mi progreso", nivel=1)
 
 segs = actividad.tiempo_por_alumno([user["id"]]).get(user["id"], 0)
 filas = progreso.resumen_alumno(user["id"])
@@ -15,11 +55,12 @@ total_q = sum(f["intentos"] for f in filas)
 total_ok = sum(f["aciertos"] for f in filas)
 ejercicios = progreso.resumen_ejercicios(user["id"])
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Tiempo de estudio", f"{segs / 60:.0f} min")
-c2.metric("Quizzes respondidos", total_q)
-c3.metric("% de aciertos", f"{total_ok / total_q * 100:.0f}%" if total_q else "—")
-c4.metric("Ejercicios (promedio)",
+c1.metric(":material/timer: Tiempo de estudio", f"{segs / 60:.0f} min")
+c2.metric(":material/quiz: Quizzes respondidos", total_q)
+c3.metric(":material/target: % de aciertos", f"{total_ok / total_q * 100:.0f}%" if total_q else "—")
+c4.metric(":material/edit_note: Ejercicios (promedio)",
           f"{ejercicios['promedio']}/10 ({ejercicios['intentos']})" if ejercicios["intentos"] else "—")
+
 
 def texto_tema(t: dict) -> str:
     base = f"{t['nombre']} — nivel {t['nivel']} · {t['nombre_nivel']}"
@@ -27,10 +68,11 @@ def texto_tema(t: dict) -> str:
         base += f" ({t['xp_efectivo']}/{t['siguiente_xp']} XP para el siguiente)"
     else:
         base += f" ({t['xp_efectivo']} XP, ¡nivel máximo!)"
-    return base + (" ⚠️ precisión baja" if t["limitado"] else "")
+    return base + (" :material/warning: precisión baja" if t["limitado"] else "")
 
 
-st.subheader("Avance por unidad según la retícula")
+st.write("")
+titulo("layers", "Avance por unidad según la retícula")
 materias = niveles.materias_disponibles()
 if not materias:
     st.caption("Todavía no hay materias con retícula cargada.")
@@ -39,17 +81,21 @@ else:
     orden = sorted(materias, key=lambda i: (i not in activas, materias[i]))  # primero donde ya estudió
     elegida = st.selectbox("Materia", orden, format_func=materias.get, key="progreso_materia")
     av = niveles.avance_materia(user["id"], elegida)
-    m1, m2 = st.columns([1, 3])
-    m1.metric("Nivel de la materia", f"Nivel {av['nivel']}", av["nombre_nivel"],
-              delta_color="off", delta_arrow="off")
-    m2.progress(av["porcentaje"] / 100, text=f"{av['porcentaje']}% de la materia · {av['xp']} XP en total")
-    st.markdown("#### 👉 Qué estudiar ahora")
+    with st.container(border=True):
+        m1, m2 = st.columns([1, 3], vertical_alignment="center")
+        m1.metric("Nivel de la materia", f"Nivel {av['nivel']}", av["nombre_nivel"],
+                  delta_color="off", delta_arrow="off")
+        m2.progress(av["porcentaje"] / 100, text=f"{av['porcentaje']}% de la materia · {av['xp']} XP en total")
+
+    titulo("bulb", "Qué estudiar ahora", nivel=4)
     con_material = {c["tema_id"] for c in material.cobertura(elegida) if c["estado"] == "ok"}
     sugeridos = niveles.siguiente_recomendado(av, con_material)
     if not sugeridos:
-        st.success("Ya dominas todos los temas que tienen material en esta materia. ¡Muy bien!")
+        st.success("Ya dominas todos los temas que tienen material en esta materia. ¡Muy bien!",
+                   icon=":material/check_circle:")
     for sug in sugeridos:
-        st.markdown(f"**{sug['tema']}** · {sug['unidad']}  \n{sug['razon']}")
+        with st.container(border=True):
+            st.markdown(f"**{sug['tema']}** · {sug['unidad']}  \n{sug['razon']}")
     st.caption("Ve a «Chat de estudio», elige ese tema y practica con un examen o un ejercicio.")
     for u in av["unidades"]:
         with st.expander(f"{u['nombre']} — nivel {u['nivel']} ({u['nombre_nivel']}) · {u['porcentaje']}%",
@@ -73,14 +119,16 @@ NIVELES = {"apoyo": "Por reforzar", "normal": "En camino", "avanzado": "Dominado
 df = pd.DataFrame(filas)
 df["estado"] = df["nivel"].map(NIVELES)
 
-st.subheader("Aciertos por tema")
-st.bar_chart(df.set_index("tema")["porcentaje"])
+st.divider()
+titulo("chart", "Aciertos por tema")
+with st.container(border=True):
+    st.bar_chart(df.set_index("tema")["porcentaje"])
 
 repasar = df[df["nivel"] == "apoyo"]
 if not repasar.empty:
-    st.warning("Te conviene repasar: " + ", ".join(repasar["tema"]))
+    st.warning("Te conviene repasar: " + ", ".join(repasar["tema"]), icon=":material/warning:")
 else:
-    st.success("Ningún tema necesita refuerzo por ahora. ¡Sigue así!")
+    st.success("Ningún tema necesita refuerzo por ahora. ¡Sigue así!", icon=":material/check_circle:")
 
 st.dataframe(
     df[["materia", "tema", "intentos", "aciertos", "porcentaje", "estado"]]
