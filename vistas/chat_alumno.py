@@ -327,8 +327,6 @@ def vista_ejercicio() -> None:
             ss["aviso"] = (f"Calificación: {r['puntaje']}/10", ":material/grading:")
             if r["puntaje"] >= 9:
                 ss["celebrar"] = True  # globos: calificación sobresaliente
-            elif r["puntaje"] >= 6:
-                ss["confeti"] = True   # confeti: ejercicio aprobado
             st.rerun()
         except Exception as e:
             st.error(str(e))
@@ -381,7 +379,6 @@ def responder_examen(q: dict, eleccion: int) -> None:
     puntos = (q.get("dificultad") or 2) if r["es_correcta"] else 0
     ss["aviso"] = ((f"¡Correcto! +{puntos} XP", ":material/celebration:") if r["es_correcta"]
                    else ("Casi: revisa la explicación y sigue", ":material/lightbulb:"))
-    ss["confeti"] = bool(r["es_correcta"])  # cada acierto se festeja con confeti
     if examen.terminado(ex):
         despues = niveles.estado_tema(user["id"], tema_id)
         base = examen.resumen_repaso(ex) if repaso else examen.resumen_texto(ex)

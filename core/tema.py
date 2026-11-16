@@ -58,7 +58,7 @@ def _aplicar(destino: str, codigo: str) -> None:
 def boton(en_barra_lateral: bool = True) -> None:
     """Botón «Modo oscuro / Modo claro»; al pulsarlo se guarda la preferencia y se recarga la página."""
     oscuro = estilo.es_oscuro()
-    contenedor = st.sidebar if en_barra_lateral else st
+    contenedor = st  # en el menú lateral se llama dentro del bloque del usuario, así que también cae ahí
     etiqueta, icono = ("Modo claro", ":material/light_mode:") if oscuro else ("Modo oscuro", ":material/dark_mode:")
     if contenedor.button(etiqueta, icon=icono, width="stretch", key=f"btn_tema_{int(en_barra_lateral)}"):
         _aplicar("Light" if oscuro else "Dark", _emitir(st.session_state.get("user")))

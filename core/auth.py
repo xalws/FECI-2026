@@ -48,11 +48,14 @@ def cerrar_sesion() -> None:
 
 
 def barra_lateral(user: dict) -> None:
-    estilo.tarjeta_usuario(user)
-    tema.boton()
-    if st.sidebar.button("Cerrar sesión", icon=":material/logout:", width="stretch", key="btn_cerrar_sesion"):
-        cerrar_sesion()
-        st.rerun()
+    # Tarjeta del usuario, modo claro/oscuro y cerrar sesión: el CSS (core/estilo.py) manda este bloque al
+    # final del menú lateral, debajo del selector de tema de cada pantalla
+    with st.sidebar.container(key="bloque_usuario"):
+        estilo.tarjeta_usuario(user)
+        tema.boton()
+        if st.button("Cerrar sesión", icon=":material/logout:", width="stretch", key="btn_cerrar_sesion"):
+            cerrar_sesion()
+            st.rerun()
 
 
 def require_login(roles: list[str] | None = None) -> dict:

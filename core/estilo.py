@@ -244,7 +244,7 @@ def tarjeta_usuario(user: dict) -> None:
     """Tarjeta del usuario en el menú lateral: iniciales, nombre y rol."""
     roles = {"alumno": "Alumno", "maestro": "Maestro", "admin": "Administrador"}
     rol = user.get("rol", "")
-    st.sidebar.markdown(
+    st.markdown(
         f'<div class="tu-usuario"><div class="tu-avatar">{_e(iniciales(user.get("nombre", "")))}</div>'
         f'<div class="tu-usuario-datos"><div class="tu-usuario-nombre">{_e(user.get("nombre", ""))}</div>'
         f'<span class="tu-rol tu-rol-{_e(rol)}">{_e(roles.get(rol, rol))}</span></div></div>',
@@ -308,7 +308,7 @@ CSS = """
 --tu-borde:#DCE5F3;--tu-suave:#EAF1FC;--tu-degradado:linear-gradient(135deg,#0B3D91 0%,#1F63C9 100%);
 --tu-sombra:0 1px 2px rgba(11,31,68,.05),0 6px 20px rgba(11,31,68,.06);
 --tu-sombra-alta:0 2px 6px rgba(11,31,68,.07),0 16px 34px rgba(11,31,68,.11);
---tu-texto:#334155;--tu-sup:#fff;--tu-pista:#DEE7F5;--tu-burbuja:linear-gradient(135deg,#EAF1FC,#EAF1FC);}
+--tu-lateral:#0A1B3D;--tu-texto:#334155;--tu-sup:#fff;--tu-pista:#DEE7F5;--tu-burbuja:linear-gradient(135deg,#EAF1FC,#EAF1FC);}
 [style*="--fondo"]{--fondo:color-mix(in srgb,var(--color) 13%,transparent)!important}
 @keyframes tu-aparecer{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes tu-degradado{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
@@ -466,11 +466,19 @@ box-shadow:0 0 0 4px rgba(31,99,201,.16)}
 .tu-usuario{display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;background:rgba(255,255,255,.06);
 border:1px solid rgba(255,255,255,.1);margin:.2rem 0 .4rem}
 .tu-avatar{width:42px;height:42px;flex-shrink:0;border-radius:13px;display:flex;align-items:center;justify-content:center;
-background:linear-gradient(135deg,#2F6FD8,#5B9BEF);color:#fff;font-weight:800;font-size:.95rem;animation:tu-latido 3s ease-in-out infinite}
+background:linear-gradient(135deg,#2F6FD8,#5B9BEF);color:#fff;font-weight:800;font-size:.95rem;}
 .tu-usuario-nombre{color:#fff;font-weight:700;font-size:.95rem;line-height:1.25}
 .tu-rol{display:inline-block;margin-top:3px;padding:1px 9px;border-radius:999px;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em}
 .tu-rol-alumno{background:rgba(14,165,233,.2);color:#7DD3FC}.tu-rol-maestro{background:rgba(16,185,129,.2);color:#6EE7B7}
 .tu-rol-admin{background:rgba(245,158,11,.2);color:#FCD34D}
+
+/* Bloque del usuario (tarjeta, modo claro/oscuro y cerrar sesión): siempre al final del menú lateral */
+[data-testid="stSidebarContent"]{display:flex;flex-direction:column}
+[data-testid="stSidebarUserContent"]{flex:1 0 auto;display:flex;flex-direction:column;padding-bottom:0!important}
+[data-testid="stSidebarUserContent"]>div{flex:1 0 auto;display:flex;flex-direction:column}
+[data-testid="stSidebarUserContent"]>div>[data-testid="stVerticalBlock"]{flex:1 0 auto}
+/* el contenedor con key queda dentro de un stLayoutWrapper: ese envoltorio es el que se ordena y se pega abajo */
+[data-testid="stLayoutWrapper"]:has(>.st-key-bloque_usuario){order:99;margin-top:auto;position:sticky;bottom:0;z-index:5;background:var(--tu-lateral);border-top:1px solid rgba(157,187,240,.16);padding:.8rem 0 .9rem;box-shadow:0 -14px 16px -12px rgba(0,0,0,.5)}
 
 /* Pantalla de inicio de sesión */
 .tu-acceso-hero{position:relative;overflow:hidden;border-radius:26px;padding:38px 36px;color:#fff;min-height:520px;
@@ -510,7 +518,7 @@ background:rgba(255,255,255,.16);color:#fff}
 CSS_OSCURO = """
 :root{--tu-tinta:#E6EEFC;--tu-gris:#9FB1D3;--tu-borde:#1D3566;--tu-suave:#12295A;--tu-pista:#1D3566;
 --tu-sombra:0 1px 2px rgba(0,0,0,.35),0 6px 20px rgba(0,0,0,.28);--tu-sombra-alta:0 2px 6px rgba(0,0,0,.4),0 16px 34px rgba(0,0,0,.4);
---tu-texto:#C3D1EA;--tu-sup:#12203F;--tu-burbuja:linear-gradient(135deg,#17315F,#1E3A70)}
+--tu-lateral:#060E1E;--tu-texto:#C3D1EA;--tu-sup:#12203F;--tu-burbuja:linear-gradient(135deg,#17315F,#1E3A70)}
 [data-testid="stHeader"]{background:rgba(10,20,38,.72)!important}
 """
 
@@ -522,13 +530,12 @@ CSS_OSCURO = """
 # no queda ninguna transformación aplicada (una transformación residual rompería la pantalla completa de tablas
 # y gráficas, que usan position:fixed, y anularía los efectos al pasar el mouse).
 _FOTOGRAMAS = {
-    "subir": "from{opacity:0;transform:translateY(24px)}",
-    "rebote": ("0%{opacity:0;transform:translateY(28px) scale(.9)}55%{opacity:1;transform:translateY(-7px) scale(1.025)}"
-               "78%{transform:translateY(3px) scale(.995)}"),
-    "pop": "0%{opacity:0;transform:scale(.4)}60%{opacity:1;transform:scale(1.14)}82%{transform:scale(.96)}",
-    "izq": "from{opacity:0;transform:translateX(-40px)}",
-    "der": "from{opacity:0;transform:translateX(40px)}",
-    "voltear": "from{opacity:0;transform:perspective(1000px) rotateX(-65deg) translateY(-14px)}",
+    "subir": "from{opacity:0;transform:translateY(10px)}",
+    "rebote": "from{opacity:0;transform:translateY(8px) scale(.985)}",
+    "pop": "from{opacity:0;transform:scale(.88)}",
+    "izq": "from{opacity:0;transform:translateX(-12px)}",
+    "der": "from{opacity:0;transform:translateX(12px)}",
+    "voltear": "from{opacity:0;transform:translateY(8px)}",
     "contar": "from{--tu-n:0}",
     "llenar": "from{--tu-p:0}",
     "barra": "from{transform:translateX(-100%)}",
@@ -536,186 +543,164 @@ _FOTOGRAMAS = {
 _APP = '[data-testid="stApp"]'
 _BLOQUE = '[data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]'  # contenido de la pantalla
 
+# Estilo «SaaS moderno»: movimientos cortos (150–300 ms), una sola curva de suavizado, entradas de pocos píxeles,
+# elevación leve al pasar el mouse, «presionado» al hacer clic y anillos de enfoque. Nada rebota ni se repite sola.
 # Ojo: dentro de <style> no puede haber un «<» seguido de letra (el saneador de st.html quitaría toda la hoja);
 # por eso los tipos de @property se escriben con el escape CSS \3c en lugar de «<».
 CSS_ANIMACIONES = (
-    ":root{--tu-e-suave:cubic-bezier(.22,1,.36,1);--tu-e-rebote:cubic-bezier(.34,1.56,.64,1)}"
+    ":root{--tu-e:cubic-bezier(.2,0,0,1);--tu-e-suave:cubic-bezier(.2,0,0,1);--tu-e-rebote:cubic-bezier(.2,0,0,1);"
+    "--tu-rapido:.15s;--tu-normal:.22s;--tu-lento:.45s}"
     "@property --tu-ok{syntax:'*';initial-value:1;inherits:false}"
     "@property --tu-n{syntax:'\\3c integer>';initial-value:0;inherits:false}"
     "@property --tu-p{syntax:'\\3c number>';initial-value:0;inherits:false}"
     + "".join(f"@keyframes tu-{nombre}{{{cuadros}}}" for nombre, cuadros in _FOTOGRAMAS.items())
     + """
-@keyframes tu-desplegar{from{opacity:0;transform:translateY(-10px)}}
-@keyframes tu-sacudir{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(5px)}30%,50%,70%{transform:translateX(-9px)}40%,60%{transform:translateX(9px)}}
-@keyframes tu-menear{20%{transform:rotate(-14deg) scale(1.15)}45%{transform:rotate(11deg) scale(1.15)}70%{transform:rotate(-6deg) scale(1.08)}}
-@keyframes tu-flotar-y{50%{transform:translateY(-7px)}}
-@keyframes tu-respirar{50%{opacity:.5}}
-@keyframes tu-pulso{0%{box-shadow:0 0 0 0 rgba(31,99,201,.6),0 8px 18px -8px rgba(11,61,145,.65)}70%,100%{box-shadow:0 0 0 16px rgba(31,99,201,0),0 8px 18px -8px rgba(11,61,145,.65)}}
-@keyframes tu-pulso-verde{0%{box-shadow:0 0 0 0 rgba(5,150,105,.55)}100%{box-shadow:0 0 0 18px rgba(5,150,105,0)}}
-@keyframes tu-destello{0%{transform:translateX(-140%) skewX(-22deg)}45%,100%{transform:translateX(380%) skewX(-22deg)}}
-@keyframes tu-destello-una{from{transform:translateX(-150%) skewX(-22deg)}to{transform:translateX(430%) skewX(-22deg)}}
-@keyframes tu-barrido{0%{transform:translateX(-160%) skewX(-22deg)}30%,100%{transform:translateX(640%) skewX(-22deg)}}
-@keyframes tu-brillo-barra{0%{transform:translateX(-420px);opacity:0}20%{opacity:1}60%,100%{transform:translateX(100px);opacity:0}}
-@keyframes tu-seleccion{0%{transform:scale(.93)}55%{transform:scale(1.05)}}
-@keyframes tu-aurora{0%{transform:translate3d(-3%,-2%,0) scale(1)}50%{transform:translate3d(3%,2%,0) scale(1.08)}100%{transform:translate3d(-2%,3%,0) scale(1.03)}}
+@keyframes tu-desplegar{from{opacity:0;transform:translateY(-6px)}}
+@keyframes tu-sacudir{20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+@keyframes tu-seleccion{0%{transform:scale(.96)}}
+@keyframes tu-vibrar{0%{transform:translateX(0) rotate(0) scale(1)}10%{transform:translateX(-1px) rotate(-10deg) scale(1.12)}25%{transform:translateX(1px) rotate(8deg) scale(1.12)}40%{transform:translateX(-.5px) rotate(-6deg) scale(1.09)}55%{transform:translateX(.5px) rotate(4deg) scale(1.06)}70%{transform:rotate(-2deg) scale(1.03)}85%{transform:rotate(1deg) scale(1.01)}100%{transform:translateX(0) rotate(0) scale(1)}}
+@keyframes tu-respirar{50%{opacity:.55}}
 @keyframes tu-conf-x{to{transform:translateX(var(--dx))}}
 @keyframes tu-conf-y{0%{opacity:1;transform:translateY(0) rotate(0);animation-timing-function:cubic-bezier(.12,.8,.3,1)}40%{opacity:1;transform:translateY(var(--up)) rotate(calc(var(--r)*.45));animation-timing-function:cubic-bezier(.6,0,.95,.55)}100%{opacity:0;transform:translateY(55vh) rotate(var(--r))}}
 
-/* Fondo: luces azules que se mueven despacio detrás del contenido. Va con position:fixed para que no agregue
-   área desplazable a la app (con absolute, cualquier scrollIntoView recorría toda la pantalla unos píxeles) */
+/* Cambio de pantalla: el contenido entra en cascada corta (los retrasos por posición se agregan abajo) */
+%B>*:not(:has(.tu-confeti)){animation:tu-subir var(--tu-lento) var(--tu-e) backwards}
+[data-testid="stBottomBlockContainer"]{animation:tu-subir var(--tu-lento) var(--tu-e) .15s backwards}
+[data-testid="stTabPanel"]{animation:tu-subir .3s var(--tu-e) backwards}
+[data-testid="stExpander"] details[open]>[data-testid="stExpanderDetails"]{animation:tu-desplegar .25s var(--tu-e)}
+[data-testid="stExpander"] summary{transition:color var(--tu-rapido) var(--tu-e),background var(--tu-rapido) var(--tu-e)}
 
-/* Cambio de pantalla: el contenido entra en cascada (los retrasos por posición se agregan abajo) */
-%B>*:not(:has(.tu-confeti)){animation:tu-subir .6s var(--tu-e-suave) backwards}
-[data-testid="stBottomBlockContainer"]{animation:tu-subir .6s var(--tu-e-suave) .3s backwards}
-[data-testid="stTabPanel"]{animation:tu-subir .5s var(--tu-e-suave) backwards}
-[data-testid="stExpander"] details[open]>[data-testid="stExpanderDetails"]{animation:tu-desplegar .45s var(--tu-e-suave)}
-[data-testid="stExpander"] summary:hover [data-testid="stIconMaterial"]{animation:tu-menear .6s ease}
-
-/* Encabezado */
+/* Encabezado: aparece sin decoración extra */
 .tu-hero-brillo{display:none}
-.tu-hero-icono{animation:tu-pop .7s var(--tu-e-rebote) .15s backwards,tu-flotar-y 4.5s ease-in-out 1s infinite}
-.tu-hero-titulo{animation:tu-izq .6s var(--tu-e-suave) .12s backwards}
-.tu-hero-sub{animation:tu-izq .6s var(--tu-e-suave) .22s backwards}
-.tu-chip{animation:tu-pop .55s var(--tu-e-rebote) .65s backwards;transition:transform .3s var(--tu-e-rebote),background .25s ease}
-.tu-chip:nth-child(1){animation-delay:.35s}.tu-chip:nth-child(2){animation-delay:.45s}.tu-chip:nth-child(3){animation-delay:.55s}
-.tu-chip:hover{transform:translateY(-3px) scale(1.06);background:rgba(255,255,255,.28)}
+.tu-hero-icono{animation:tu-pop .35s var(--tu-e) .05s backwards}
+.tu-hero-titulo{animation:tu-izq .4s var(--tu-e) .05s backwards}
+.tu-hero-sub{animation:tu-izq .4s var(--tu-e) .1s backwards}
+.tu-chip{animation:tu-pop .3s var(--tu-e) backwards;transition:background var(--tu-rapido) var(--tu-e),transform var(--tu-rapido) var(--tu-e)}
+.tu-chip:nth-child(1){animation-delay:.15s}.tu-chip:nth-child(2){animation-delay:.2s}.tu-chip:nth-child(3){animation-delay:.25s}
+.tu-chip:hover{background:rgba(255,255,255,.24);transform:scale(1.06)}
 
 /* Títulos de sección */
-.tit-icono{transition:transform .35s var(--tu-e-rebote),box-shadow .3s ease}
-.tit:hover .tit-icono{transform:scale(1.15) rotate(-8deg);box-shadow:0 8px 16px -8px rgba(11,61,145,.5)}
-.tit:hover .tit-icono svg{animation:tu-menear .7s ease}
+.tit-icono{transition:background var(--tu-normal) var(--tu-e),color var(--tu-normal) var(--tu-e)}
+.tit:hover .tit-icono{background:var(--tu-indigo);color:#fff}
 
-/* Tarjetas de datos, anillo, listas e insignias */
-.tu-dato{position:relative;overflow:hidden;animation:tu-rebote .75s var(--tu-e-suave) backwards;
-transition:transform .35s var(--tu-e-rebote),box-shadow .3s ease,border-color .3s ease}
-.tu-dato:hover{transform:translateY(-7px) scale(1.025);border-color:color-mix(in srgb,var(--color) 45%,var(--tu-borde));
-box-shadow:0 22px 40px -22px color-mix(in srgb,var(--color) 65%,transparent),var(--tu-sombra-alta)}
-.tu-dato::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;transform:scaleX(0);transform-origin:left;
-background:linear-gradient(90deg,var(--color),color-mix(in srgb,var(--color) 30%,transparent));transition:transform .45s var(--tu-e-suave)}
-.tu-dato:hover::before{transform:scaleX(1)}
-.tu-dato::after{content:"";position:absolute;top:0;bottom:0;left:0;width:35%;pointer-events:none;transform:translateX(-150%) skewX(-22deg);
-background:linear-gradient(100deg,transparent,color-mix(in srgb,var(--color) 16%,transparent),transparent)}
-.tu-dato:hover::after{animation:tu-destello-una .8s ease-out}
-.tu-dato-icono,.tu-item-icono{transition:transform .35s var(--tu-e-rebote)}
-.tu-dato:hover .tu-dato-icono,.tu-item:hover .tu-item-icono{transform:scale(1.15) rotate(-8deg)}
-.tu-dato:hover .tu-dato-icono svg,.tu-item:hover .tu-item-icono svg{animation:tu-menear .7s ease}
-.tu-dato-valor{transform-origin:left center;transition:transform .35s var(--tu-e-rebote)}
-.tu-dato:hover .tu-dato-valor{transform:scale(1.07)}
-.tu-anillo-tarjeta{animation:tu-rebote .75s var(--tu-e-suave) backwards;transition:box-shadow .3s ease,transform .35s var(--tu-e-rebote)}
-.tu-anillo-tarjeta:hover{transform:translateY(-4px);box-shadow:var(--tu-sombra-alta)}
-.tu-item{animation:tu-der .6s var(--tu-e-suave) backwards;transition:transform .35s var(--tu-e-rebote),box-shadow .3s ease}
-.tu-item:hover{transform:translateX(8px);box-shadow:var(--tu-sombra-alta)}
-.tu-insignia{transition:transform .3s var(--tu-e-rebote)}
-.tu-insignia:hover{transform:translateY(-2px) scale(1.07)}
+/* Tarjetas de datos, anillo, listas e insignias: elevación leve y borde que se acentúa */
+.tu-dato{position:relative;animation:tu-rebote .4s var(--tu-e) backwards;
+transition:transform var(--tu-normal) var(--tu-e),box-shadow var(--tu-normal) var(--tu-e),border-color var(--tu-normal) var(--tu-e)}
+.tu-dato:hover{transform:translateY(-2px) scale(1.02);border-color:color-mix(in srgb,var(--color) 35%,var(--tu-borde));box-shadow:var(--tu-sombra-alta)}
+.tu-dato::before,.tu-dato::after{content:none}
+.tu-dato-icono,.tu-item-icono{transition:background var(--tu-normal) var(--tu-e),color var(--tu-normal) var(--tu-e)}
+.tu-dato:hover .tu-dato-icono,.tu-item:hover .tu-item-icono{background:var(--color);color:#fff}
+.tu-dato-valor{transition:none}
+.tu-anillo-tarjeta{animation:tu-rebote .4s var(--tu-e) backwards;transition:transform var(--tu-normal) var(--tu-e),box-shadow var(--tu-normal) var(--tu-e)}
+.tu-anillo-tarjeta:hover{transform:translateY(-2px) scale(1.015);box-shadow:var(--tu-sombra-alta)}
+.tu-item{animation:tu-der .35s var(--tu-e) backwards;transition:transform var(--tu-normal) var(--tu-e),box-shadow var(--tu-normal) var(--tu-e)}
+.tu-item:hover{transform:translateX(3px) scale(1.012);box-shadow:var(--tu-sombra-alta)}
+.tu-insignia{transition:transform var(--tu-rapido) var(--tu-e)}
+.tu-insignia:hover{transform:translateY(-1px) scale(1.07)}
 
-/* Números que cuentan, anillo que se llena y barras de progreso */
-.tu-num{counter-reset:tu-n var(--tu-n);animation:tu-contar 1.6s var(--tu-e-suave) .2s backwards;transition:--tu-n .9s var(--tu-e-suave)}
+/* Números que cuentan, anillo que se llena y barras de progreso (una sola vez, al cargar) */
+.tu-num{counter-reset:tu-n var(--tu-n);animation:tu-contar .9s var(--tu-e) .1s backwards}
 .tu-num::after{content:counter(tu-n);font-size:calc(1em*var(--tu-ok,0))}
 .tu-num>b{font:inherit;font-size:calc(1em*(1 - var(--tu-ok,0)))}
-.tu-anillo{animation:tu-llenar calc(1.6s*var(--tu-ok,0)) var(--tu-e-suave) .2s backwards;transition:--tu-p 1s var(--tu-e-suave),transform .35s var(--tu-e-rebote)}
-.tu-anillo-tarjeta:hover .tu-anillo{transform:scale(1.07)}
-[data-testid="stProgressBarTrack"]>div{position:relative;overflow:hidden;animation:tu-barra 1.3s var(--tu-e-suave) .15s backwards}
-[data-testid="stProgressBarTrack"]>div::after{content:"";position:absolute;top:0;bottom:0;right:0;width:90px;pointer-events:none;
-background:linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent);animation:tu-brillo-barra 2.8s ease-in-out 1.5s infinite}
+.tu-anillo{animation:tu-llenar calc(.9s*var(--tu-ok,0)) var(--tu-e) .1s backwards}
+[data-testid="stProgressBarTrack"]>div{position:relative;overflow:hidden;animation:tu-barra .8s var(--tu-e) .1s backwards}
+[data-testid="stProgressBarTrack"]>div::after{content:none}
 
-/* Botones: se elevan, rebotan al soltar, onda al hacer clic y destello en los principales */
+/* Botones: elevación de 1 px, sombra más marcada al pasar el mouse y «presionado» al hacer clic */
 [data-testid^="stBaseButton-primary"],[data-testid^="stBaseButton-secondary"]{position:relative;overflow:hidden}
-[data-testid^="stBaseButton-primary"]{transition:transform .3s var(--tu-e-rebote),box-shadow .25s ease,filter .2s ease}
-[data-testid^="stBaseButton-primary"]:hover:not(:disabled){transform:translateY(-3px) scale(1.03);filter:brightness(1.1) saturate(1.1);
-box-shadow:0 16px 30px -12px rgba(11,61,145,.85)}
-[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]{transition:transform .3s var(--tu-e-rebote),border-color .2s ease,
-color .2s ease,background .2s ease,box-shadow .25s ease}
-[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]:hover:not(:disabled){transform:translateY(-3px) scale(1.02);
-background:var(--tu-suave);box-shadow:0 12px 24px -14px rgba(11,61,145,.55)}
-[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]{transition:transform .3s var(--tu-e-rebote),background .2s ease,border-color .2s ease,color .2s ease}
-[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]:hover:not(:disabled){transform:translateX(4px)}
+[data-testid^="stBaseButton-primary"]{transition:transform var(--tu-rapido) var(--tu-e),box-shadow var(--tu-normal) var(--tu-e),filter var(--tu-rapido) var(--tu-e)}
+[data-testid^="stBaseButton-primary"]:hover:not(:disabled){transform:translateY(-1px) scale(1.03);filter:brightness(1.06);
+box-shadow:0 10px 22px -10px rgba(11,61,145,.75)}
+[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]{transition:transform var(--tu-rapido) var(--tu-e),border-color var(--tu-rapido) var(--tu-e),
+color var(--tu-rapido) var(--tu-e),background var(--tu-rapido) var(--tu-e),box-shadow var(--tu-normal) var(--tu-e)}
+[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]:hover:not(:disabled){transform:translateY(-1px) scale(1.03);box-shadow:0 6px 14px -8px rgba(11,61,145,.4)}
+[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]:hover:not(:disabled){transform:scale(1.03)}
+[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]{transition:transform var(--tu-rapido) var(--tu-e),background var(--tu-rapido) var(--tu-e),border-color var(--tu-rapido) var(--tu-e)}
 [data-testid^="stBaseButton-primary"]:active:not(:disabled),[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]:active:not(:disabled),
-[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]:active:not(:disabled){transform:scale(.94);transition-duration:.08s}
+[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]:active:not(:disabled){transform:scale(.98);transition-duration:.06s}
 [data-testid^="stBaseButton-primary"]::before,[data-testid^="stBaseButton-secondary"]::before{content:"";position:absolute;left:50%;top:50%;
-width:140%;aspect-ratio:1;border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(255,255,255,.6) 0%,rgba(255,255,255,0) 62%);
-transform:translate(-50%,-50%) scale(1.5);opacity:0;transition:transform .65s ease-out,opacity .8s ease-out}
-[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]::before{background:radial-gradient(circle,rgba(31,99,201,.32) 0%,rgba(31,99,201,0) 62%)}
+width:140%;aspect-ratio:1;border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(255,255,255,.35) 0%,rgba(255,255,255,0) 62%);
+transform:translate(-50%,-50%) scale(1.4);opacity:0;transition:transform .4s var(--tu-e),opacity .5s var(--tu-e)}
+[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]::before{background:radial-gradient(circle,rgba(31,99,201,.22) 0%,rgba(31,99,201,0) 62%)}
 [data-testid^="stBaseButton-primary"]:active::before,[data-testid^="stBaseButton-secondary"]:active::before{transform:translate(-50%,-50%) scale(0);opacity:1;transition:0s}
-[data-testid^="stBaseButton"]:hover:not(:disabled) [data-testid="stIconMaterial"]{animation:tu-menear .6s ease}
-[class*="st-key-cta_"] [data-testid^="stBaseButton-primary"]:not(:disabled),.st-key-btn_iniciar [data-testid^="stBaseButton-primary"]:not(:disabled){animation:tu-pulso 2.2s ease-out infinite}
+[data-testid^="stBaseButton"]:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(31,99,201,.35)}
 
-/* Avisos: rebote al aparecer, el error se sacude y el acierto late en verde */
-[data-testid="stAlertContainer"]{animation:tu-rebote .6s var(--tu-e-suave) backwards}
-[data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"]){animation:tu-sacudir .65s ease-in-out}
-[data-testid="stAlertContainer"]:has([data-testid="stAlertContentSuccess"]){animation:tu-rebote .6s var(--tu-e-suave) backwards,tu-pulso-verde 1.1s ease-out .25s}
-[data-testid="stAlertDynamicIcon"]{animation:tu-pop .6s var(--tu-e-rebote) .3s backwards}
+/* Avisos: entrada corta; el error hace una sacudida leve */
+[data-testid="stAlertContainer"]{animation:tu-rebote .3s var(--tu-e) backwards}
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"]){animation:tu-rebote .3s var(--tu-e) backwards,tu-sacudir .35s var(--tu-e) .1s}
+[data-testid="stAlertDynamicIcon"]{animation:tu-pop .3s var(--tu-e) .1s backwards}
 
-/* Campos de texto, listas y pestañas: halo al enfocar y pequeño salto al pasar el mouse */
+/* Campos de texto, listas y pestañas: anillo de enfoque suave */
 [data-testid="stTextInputRootElement"],[data-testid="stTextAreaRootElement"],[data-testid="stNumberInputContainer"],
-[data-testid="stSelectbox"] [role="group"]{transition:box-shadow .25s ease,border-color .25s ease}
+[data-testid="stSelectbox"] [role="group"]{transition:box-shadow var(--tu-normal) var(--tu-e),border-color var(--tu-normal) var(--tu-e)}
 [data-testid="stTextInputRootElement"]:focus-within,[data-testid="stTextAreaRootElement"]:focus-within,[data-testid="stNumberInputContainer"]:focus-within,
-[data-testid="stSelectbox"] [role="group"]:focus-within{box-shadow:0 0 0 4px rgba(31,99,201,.22)}
-[data-testid="stTab"]{transition:color .2s ease,transform .25s var(--tu-e-rebote)}
-[data-testid="stTab"]:hover{transform:translateY(-2px)}
+[data-testid="stSelectbox"] [role="group"]:focus-within{box-shadow:0 0 0 3px rgba(31,99,201,.22)}
+[data-testid="stTab"]{transition:color var(--tu-rapido) var(--tu-e),transform var(--tu-normal) var(--tu-e)}
+[data-testid="stTab"]:hover{transform:scale(1.05)}
 
 /* Menú lateral */
-[data-testid="stSidebarNavLink"]{position:relative;animation:tu-izq .5s var(--tu-e-suave) backwards;transition:background .2s ease,transform .3s var(--tu-e-rebote)}
-[data-testid="stSidebarNavLink"]:hover{transform:translateX(6px)}
-[data-testid="stSidebarNavLink"]:hover [data-testid="stIconMaterial"]{animation:tu-menear .6s ease}
+[data-testid="stSidebarNavLink"]{position:relative;animation:tu-izq .3s var(--tu-e) backwards;transition:background var(--tu-rapido) var(--tu-e),transform var(--tu-normal) var(--tu-e)}
+[data-testid="stSidebarNavLink"]:hover{transform:scale(1.03);transform-origin:left center}
 [data-testid="stSidebarNavLink"]::before{content:"";position:absolute;left:-2px;top:22%;bottom:22%;width:3px;border-radius:3px;
-background:linear-gradient(#5B9BEF,#0EA5E9);transform:scaleY(0);transition:transform .35s var(--tu-e-rebote)}
+background:linear-gradient(#5B9BEF,#0EA5E9);transform:scaleY(0);transition:transform var(--tu-normal) var(--tu-e)}
 [data-testid="stSidebarNavLink"][aria-current="page"]::before{transform:scaleY(1)}
-[data-testid="stSidebarUserContent"] [data-testid="stElementContainer"]{animation:tu-izq .5s var(--tu-e-suave) backwards}
-[data-testid="stSidebarHeader"] img{transition:transform .5s var(--tu-e-rebote)}
-[data-testid="stSidebarHeader"]:hover img{transform:scale(1.07) rotate(-2deg)}
-.tu-usuario{transition:transform .3s var(--tu-e-rebote),background .25s ease,border-color .25s ease}
-.tu-usuario:hover{transform:translateY(-3px);background:rgba(255,255,255,.1);border-color:rgba(157,187,240,.4)}
-.tu-avatar{transition:transform .35s var(--tu-e-rebote)}
-.tu-usuario:hover .tu-avatar{transform:rotate(-8deg) scale(1.12)}
+[data-testid="stSidebarUserContent"] [data-testid="stElementContainer"]{animation:tu-izq .3s var(--tu-e) backwards}
+.tu-usuario{transition:background var(--tu-normal) var(--tu-e),border-color var(--tu-normal) var(--tu-e),transform var(--tu-normal) var(--tu-e)}
+.tu-usuario:hover{transform:scale(1.02);background:rgba(255,255,255,.1);border-color:rgba(157,187,240,.4)}
+.tu-avatar{animation:none}
 
-/* Chat: el tutor entra por la izquierda y el alumno por la derecha */
-[data-testid="stChatMessage"]{animation:tu-izq .55s var(--tu-e-suave) backwards;transition:transform .3s var(--tu-e-rebote),box-shadow .3s ease}
+/* Chat: el tutor entra por la izquierda y el alumno por la derecha, con un desplazamiento mínimo */
+[data-testid="stChatMessage"]{animation:tu-izq .3s var(--tu-e) backwards}
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]){animation-name:tu-der}
-[data-testid="stChatMessage"]:hover{transform:translateY(-2px);box-shadow:var(--tu-sombra-alta)}
-[data-testid="stChatMessageAvatarAssistant"],[data-testid="stChatMessageAvatarUser"]{animation:tu-pop .6s var(--tu-e-rebote) .2s backwards}
-[data-testid="stChatMessage"]:hover [data-testid^="stChatMessageAvatar"] [data-testid="stIconMaterial"]{animation:tu-menear .7s ease}
-[data-testid="stSpinner"]{animation:tu-respirar 1.3s ease-in-out infinite}
-[data-testid="stChatInput"]{transition:box-shadow .3s ease,transform .3s var(--tu-e-rebote)}
-[data-testid="stChatInput"]:focus-within{transform:translateY(-3px);box-shadow:0 0 0 4px rgba(31,99,201,.22),var(--tu-sombra-alta)}
-[data-testid="stChatInputSubmitButton"] svg{transition:transform .3s var(--tu-e-rebote)}
-[data-testid="stChatInputSubmitButton"]:hover:not(:disabled) svg{transform:translateY(-3px) scale(1.2)}
+[data-testid="stChatMessageAvatarAssistant"],[data-testid="stChatMessageAvatarUser"]{animation:tu-pop .3s var(--tu-e) .1s backwards}
+[data-testid="stSpinner"]{animation:tu-respirar 1.4s ease-in-out infinite}
+[data-testid="stChatInput"]{transition:box-shadow var(--tu-normal) var(--tu-e)}
+[data-testid="stChatInput"]:focus-within{box-shadow:0 0 0 3px rgba(31,99,201,.22),var(--tu-sombra)}
 
 /* Píldoras de modo y opciones del examen */
-[class*="st-key-modo_"] [data-testid="stRadioOption"]{transition:background .25s ease,box-shadow .25s ease,transform .3s var(--tu-e-rebote)}
-[class*="st-key-modo_"] [data-testid="stRadioOption"]:hover{transform:translateY(-2px)}
-[class*="st-key-modo_"] [data-testid="stRadioOption"]:active{transform:scale(.94)}
-[class*="st-key-modo_"] [data-testid="stRadioOption"][data-selected="true"]>div,[class*="st-key-quiz_"] [data-testid="stRadioOption"][data-selected="true"]>div{animation:tu-seleccion .45s var(--tu-e-rebote)}
-[class*="st-key-quiz_"] [data-testid="stRadioOption"]{animation:tu-der .5s var(--tu-e-suave) backwards;transition:border-color .2s ease,box-shadow .25s ease,
-transform .3s var(--tu-e-rebote),background .2s ease}
-[class*="st-key-quiz_"] [data-testid="stRadioOption"]:nth-of-type(2){animation-delay:.08s}[class*="st-key-quiz_"] [data-testid="stRadioOption"]:nth-of-type(3){animation-delay:.16s}
-[class*="st-key-quiz_"] [data-testid="stRadioOption"]:nth-of-type(4){animation-delay:.24s}
-[class*="st-key-quiz_"] [data-testid="stRadioOption"]:hover{transform:translateX(8px);box-shadow:var(--tu-sombra)}
-[class*="st-key-quiz_"] [data-testid="stRadioOption"]:active{transform:scale(.98)}
-[class*="st-key-quiz_"] [data-testid="stRadioOption"][data-selected="true"]{background:var(--tu-suave);box-shadow:0 0 0 4px rgba(31,99,201,.2),var(--tu-sombra)}
-.tu-marca{animation:tu-pop .55s var(--tu-e-rebote) .15s backwards}
+[class*="st-key-modo_"] [data-testid="stRadioOption"]{transition:background var(--tu-normal) var(--tu-e),box-shadow var(--tu-normal) var(--tu-e),transform var(--tu-rapido) var(--tu-e)}
+[class*="st-key-modo_"] [data-testid="stRadioOption"]:hover{transform:scale(1.04)}
+[class*="st-key-modo_"] [data-testid="stRadioOption"]:active{transform:scale(.97)}
+[class*="st-key-modo_"] [data-testid="stRadioOption"][data-selected="true"]>div,[class*="st-key-quiz_"] [data-testid="stRadioOption"][data-selected="true"]>div{animation:tu-seleccion .2s var(--tu-e)}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"]{animation:tu-der .3s var(--tu-e) backwards;transition:border-color var(--tu-rapido) var(--tu-e),box-shadow var(--tu-normal) var(--tu-e),
+background var(--tu-rapido) var(--tu-e),transform var(--tu-rapido) var(--tu-e)}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"]:nth-of-type(2){animation-delay:.05s}[class*="st-key-quiz_"] [data-testid="stRadioOption"]:nth-of-type(3){animation-delay:.1s}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"]:nth-of-type(4){animation-delay:.15s}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"]:hover{transform:translateX(2px) scale(1.012);box-shadow:var(--tu-sombra)}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"]:active{transform:scale(.99)}
+.tu-marca{animation:tu-pop .3s var(--tu-e) .1s backwards}
 
-/* Confeti (no ocupa lugar en la página ni recibe la animación de entrada) */
+/* Íconos de lo que se puede tocar: una vibración corta y leve al pasar el mouse (una sola vez por pasada) */
+[data-testid^="stBaseButton"]:hover:not(:disabled) [data-testid="stIconMaterial"],
+[data-testid="stSidebarNavLink"]:hover [data-testid="stIconMaterial"],
+[data-testid="stTab"]:hover span[role="img"],
+[class*="st-key-modo_"] [data-testid="stRadioOption"]:hover span[role="img"],
+[data-testid="stExpander"] summary:hover [data-testid="stIconMaterial"],
+[data-testid="stChatInputSubmitButton"]:hover:not(:disabled) svg,
+.tu-dato:hover .tu-dato-icono svg,.tu-item:hover .tu-item-icono svg,.tit:hover .tit-icono svg,
+.tu-rasgo:hover .tu-rasgo-icono svg,.tu-chip:hover svg,.tu-insignia:hover svg{display:inline-block;animation:tu-vibrar .9s ease-in-out 1;transform-origin:50% 60%}
+[data-testid="stTab"] span[role="img"],[class*="st-key-modo_"] [data-testid="stRadioOption"] span[role="img"]{display:inline-block}
+
+/* Confeti (se usa solo en logros importantes; no ocupa lugar en la página ni recibe la entrada) */
 [data-testid="stElementContainer"]:has(.tu-confeti){position:absolute;width:0;height:0}
 .tu-confeti{position:fixed;inset:0;z-index:1000001;pointer-events:none;overflow:hidden}
 .tu-confeti b{position:absolute;left:50%;top:62%;animation:tu-conf-x var(--t) cubic-bezier(.1,.75,.3,1) var(--d) both}
 .tu-confeti i{display:block;width:var(--w);height:var(--h);background:var(--c);border-radius:var(--br);opacity:0;animation:tu-conf-y var(--t) linear var(--d) both}
 
 /* Inicio de sesión */
-.tu-acceso-hero{animation:tu-izq .8s var(--tu-e-suave) backwards}
-.tu-acceso-logo{animation:tu-pop .7s var(--tu-e-rebote) .25s backwards,tu-flotar-y 4s ease-in-out 1.2s infinite}
-.tu-acceso-titulo{animation:tu-subir .7s var(--tu-e-suave) .3s backwards}
-.tu-acceso-texto{animation:tu-subir .7s var(--tu-e-suave) .4s backwards}
-.tu-rasgo{animation:tu-izq .6s var(--tu-e-suave) .5s backwards;transition:transform .35s var(--tu-e-rebote),background .25s ease,border-color .25s ease}
-.tu-rasgo:nth-child(2){animation-delay:.62s}.tu-rasgo:nth-child(3){animation-delay:.74s}
-.tu-rasgo:hover{transform:translateX(8px) scale(1.02);background:rgba(255,255,255,.17);border-color:rgba(255,255,255,.32)}
-.tu-rasgo-icono{transition:transform .35s var(--tu-e-rebote)}
-.tu-rasgo:hover .tu-rasgo-icono{transform:scale(1.15) rotate(-8deg)}
-.tu-rasgo:hover .tu-rasgo-icono svg{animation:tu-menear .7s ease}
-.st-key-tarjeta_acceso{animation:tu-rebote .85s var(--tu-e-suave) .2s backwards}
+.tu-acceso-hero{animation:tu-subir .5s var(--tu-e) backwards}
+.tu-acceso-logo,.tu-acceso-titulo,.tu-acceso-texto{animation:tu-subir .45s var(--tu-e) backwards}
+.tu-acceso-titulo{animation-delay:.08s}.tu-acceso-texto{animation-delay:.14s}
+.tu-rasgo{animation:tu-subir .4s var(--tu-e) .2s backwards;transition:background var(--tu-normal) var(--tu-e),border-color var(--tu-normal) var(--tu-e)}
+.tu-rasgo:nth-child(2){animation-delay:.27s}.tu-rasgo:nth-child(3){animation-delay:.34s}
+.tu-rasgo:hover{transform:none;background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3)}
+.tu-rasgo-icono{transition:background var(--tu-normal) var(--tu-e)}
+.tu-rasgo:hover .tu-rasgo-icono{background:rgba(255,255,255,.26)}
+.st-key-tarjeta_acceso{animation:tu-rebote .5s var(--tu-e) .1s backwards}
 """.replace("%B", _BLOQUE)
-    # cascada: cada elemento de la pantalla entra un poco después que el anterior
-    + "".join(f"{_BLOQUE}>*:nth-child({i}){{animation-delay:{(i - 1) * 0.055:.3f}s}}" for i in range(2, 13))
-    + f"{_BLOQUE}>*:nth-child(n+13){{animation-delay:.66s}}"
+    # cascada: cada elemento de la pantalla entra apenas después que el anterior (máximo 0,28 s de retraso)
+    + "".join(f"{_BLOQUE}>*:nth-child({i}){{animation-delay:{(i - 1) * 0.035:.3f}s}}" for i in range(2, 9))
+    + f"{_BLOQUE}>*:nth-child(n+9){{animation-delay:.28s}}"
 )
 
 
