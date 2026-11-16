@@ -4,7 +4,7 @@ import time
 
 from groq import AuthenticationError, Groq, NotFoundError, PermissionDeniedError, RateLimitError
 
-from core.config import GROQ_API_KEY, GROQ_MODEL
+from core.config import GROQ_API_KEY, GROQ_MODEL, GROQ_MODEL_RESPALDO
 
 SIN_INFO = "No tengo información sobre eso en el material de este tema."
 
@@ -131,11 +131,33 @@ def _groq() -> Groq:
     return _client
 
 
+RESPALDO_SEGUNDOS = 60       # tras un límite, el modelo de respaldo atiende durante este tiempo antes de volver al principal
+_respaldo_hasta = 0.0        # time.monotonic() hasta el que se usa el respaldo
+
+
+def _modelo() -> str:
+    """El modelo principal, o el de respaldo si el principal llegó a su límite hace poco."""
+    if GROQ_MODEL_RESPALDO and GROQ_MODEL_RESPALDO != GROQ_MODEL and time.monotonic() < _respaldo_hasta:
+        return GROQ_MODEL_RESPALDO
+    return GROQ_MODEL
+
+
+def _pasar_a_respaldo() -> bool:
+    """Tras un límite de Groq: usa el modelo de respaldo un rato. True si recién cambió (conviene reintentar ya, sin esperar)."""
+    global _respaldo_hasta
+    if not GROQ_MODEL_RESPALDO or GROQ_MODEL_RESPALDO == GROQ_MODEL:
+        return False
+    ya_estaba = time.monotonic() < _respaldo_hasta
+    _respaldo_hasta = time.monotonic() + RESPALDO_SEGUNDOS
+    return not ya_estaba
+
+
 def _kwargs(mensajes: list[dict], temperature: float, json_mode: bool, esfuerzo: str, stream: bool = False) -> dict:
-    kwargs = {"model": GROQ_MODEL, "messages": mensajes, "temperature": temperature}
+    modelo = _modelo()
+    kwargs = {"model": modelo, "messages": mensajes, "temperature": temperature}
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
-    if "gpt-oss" in GROQ_MODEL:  # modelo de razonamiento: menos razonamiento = más rápido y menos tokens
+    if "gpt-oss" in modelo:  # modelo de razonamiento: menos razonamiento = más rápido y menos tokens
         kwargs["reasoning_effort"] = esfuerzo
     if stream:
         kwargs["stream"] = True
@@ -155,6 +177,8 @@ def _llamar(mensajes: list[dict], temperature: float = 0.1, json_mode: bool = Fa
             if (fatal := _error_final(e)):  # no tiene caso reintentar
                 raise fatal
             ultimo_error = e
+            if isinstance(e, RateLimitError) and _pasar_a_respaldo():
+                continue  # otro modelo tiene su propia cuota: se reintenta de inmediato
             time.sleep((8 if isinstance(e, RateLimitError) else 2) * (intento + 1))
     raise _error_agotado(ultimo_error)
 
@@ -184,6 +208,8 @@ def _llamar_en_vivo(mensajes: list[dict], temperature: float = 0.1, reintentos: 
             if empezo:
                 raise ErrorIA("La respuesta del tutor se interrumpió a la mitad. Vuelve a intentarlo.", "red", str(e))
             ultimo_error = e
+            if isinstance(e, RateLimitError) and _pasar_a_respaldo():
+                continue
             time.sleep((8 if isinstance(e, RateLimitError) else 2) * (intento + 1))
     raise _error_agotado(ultimo_error)
 

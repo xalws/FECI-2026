@@ -30,6 +30,9 @@ def _normalizar_url(url: str) -> str:
 DATABASE_URL = _normalizar_url(_get("DATABASE_URL")) or f"sqlite:///{BASE_DIR / 'local.db'}"
 GROQ_API_KEY = _get("GROQ_API_KEY")
 GROQ_MODEL = _get("GROQ_MODEL", "openai/gpt-oss-120b")
+# Cada modelo de Groq tiene su propia cuota: si el principal llega a su límite (por minuto o por día), el tutor sigue con
+# este. Déjalo vacío en el .env para desactivarlo.
+GROQ_MODEL_RESPALDO = _get("GROQ_MODEL_RESPALDO", "openai/gpt-oss-20b")
 
 CHROMA_PATH = str(BASE_DIR / "chroma_data")
 EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"

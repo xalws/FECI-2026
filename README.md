@@ -237,7 +237,8 @@ GROQ_API_KEY=gsk_tu_clave_aqui
 DATABASE_URL=postgresql://usuario:password@ep-host-name.region.aws.neon.tech/neondb?sslmode=require
 ```
 
-Opcionales: `GROQ_MODEL`, `MIN_SCORE` (similitud mínima para responder), `UMBRAL_TEMA` (similitud mínima para
+Opcionales: `GROQ_MODEL`, `GROQ_MODEL_RESPALDO` (modelo al que cambia el tutor durante un minuto cuando el principal llega
+a su límite de Groq; cada modelo tiene su propia cuota; por defecto `openai/gpt-oss-20b`, vacío para desactivarlo), `MIN_SCORE` (similitud mínima para responder), `UMBRAL_TEMA` (similitud mínima para
 asignar un fragmento a un tema de la retícula, 0.30 por defecto), `ADMIN_EMAIL` y `ADMIN_PASSWORD`
 (credenciales del administrador inicial). Si no defines `ADMIN_EMAIL` y `ADMIN_PASSWORD`, se usan valores de ejemplo: cámbialos fuera de un
 demo.
@@ -286,6 +287,14 @@ importados.
 ```bash
 python scripts/datos_demo.py            # crea un maestro y tres alumnos de ejemplo
 python scripts/datos_demo.py --borrar   # elimina solo esos datos
+```
+
+Para la feria hay una demostración lista sobre la materia Metrología (maestra, administrador, cuatro alumnos y una clase
+con dos semanas de actividad, tareas y avisos), con un guion de 5 minutos en [DEMO.md](DEMO.md):
+
+```bash
+python scripts/preparar_demo.py            # crea o rehace la demostración (cuentas @feci.local)
+python scripts/preparar_demo.py --borrar   # elimina solo lo que creó
 ```
 
 Los usuarios usan el dominio `@demo.local` y la contraseña `demo1234`: `maestro@demo.local`,

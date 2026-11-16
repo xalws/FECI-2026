@@ -107,5 +107,86 @@ class TestRespuestaEnVivo(unittest.TestCase):
         self.assertTrue(issubclass(llm.ErrorIA, RuntimeError))  # el código anterior sigue capturándolo
 
 
+class TestModeloDeRespaldo(unittest.TestCase):
+    """Si el modelo principal llega a su límite de Groq, el tutor sigue con el de respaldo (cada modelo tiene su cuota)."""
+
+    def setUp(self):
+        self.dormido = mock.patch.object(llm.time, "sleep")
+        self.dormido.start()
+        self.addCleanup(self.dormido.stop)
+        for nombre, valor in (("GROQ_MODEL", "principal"), ("GROQ_MODEL_RESPALDO", "respaldo"), ("_respaldo_hasta", 0.0)):
+            p = mock.patch.object(llm, nombre, valor)
+            p.start()
+            self.addCleanup(p.stop)
+
+    def cliente_que_anota(self, *resultados):
+        modelos, pendientes = [], list(resultados)
+
+        def create(**kw):
+            modelos.append(kw["model"])
+            r = pendientes.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return iter(r) if isinstance(r, list) else r
+
+        return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))), modelos
+
+    def test_normalmente_usa_el_principal(self):
+        c, modelos = self.cliente_que_anota([trozo("ok")])
+        with mock.patch.object(llm, "_groq", return_value=c):
+            list(llm._llamar_en_vivo([]))
+        self.assertEqual(modelos, ["principal"])
+
+    def test_tras_un_limite_pasa_al_respaldo_sin_esperar(self):
+        c, modelos = self.cliente_que_anota(limite(), [trozo("listo")])
+        with mock.patch.object(llm, "_groq", return_value=c):
+            self.assertEqual("".join(llm._llamar_en_vivo([])), "listo")
+        self.assertEqual(modelos, ["principal", "respaldo"])
+        llm.time.sleep.assert_not_called()  # el respaldo tiene su propia cuota: no hay por qué esperar
+
+    def test_las_llamadas_siguientes_siguen_en_el_respaldo_un_rato(self):
+        c, modelos = self.cliente_que_anota(limite(), [trozo("a")], [trozo("b")])
+        with mock.patch.object(llm, "_groq", return_value=c):
+            list(llm._llamar_en_vivo([]))
+            list(llm._llamar_en_vivo([]))
+        self.assertEqual(modelos, ["principal", "respaldo", "respaldo"])
+
+    def test_vuelve_al_principal_despues_de_un_minuto(self):
+        c, modelos = self.cliente_que_anota(limite(), [trozo("a")], [trozo("b")])
+        with mock.patch.object(llm, "_groq", return_value=c):
+            list(llm._llamar_en_vivo([]))
+            with mock.patch.object(llm.time, "monotonic", return_value=llm._respaldo_hasta + 1):
+                list(llm._llamar_en_vivo([]))
+        self.assertEqual(modelos, ["principal", "respaldo", "principal"])
+
+    def test_tambien_vale_para_las_respuestas_completas(self):
+        ok = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="listo"))])
+        c, modelos = self.cliente_que_anota(limite(), ok)
+        with mock.patch.object(llm, "_groq", return_value=c):
+            self.assertEqual(llm._llamar([]), "listo")
+        self.assertEqual(modelos, ["principal", "respaldo"])
+
+    def test_si_el_respaldo_tambien_llega_al_limite_espera_y_avisa(self):
+        c, modelos = self.cliente_que_anota(limite(), limite(), limite())
+        with mock.patch.object(llm, "_groq", return_value=c):
+            with self.assertRaises(llm.ErrorIA) as e:
+                list(llm._llamar_en_vivo([]))
+        self.assertEqual(e.exception.tipo, "limite")
+        self.assertEqual(modelos, ["principal", "respaldo", "respaldo"])
+
+    def test_sin_respaldo_configurado_se_comporta_como_antes(self):
+        c, modelos = self.cliente_que_anota(limite(), [trozo("listo")])
+        with mock.patch.object(llm, "GROQ_MODEL_RESPALDO", ""), mock.patch.object(llm, "_groq", return_value=c):
+            self.assertEqual("".join(llm._llamar_en_vivo([])), "listo")
+        self.assertEqual(modelos, ["principal", "principal"])
+        llm.time.sleep.assert_called()  # espera y reintenta con el mismo modelo
+
+    def test_el_razonamiento_solo_se_pide_a_modelos_gpt_oss(self):
+        with mock.patch.object(llm, "GROQ_MODEL", "llama-x"), mock.patch.object(llm, "GROQ_MODEL_RESPALDO", ""):
+            self.assertNotIn("reasoning_effort", llm._kwargs([], 0.1, False, "low"))
+        with mock.patch.object(llm, "GROQ_MODEL", "openai/gpt-oss-120b"):
+            self.assertEqual(llm._kwargs([], 0.1, False, "low")["reasoning_effort"], "low")
+
+
 if __name__ == "__main__":
     unittest.main()
