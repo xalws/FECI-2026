@@ -1,6 +1,6 @@
 import streamlit as st
 
-from core import estilo, tema
+from core import estilo, sesion, tema
 from core.auth import crear_usuario, login
 from core.ui import selector_cascada
 
@@ -20,10 +20,16 @@ with col_acceso:
             with st.form("form_login", border=False):
                 email = st.text_input("Correo", placeholder="tu.correo@ejemplo.com")
                 password = st.text_input("Contraseña", type="password", placeholder="Tu contraseña")
+                recordar = st.checkbox("Mantener mi sesión iniciada", value=True,
+                                       help="Así no tienes que escribir tu contraseña si recargas la página. "
+                                            "Dura 14 días; desmárcala en computadoras compartidas.")
                 if st.form_submit_button("Entrar", type="primary", icon=":material/arrow_forward:", width="stretch"):
                     u = login(email, password)
                     if u:
                         st.session_state["user"] = u
+                        st.session_state.pop("_sesion_cerrada", None)
+                        if recordar:
+                            sesion.recordar(u["id"])
                         st.rerun()
                     else:
                         st.error("Correo o contraseña incorrectos.", icon=":material/error:")

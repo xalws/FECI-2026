@@ -1,6 +1,7 @@
 """Cuenta del usuario: validación, cambio y restablecimiento de contraseña."""
 from sqlalchemy import select
 
+from core import sesion
 from core.db import get_session
 from core.passwords import hash_password, verificar_password
 from models.schema import Usuario
@@ -19,8 +20,10 @@ def validar_password(password: str) -> str | None:
     return None
 
 
-def cambiar_password(usuario_id: int, actual: str, nueva: str, confirmacion: str) -> tuple[bool, str]:
-    # El propio usuario cambia su contraseña; debe conocer la actual.
+def cambiar_password(usuario_id: int, actual: str, nueva: str, confirmacion: str,
+                     conservar_token: str | None = None) -> tuple[bool, str]:
+    # El propio usuario cambia su contraseña; debe conocer la actual. Las demás sesiones recordadas se cierran
+    # (la de `conservar_token`, la de este navegador, sigue abierta).
     if nueva != confirmacion:
         return False, "La confirmación no coincide con la nueva contraseña."
     error = validar_password(nueva)
@@ -35,6 +38,7 @@ def cambiar_password(usuario_id: int, actual: str, nueva: str, confirmacion: str
         if actual == nueva:
             return False, "La nueva contraseña debe ser distinta de la actual."
         u.password_hash = hash_password(nueva)
+    sesion.revocar_todas(usuario_id, conservar_token)
     return True, "Contraseña actualizada."
 
 
@@ -51,7 +55,9 @@ def restablecer_password(admin_id: int, usuario_id: int, nueva: str) -> tuple[bo
         if u is None:
             return False, "El usuario no existe."
         u.password_hash = hash_password(nueva)
-        return True, f"Contraseña de {u.nombre} ({u.email}) restablecida."
+        mensaje = f"Contraseña de {u.nombre} ({u.email}) restablecida."
+    sesion.revocar_todas(usuario_id)  # quien la olvidó (o alguien más) pierde las sesiones que tuviera abiertas
+    return True, mensaje
 
 
 def restablecer_por_correo(email: str, nueva: str) -> tuple[bool, str]:
@@ -65,4 +71,6 @@ def restablecer_por_correo(email: str, nueva: str) -> tuple[bool, str]:
         if u is None:
             return False, "No existe un usuario con ese correo."
         u.password_hash = hash_password(nueva)
-        return True, f"Contraseña de {u.nombre} ({u.email}) restablecida."
+        usuario_id, mensaje = u.id, f"Contraseña de {u.nombre} ({u.email}) restablecida."
+    sesion.revocar_todas(usuario_id)
+    return True, mensaje

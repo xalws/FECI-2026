@@ -194,6 +194,42 @@ def lista(items: list[dict]) -> None:
     _html(f'<div class="tu-lista">{"".join(filas)}</div>')
 
 
+def calendario_actividad(filas: list[list[dict]], meta: int, hoy) -> None:
+    """Calendario de semanas (lunes a domingo): más oscuro cuanto más se estudió; el borde marca el día de hoy."""
+    cabecera = "".join(f'<span class="tu-cal-dia">{d}</span>' for d in "LMMJVSD")
+    celdas = []
+    for fila in filas:
+        for c in fila:
+            m = c["minutos"]
+            nivel = 0 if m <= 0 else (1 if m < meta * 0.5 else (2 if m < meta else 3))
+            clases = f"tu-cal-celda n{nivel}" + (" futuro" if c["futuro"] else "") + (" hoy" if c["fecha"] == hoy else "")
+            texto = "" if c["futuro"] else f"{c['fecha']:%d/%m}: {round(m)} min"
+            celdas.append(f'<span class="{clases}" title="{_e(texto)}"></span>')
+    leyenda = ('<div class="tu-cal-leyenda"><span>Menos</span><i class="tu-cal-celda n0"></i><i class="tu-cal-celda n1"></i>'
+               '<i class="tu-cal-celda n2"></i><i class="tu-cal-celda n3"></i><span>Meta cumplida</span></div>')
+    _html(f'<div class="tu-cal-tarjeta"><div class="tu-cal">{cabecera}{"".join(celdas)}</div>{leyenda}</div>')
+
+
+def logros_grid(items: list[dict]) -> None:
+    """Tarjetas de logros: los conseguidos a color y los pendientes en gris con su avance."""
+    tarjetas = []
+    for i, it in enumerate(items):
+        color, fondo = _tono(it.get("tono", "indigo"))
+        if it["logrado"]:
+            pie = f'<div class="tu-logro-ok">{svg("check", 14)}Conseguido</div>'
+        else:
+            pct = round(it["actual"] / it["meta"] * 100)
+            pie = (f'<div class="tu-logro-barra"><i style="width:{pct}%"></i></div>'
+                   f'<div class="tu-logro-avance">{it["actual"]} de {it["meta"]}</div>')
+        tarjetas.append(
+            f'<div class="tu-logro {"logrado" if it["logrado"] else "pendiente"}" '
+            f'style="--color:{color};--fondo:{fondo};animation-delay:{min(i, 8) * 0.04:.2f}s">'
+            f'<span class="tu-logro-icono">{svg(it["icono"], 22)}</span>'
+            f'<div class="tu-logro-titulo">{_e(it["titulo"])}</div>'
+            f'<div class="tu-logro-texto">{_e(it["descripcion"])}</div>{pie}</div>')
+    _html(f'<div class="tu-logros">{"".join(tarjetas)}</div>')
+
+
 def grafica_barras(df, categoria: str, valor: str, titulo_valor: str, maximo: float | None = None,
                    color_por: str | None = None, colores: dict | None = None) -> None:
     """Barras horizontales que muestran el nombre completo de cada categoría (st.bar_chart lo recorta)."""
@@ -431,7 +467,7 @@ transition:transform .9s cubic-bezier(.2,.8,.2,1)}
 [data-testid="stChatMessage"]{background:var(--tu-sup);border:1px solid var(--tu-borde);border-radius:18px;padding:.95rem 1.15rem;
 box-shadow:0 1px 2px rgba(11,31,68,.05);animation:tu-aparecer .35s ease-out backwards}
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]){background:var(--tu-burbuja);
-border-color:#C5D8F8;margin-left:min(12%,6rem)}
+border-color:#C5D8F8;margin-left:min(12%,6rem);width:auto;max-width:calc(100% - min(12%,6rem))}
 [data-testid="stChatMessageAvatarAssistant"]{background:var(--tu-degradado)!important;color:#fff!important;border-radius:12px!important}
 [data-testid="stChatMessageAvatarUser"]{background:#0EA5E9!important;color:#fff!important;border-radius:12px!important}
 [data-testid="stChatInput"]{border-radius:18px;box-shadow:var(--tu-sombra)}
@@ -471,6 +507,33 @@ background:linear-gradient(135deg,#2F6FD8,#5B9BEF);color:#fff;font-weight:800;fo
 .tu-rol{display:inline-block;margin-top:3px;padding:1px 9px;border-radius:999px;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em}
 .tu-rol-alumno{background:rgba(14,165,233,.2);color:#7DD3FC}.tu-rol-maestro{background:rgba(16,185,129,.2);color:#6EE7B7}
 .tu-rol-admin{background:rgba(245,158,11,.2);color:#FCD34D}
+
+/* Calendario de actividad y logros */
+.tu-cal-tarjeta{background:var(--tu-sup);border:1px solid var(--tu-borde);border-radius:18px;padding:16px 18px;box-shadow:var(--tu-sombra);margin:.2rem 0 1rem}
+.tu-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.tu-cal-dia{text-align:center;font-size:.7rem;font-weight:700;color:var(--tu-gris);letter-spacing:.06em}
+.tu-cal-celda{display:block;aspect-ratio:1.7;border-radius:8px;background:var(--tu-pista);min-height:18px}
+.tu-cal-celda.n1{background:color-mix(in srgb,var(--tu-violeta) 38%,var(--tu-pista))}
+.tu-cal-celda.n2{background:color-mix(in srgb,var(--tu-violeta) 72%,var(--tu-pista))}
+.tu-cal-celda.n3{background:var(--tu-indigo)}
+.tu-cal-celda.futuro{background:transparent;border:1px dashed var(--tu-borde)}
+.tu-cal-celda.hoy{outline:2px solid var(--tu-violeta);outline-offset:2px}
+.tu-cal-leyenda{display:flex;align-items:center;justify-content:flex-end;gap:5px;margin-top:12px;font-size:.72rem;color:var(--tu-gris)}
+.tu-cal-leyenda i{width:13px;height:13px;min-height:0;border-radius:4px}
+.tu-cal-leyenda span:first-child{margin-right:3px}.tu-cal-leyenda span:last-child{margin-left:3px}
+.tu-logros{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:.3rem 0 1.2rem}
+.tu-logro{display:flex;flex-direction:column;gap:6px;background:var(--tu-sup);border:1px solid var(--tu-borde);border-radius:18px;padding:16px;
+box-shadow:var(--tu-sombra)}
+.tu-logro-icono{width:42px;height:42px;border-radius:13px;display:inline-flex;align-items:center;justify-content:center;background:var(--fondo);color:var(--color)}
+.tu-logro-titulo{font-family:"Plus Jakarta Sans",sans-serif;font-weight:800;color:var(--tu-tinta);margin-top:4px}
+.tu-logro-texto{font-size:.82rem;color:var(--tu-gris);line-height:1.35;flex:1}
+.tu-logro-ok{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;font-weight:700;color:var(--color);margin-top:4px}
+.tu-logro-barra{height:6px;border-radius:999px;background:var(--tu-pista);overflow:hidden;margin-top:6px}
+.tu-logro-barra i{display:block;height:100%;border-radius:999px;background:var(--tu-violeta)}
+.tu-logro-avance{font-size:.74rem;font-weight:600;color:var(--tu-gris)}
+.tu-logro.logrado{border-color:color-mix(in srgb,var(--color) 40%,var(--tu-borde))}
+.tu-logro.pendiente .tu-logro-icono{background:var(--tu-pista);color:var(--tu-gris)}
+.tu-logro.pendiente .tu-logro-titulo{color:var(--tu-gris)}
 
 /* Bloque del usuario (tarjeta, modo claro/oscuro y cerrar sesión): siempre al final del menú lateral */
 [data-testid="stSidebarContent"]{display:flex;flex-direction:column}
@@ -680,6 +743,15 @@ background var(--tu-rapido) var(--tu-e),transform var(--tu-rapido) var(--tu-e)}
 .tu-dato:hover .tu-dato-icono svg,.tu-item:hover .tu-item-icono svg,.tit:hover .tit-icono svg,
 .tu-rasgo:hover .tu-rasgo-icono svg,.tu-chip:hover svg,.tu-insignia:hover svg{display:inline-block;animation:tu-vibrar .9s ease-in-out 1;transform-origin:50% 60%}
 [data-testid="stTab"] span[role="img"],[class*="st-key-modo_"] [data-testid="stRadioOption"] span[role="img"]{display:inline-block}
+
+/* Calendario y logros: entrada corta y elevación leve */
+.tu-cal-tarjeta{animation:tu-rebote .4s var(--tu-e) backwards}
+.tu-logro{animation:tu-rebote .4s var(--tu-e) backwards;transition:transform var(--tu-normal) var(--tu-e),box-shadow var(--tu-normal) var(--tu-e)}
+.tu-logro:hover{transform:translateY(-2px) scale(1.02);box-shadow:var(--tu-sombra-alta)}
+.tu-logro.logrado:hover .tu-logro-icono svg{display:inline-block;animation:tu-vibrar .9s ease-in-out 1}
+.tu-cal-celda{transition:transform var(--tu-rapido) var(--tu-e)}
+.tu-cal-celda:not(.futuro):hover{transform:scale(1.18)}
+.tu-logro-barra i{animation:tu-barra .8s var(--tu-e) .1s backwards}
 
 /* Confeti (se usa solo en logros importantes; no ocupa lugar en la página ni recibe la entrada) */
 [data-testid="stElementContainer"]:has(.tu-confeti){position:absolute;width:0;height:0}

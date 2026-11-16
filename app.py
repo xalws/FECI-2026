@@ -3,13 +3,15 @@ from pathlib import Path
 
 import streamlit as st
 
-from core import tema
+from core import sesion, tema
 from core.auth import iniciar_db
 from core.estilo import aplicar_estilo, transicion
 
 st.set_page_config(page_title="Tutor Universitario", page_icon="🎓", layout="wide")
 iniciar_db()
 tema.restaurar_sesion()  # tras cambiar de modo claro/oscuro la página se recarga: vuelve a su sesión
+sesion.restaurar()       # «Recordarme»: si el navegador trae un código vigente, se recupera la sesión
+sesion.aplicar_cookie_pendiente()  # escribe o borra la cookie si el inicio o el cierre de sesión lo dejó pendiente
 aplicar_estilo()
 
 ASSETS = Path(__file__).parent / "assets"

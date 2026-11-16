@@ -58,15 +58,34 @@ def dias_seguidos(dias: set[date], hoy: date) -> int:
     return racha
 
 
-def racha_dias(usuario_id: int, zona: tzinfo) -> int:
-    # Racha de días seguidos usando la app, contados en la zona horaria del alumno.
-    desde = datetime.now(timezone.utc) - timedelta(days=366)
+def marcas_recientes(usuario_id: int, dias: int = 366) -> list[datetime]:
+    # Marcas de actividad del último año (con zona UTC, también cuando SQLite las devuelve sin ella).
+    desde = datetime.now(timezone.utc) - timedelta(days=dias)
     try:
         with get_session() as s:
             fechas = s.scalars(select(Actividad.fecha).where(Actividad.usuario_id == usuario_id,
                                                              Actividad.fecha >= desde)).all()
     except Exception:
-        return 0
-    # SQLite devuelve las fechas sin zona; se guardaron en UTC
-    dias = {(f if f.tzinfo else f.replace(tzinfo=timezone.utc)).astimezone(zona).date() for f in fechas}
+        return []
+    return [f if f.tzinfo else f.replace(tzinfo=timezone.utc) for f in fechas]
+
+
+def dias_con_marcas(marcas: list[datetime], zona: tzinfo) -> set[date]:
+    return {m.astimezone(zona).date() for m in marcas}
+
+
+def racha_maxima(dias: set[date]) -> int:
+    # La racha más larga de días seguidos que haya tenido.
+    mejor = actual = 0
+    anterior = None
+    for d in sorted(dias):
+        actual = actual + 1 if anterior is not None and d - anterior == timedelta(days=1) else 1
+        mejor = max(mejor, actual)
+        anterior = d
+    return mejor
+
+
+def racha_dias(usuario_id: int, zona: tzinfo) -> int:
+    # Racha de días seguidos usando la app, contados en la zona horaria del alumno.
+    dias = dias_con_marcas(marcas_recientes(usuario_id), zona)
     return dias_seguidos(dias, datetime.now(zona).date())

@@ -1,9 +1,10 @@
 import pandas as pd
 import streamlit as st
 
-from core import actividad, material, niveles, progreso
+from core import actividad, logros, material, niveles, progreso
 from core.auth import require_login
-from core.estilo import TONOS, anillo, datos, encabezado, grafica_barras, lista, titulo, zona_horaria
+from core.estilo import (TONOS, anillo, calendario_actividad, datos, encabezado, grafica_barras, lista, logros_grid,
+                         titulo, zona_horaria)
 
 user = require_login(["alumno"])
 
@@ -40,6 +41,37 @@ datos([
      "detalle": (plural(ejercicios["intentos"], "ejercicio calificado", "ejercicios calificados")
                  if ejercicios["intentos"] else "aún sin ejercicios"), "tono": "cielo"},
 ])
+
+
+# Meta diaria y logros
+zona = zona_horaria()
+dl = logros.datos_alumno(user["id"], zona)
+lista_logros = logros.evaluar(dl)
+logros.revisar_nuevos(user["id"], zona, dl)
+
+
+def guardar_meta() -> None:
+    logros.guardar_meta(user["id"], st.session_state["meta_diaria"])
+
+
+st.write("")
+titulo("target", "Tu meta diaria")
+col_meta, col_cal = st.columns([1, 1.3], gap="medium")
+hoy_min, meta_min = dl["minutos_hoy"], dl["meta"]
+with col_meta:
+    anillo(min(100, hoy_min / meta_min * 100), f"{round(hoy_min)} de {meta_min} min hoy",
+           "¡Meta cumplida, muy bien!" if hoy_min >= meta_min else f"Te faltan {max(1, round(meta_min - hoy_min))} min para tu meta.",
+           etiqueta=f"{dl['dias_meta']} {'día' if dl['dias_meta'] == 1 else 'días'} con la meta cumplida",
+           tono="verde" if hoy_min >= meta_min else "indigo")
+    st.session_state["meta_diaria"] = meta_min  # el valor guardado manda; el cambio se guarda al elegir otro
+    st.selectbox("Mi meta de estudio al día", logros.METAS_MIN, key="meta_diaria", on_change=guardar_meta,
+                 format_func=lambda m: f"{m} minutos")
+with col_cal:
+    calendario_actividad(logros.calendario(dl["minutos"], dl["hoy"]), meta_min, dl["hoy"])
+
+conseguidos = sum(1 for l in lista_logros if l["logrado"])
+titulo("award", f"Logros · {conseguidos} de {len(lista_logros)}")
+logros_grid(lista_logros)
 
 
 def texto_tema(t: dict) -> str:

@@ -24,7 +24,8 @@ with col_propia:
             nueva = st.text_input(f"Nueva contraseña (mínimo {cuenta.MIN_CARACTERES} caracteres)", type="password")
             confirmacion = st.text_input("Confirma la nueva contraseña", type="password")
             if st.form_submit_button("Guardar contraseña", type="primary", icon=":material/save:", width="stretch"):
-                ok, mensaje = cuenta.cambiar_password(user["id"], actual, nueva, confirmacion)
+                ok, mensaje = cuenta.cambiar_password(user["id"], actual, nueva, confirmacion,
+                                                      st.session_state.get("_token_sesion"))
                 if ok:
                     st.success(mensaje, icon=":material/check_circle:")
                 else:

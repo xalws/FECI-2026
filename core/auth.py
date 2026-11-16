@@ -1,7 +1,7 @@
 import streamlit as st
 from sqlalchemy import select
 
-from core import actividad, cuenta, estilo, tema
+from core import actividad, cuenta, estilo, sesion, tema
 from core.db import get_session, init_db
 from core.passwords import hash_password, verificar_password
 from models.schema import Cuatrimestre, Usuario
@@ -43,8 +43,10 @@ def crear_usuario(nombre: str, email: str, password: str, rol: str,
 
 
 def cerrar_sesion() -> None:
+    sesion.revocar(st.session_state.get("_token_sesion"))  # el código recordado deja de servir
     for k in list(st.session_state.keys()):
         del st.session_state[k]
+    sesion.cerrar()  # borra la cookie del navegador
 
 
 def barra_lateral(user: dict) -> None:

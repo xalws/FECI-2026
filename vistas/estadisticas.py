@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import select
@@ -5,7 +7,7 @@ from sqlalchemy import select
 from core import actividad, niveles, sospechas, stats
 from core.auth import require_login
 from core.db import get_session
-from core.estilo import datos, encabezado, grafica_barras, grafica_fechas, titulo, zona_horaria
+from core.estilo import datos, encabezado, grafica_barras, grafica_fechas, lista, titulo, zona_horaria
 from models.schema import Asignacion
 
 user = require_login(["maestro", "admin"])
@@ -62,6 +64,21 @@ datos([{"icono": "message", "etiqueta": "Preguntas de alumnos", "valor": r["preg
        {"icono": "target", "etiqueta": "Aciertos", "valor": f"{r['pct_aciertos']:.1f}%",
         "detalle": "promedio de los quizzes", "tono": "verde"}])
 
+# Preguntas que el tutor no pudo responder: si varios alumnos coinciden en un tema, falta material ahí
+sin_resp = stats.preguntas_sin_respuesta(materias_ids)
+sin_resp = sin_resp[sin_resp["materia"].isin(filtro)].reset_index(drop=True)
+if buscar:
+    sin_resp = sin_resp[sin_resp["alumno"].astype(str).str.contains(buscar, case=False, regex=False)
+                        | sin_resp["tema"].astype(str).str.contains(buscar, case=False, regex=False)]
+faltantes = stats.material_faltante(sin_resp)
+if not faltantes.empty:
+    titulo("bulb", f"Falta material en {len(faltantes)} {'tema' if len(faltantes) == 1 else 'temas'}")
+    lista([{"icono": "help", "titulo": f["tema"], "sub": f["materia"], "tono": "ambar",
+            "texto": f"{f['alumnos']} alumnos preguntaron lo que el material no cubre ({f['preguntas']} preguntas). "
+                     f"Por ejemplo: «{f['ejemplo'][:140]}»"}
+           for _, f in faltantes.head(5).iterrows()])
+    st.caption("Sube PDFs sobre estos temas en «Material de la IA» y el tutor podrá contestar a tus alumnos.")
+
 a, b = st.columns(2)
 with a:
     with st.container(border=True):
@@ -111,7 +128,6 @@ with d:
 
 st.divider()
 titulo("help", "Preguntas sin respuesta (falta material)")
-sin_resp = stats.preguntas_sin_respuesta(materias_ids)
 if sin_resp.empty:
     st.caption("El tutor ha podido responder todas las preguntas.")
 else:
@@ -130,7 +146,8 @@ else:
                            key="avance_materia"))
     de_la_materia = resp[resp["materia_id"] == mid]
     alumnos_materia = {int(i): n for i, n in zip(de_la_materia["alumno_id"], de_la_materia["alumno"])}
-    st.dataframe(niveles.tabla_avance(mid, alumnos_materia), hide_index=True)
+    avance = niveles.tabla_avance(mid, alumnos_materia)
+    st.dataframe(avance, hide_index=True)
     st.caption("Nivel y % de avance de cada alumno por unidad. Se calcula con los XP de sus preguntas y ejercicios.")
 
 e, f = st.columns(2)
@@ -144,10 +161,22 @@ with e:
         st.dataframe(df_t.sort_values("minutos", ascending=False), hide_index=True)
         st.caption("Suma el tiempo entre acciones; las pausas de más de 5 minutos no cuentan.")
         resumen_csv = stats.resumen_por_alumno(msgs, resp, dict(zip(df_t["alumno"], df_t["minutos"])))
-        st.download_button("Descargar resumen por alumno (CSV)",
-                           resumen_csv.to_csv(index=False).encode("utf-8-sig"),
-                           file_name="resumen_alumnos.csv", mime="text/csv",
-                           icon=":material/download:")
+        d1, d2 = st.columns(2)
+        d1.download_button("Resumen (CSV)", resumen_csv.to_csv(index=False).encode("utf-8-sig"),
+                           file_name="resumen_alumnos.csv", mime="text/csv", icon=":material/download:",
+                           width="stretch")
+        hojas = {"Resumen por alumno": resumen_csv, "Tiempo en la app": df_t,
+                 "Aciertos por tema": stats.aciertos_por_tema(resp),
+                 "Alumnos más activos": stats.alumnos_mas_activos(msgs),
+                 "Preguntas más falladas": stats.preguntas_mas_falladas(resp),
+                 "Preguntas sin respuesta": sin_resp, "Material faltante": faltantes}
+        if materias_con_datos:
+            hojas[f"Avance {materias_con_datos[mid]}"] = avance
+        d2.download_button("Reporte completo (Excel)", stats.exportar_excel(hojas),
+                           file_name=f"reporte_{datetime.now(zona_horaria()):%Y-%m-%d}.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                           icon=":material/table_view:", type="primary", width="stretch")
+        st.caption("El reporte respeta las materias y la búsqueda que elegiste arriba.")
 with f:
     with st.container(border=True):
         titulo("search", "Actividad a revisar")

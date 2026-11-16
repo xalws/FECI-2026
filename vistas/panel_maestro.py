@@ -1,10 +1,10 @@
 import streamlit as st
 from sqlalchemy import select
 
-from core import material, pdf_loader, rag, reticula
+from core import material, pdf_loader, rag, reticula, stats
 from core.auth import require_login
 from core.db import get_session
-from core.estilo import datos, encabezado, fecha_local, titulo
+from core.estilo import datos, encabezado, fecha_local, lista, titulo
 from core.ui import selector_cascada
 from models.schema import Asignacion, Documento
 
@@ -15,25 +15,37 @@ user = require_login(["maestro", "admin"])
 encabezado("Material de entrenamiento", "Sube los PDFs con los que el tutor responde a tus alumnos y revisa qué temas "
            "ya tienen material.", "upload")
 
-# Maestro
+# El maestro ve todas las universidades, carreras y materias, pero solo puede subir material a las que tiene asignadas
 if user["rol"] == "admin":
     permitidas = None
 else:
     with get_session() as s:
-        permitidas = list(s.scalars(select(Asignacion.materia_id).where(Asignacion.maestro_id == user["id"])))
-    if not permitidas:
-        st.info("El administrador todavía no te ha asignado materias.")
-        st.stop()
+        permitidas = set(s.scalars(select(Asignacion.materia_id).where(Asignacion.maestro_id == user["id"])))
 
 with st.sidebar:
     st.divider()
     titulo("book", "Elige el tema")
-    sel = selector_cascada(hasta="tema", materias_permitidas=permitidas, prefix="maestro")
+    sel = selector_cascada(hasta="tema", prefix="maestro")
 tema_id = sel.get("tema")
 materia_id = sel.get("materia")
 if materia_id is None:
     st.info("Elige la materia en el menú de la izquierda.")
     st.stop()
+if permitidas is not None and materia_id not in permitidas:
+    st.warning("Esta materia no está asignada a ti, así que no puedes subirle material. Pídele al administrador que "
+               "te la asigne (o elige otra en el menú de la izquierda)."
+               + ("" if permitidas else " Todavía no tienes ninguna materia asignada."), icon=":material/lock:")
+    st.stop()
+
+# Temas de esta materia donde varios alumnos preguntaron algo que el material no cubre
+try:
+    faltantes = stats.material_faltante(stats.preguntas_sin_respuesta([materia_id]))
+except Exception:  # un fallo de las estadísticas no debe impedir subir material
+    faltantes = None
+if faltantes is not None and not faltantes.empty:
+    titulo("bulb", f"Tus alumnos piden material en {len(faltantes)} {'tema' if len(faltantes) == 1 else 'temas'}")
+    lista([{"icono": "help", "titulo": f["tema"], "sub": f"{f['alumnos']} alumnos distintos preguntaron", "tono": "ambar",
+            "texto": f"Por ejemplo: «{f['ejemplo'][:140]}»"} for _, f in faltantes.head(5).iterrows()])
 
 st.caption("¿Dónde quieres subir el material?")
 modo = st.radio("¿Dónde quieres subir el material?",

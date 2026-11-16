@@ -68,6 +68,8 @@ class Usuario(Base):
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
     # Alumnos
     cuatrimestre_id: Mapped[int | None] = mapped_column(ForeignKey("cuatrimestres.id"), nullable=True)
+    # Meta diaria de estudio en minutos (el alumno la elige en «Mi progreso»)
+    meta_diaria_min: Mapped[int | None] = mapped_column(nullable=True)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
@@ -79,7 +81,17 @@ class Asignacion(Base):
     materia_id: Mapped[int] = mapped_column(ForeignKey("materias.id"))
 
 
-# Material de entrenamiento 
+# Sesiones recordadas («Recordarme»): solo se guarda la huella SHA-256 del código que lleva el navegador
+class Sesion(Base):
+    __tablename__ = "sesiones"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    creada: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+    expira: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+# Material de entrenamiento
 class Documento(Base):
     __tablename__ = "documentos"
     id: Mapped[int] = mapped_column(primary_key=True)

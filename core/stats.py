@@ -1,4 +1,7 @@
 # Estadísticas para el maestro 
+import re
+from io import BytesIO
+
 import pandas as pd
 from sqlalchemy import text
 
@@ -48,6 +51,59 @@ def preguntas_sin_respuesta(materias_ids: list[int] | None = None) -> pd.DataFra
     if materias_ids is not None:
         df = df[df["materia_id"].isin(materias_ids)]
     return df.drop(columns="materia_id").reset_index(drop=True)
+
+
+def material_faltante(sin_resp: pd.DataFrame, minimo_alumnos: int = 2) -> pd.DataFrame:
+    """Temas donde varios alumnos distintos preguntaron algo que el material no cubre.
+
+    Una sola pregunta sin respuesta puede ser un capricho; que varios alumnos coincidan en el mismo tema indica
+    que falta contenido. Devuelve materia, tema, alumnos (distintos), preguntas y un ejemplo (la más reciente).
+    """
+    columnas = ["materia", "tema", "alumnos", "preguntas", "ejemplo"]
+    if sin_resp.empty:
+        return pd.DataFrame(columns=columnas)
+    g = (sin_resp.groupby(["materia", "tema"])
+         .agg(alumnos=("alumno", "nunique"), preguntas=("pregunta", "count"), ejemplo=("pregunta", "first"))
+         .reset_index())
+    g = g[g["alumnos"] >= minimo_alumnos].sort_values(["alumnos", "preguntas"], ascending=False)
+    return g[columnas].reset_index(drop=True)
+
+
+def _nombre_hoja(nombre: str, usados: set[str]) -> str:
+    limpio = re.sub(r"[\\/*?:\[\]]", " ", nombre).strip()[:31] or "Hoja"
+    base, n = limpio, 2
+    while limpio.lower() in usados:  # Excel no admite dos hojas con el mismo nombre
+        limpio = f"{base[:28]} {n}"
+        n += 1
+    usados.add(limpio.lower())
+    return limpio
+
+
+def exportar_excel(hojas: dict[str, pd.DataFrame]) -> bytes:
+    """Libro de Excel (.xlsx) con una hoja por tabla: encabezado con color, filtros y columnas ajustadas."""
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    salida, usados = BytesIO(), set()
+    with pd.ExcelWriter(salida, engine="openpyxl") as libro:
+        for nombre, df in (hojas or {"Resumen": pd.DataFrame()}).items():
+            df = df.copy()
+            for col in df.columns:  # Excel no guarda zonas horarias: se conserva la hora local
+                if isinstance(df[col].dtype, pd.DatetimeTZDtype):
+                    df[col] = df[col].dt.tz_localize(None)
+            hoja = _nombre_hoja(nombre, usados)
+            df.to_excel(libro, sheet_name=hoja, index=False)
+            ws = libro.sheets[hoja]
+            for celda in ws[1]:
+                celda.font = Font(bold=True, color="FFFFFF")
+                celda.fill = PatternFill("solid", fgColor="0B3D91")
+                celda.alignment = Alignment(vertical="center")
+            ws.freeze_panes = "A2"
+            if ws.max_row >= 1 and ws.max_column >= 1:
+                ws.auto_filter.ref = ws.dimensions
+            for i, col in enumerate(df.columns, 1):
+                largo = max([len(str(col))] + [len(str(v)) for v in df[col].head(200)])
+                ws.column_dimensions[ws.cell(1, i).column_letter].width = min(60, max(10, largo + 2))
+    return salida.getvalue()
 
 
 def cargar(materias_ids: list[int] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:

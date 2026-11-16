@@ -94,3 +94,20 @@ def nombre_tema(tema_id: int) -> str:
     with get_session() as s:
         t = s.get(Tema, tema_id)
         return t.nombre if t else ""
+
+
+def error_ia(e: Exception, clave: str = "") -> bool:
+    """Muestra el error de la IA con un texto amable. Con `clave` agrega «Reintentar» y devuelve True si se pulsa.
+
+    Un botón solo funciona si sigue en pantalla en la ejecución siguiente: quien lo use debe volver a llamar a esta
+    función en cada ejecución mientras el error siga pendiente (ver `fallo_ia` en vistas/chat_alumno.py).
+    """
+    tipo = getattr(e, "tipo", "")
+    icono = {"limite": ":material/hourglass_top:", "red": ":material/wifi_off:",
+             "config": ":material/settings:"}.get(tipo, ":material/error:")
+    (st.warning if tipo in ("limite", "red") else st.error)(str(e), icon=icono)
+    detalle = getattr(e, "detalle", "")
+    if detalle:
+        with st.expander("Detalles técnicos"):
+            st.code(str(detalle)[:700], language=None)
+    return bool(clave) and st.button("Reintentar", icon=":material/refresh:", key=f"reintentar_{clave}")

@@ -8,6 +8,39 @@ from core.config import GROQ_API_KEY, GROQ_MODEL
 
 SIN_INFO = "No tengo información sobre eso en el material de este tema."
 
+
+class ErrorIA(RuntimeError):
+    """Fallo al usar la IA. `str(e)` es un texto amable, listo para mostrarse al usuario tal cual.
+
+    `tipo`: «limite» (el plan gratuito se llenó), «red» (sin conexión o respuesta cortada) o «config»
+    (API key o modelo inválidos: lo debe arreglar quien administra la app). `detalle` guarda el error técnico.
+    """
+
+    def __init__(self, mensaje: str, tipo: str = "red", detalle: str = ""):
+        super().__init__(mensaje)
+        self.tipo = tipo
+        self.detalle = detalle
+
+
+def _error_final(e: Exception) -> "ErrorIA | None":
+    # Errores que no tiene caso reintentar
+    if isinstance(e, (AuthenticationError, PermissionDeniedError)):
+        return ErrorIA("Groq rechazó la solicitud: la API key es inválida, fue revocada o no tiene "
+                       "permiso para este modelo. Revisa GROQ_API_KEY en el archivo .env.", "config", str(e))
+    if isinstance(e, NotFoundError):
+        return ErrorIA(f"El modelo '{GROQ_MODEL}' no existe en Groq. Revisa GROQ_MODEL o usa el valor por defecto.",
+                       "config", str(e))
+    return None
+
+
+def _error_agotado(e: Exception | None) -> ErrorIA:
+    # Se acabaron los reintentos
+    if isinstance(e, RateLimitError):
+        return ErrorIA("El tutor está atendiendo muchas consultas en este momento. Espera unos segundos y vuelve "
+                       "a intentarlo.", "limite", str(e))
+    return ErrorIA("No pude comunicarme con el tutor. Revisa tu conexión a internet e inténtalo de nuevo.",
+                   "red", str(e) if e else "")
+
 SYSTEM_TUTOR = """Eres un tutor universitario. Tema de estudio: "{tema}".
 
 REGLAS ESTRICTAS:
@@ -92,10 +125,21 @@ _client = None
 def _groq() -> Groq:
     global _client
     if not GROQ_API_KEY:
-        raise RuntimeError("Falta GROQ_API_KEY. Agrégala en el archivo .env y reinicia la aplicación.")
+        raise ErrorIA("Falta GROQ_API_KEY. Agrégala en el archivo .env y reinicia la aplicación.", "config")
     if _client is None:
         _client = Groq(api_key=GROQ_API_KEY)
     return _client
+
+
+def _kwargs(mensajes: list[dict], temperature: float, json_mode: bool, esfuerzo: str, stream: bool = False) -> dict:
+    kwargs = {"model": GROQ_MODEL, "messages": mensajes, "temperature": temperature}
+    if json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
+    if "gpt-oss" in GROQ_MODEL:  # modelo de razonamiento: menos razonamiento = más rápido y menos tokens
+        kwargs["reasoning_effort"] = esfuerzo
+    if stream:
+        kwargs["stream"] = True
+    return kwargs
 
 
 def _llamar(mensajes: list[dict], temperature: float = 0.1, json_mode: bool = False, reintentos: int = 3,
@@ -103,28 +147,45 @@ def _llamar(mensajes: list[dict], temperature: float = 0.1, json_mode: bool = Fa
     ultimo_error = None
     for intento in range(reintentos):
         try:
-            kwargs = {"model": GROQ_MODEL, "messages": mensajes, "temperature": temperature}
-            if json_mode:
-                kwargs["response_format"] = {"type": "json_object"}
-            if "gpt-oss" in GROQ_MODEL:  # modelo de razonamiento: menos razonamiento = más rápido y menos tokens
-                kwargs["reasoning_effort"] = esfuerzo
-            r = _groq().chat.completions.create(**kwargs)
+            r = _groq().chat.completions.create(**_kwargs(mensajes, temperature, json_mode, esfuerzo))
             return r.choices[0].message.content or ""
         except RuntimeError:
             raise
-        except (AuthenticationError, PermissionDeniedError):  # no tiene caso reintentar
-            raise RuntimeError("Groq rechazó la solicitud: la API key es inválida, fue revocada o no tiene "
-                               "permiso para este modelo. Revisa GROQ_API_KEY en el archivo .env.")
-        except NotFoundError:
-            raise RuntimeError(f"El modelo '{GROQ_MODEL}' no existe en Groq. "
-                               "Revisa GROQ_MODEL o usa el valor por defecto.")
-        except RateLimitError as e: 
+        except Exception as e:
+            if (fatal := _error_final(e)):  # no tiene caso reintentar
+                raise fatal
             ultimo_error = e
-            time.sleep(8 * (intento + 1))
-        except Exception as e: 
+            time.sleep((8 if isinstance(e, RateLimitError) else 2) * (intento + 1))
+    raise _error_agotado(ultimo_error)
+
+
+def _llamar_en_vivo(mensajes: list[dict], temperature: float = 0.1, reintentos: int = 3, esfuerzo: str = "low"):
+    """Generador: va entregando el texto de la respuesta conforme Groq lo produce.
+
+    Solo se reintenta mientras no haya salido texto; si la respuesta se corta a la mitad se avisa con un ErrorIA.
+    """
+    ultimo_error = None
+    for intento in range(reintentos):
+        empezo = False
+        try:
+            for trozo in _groq().chat.completions.create(**_kwargs(mensajes, temperature, False, esfuerzo, True)):
+                if not trozo.choices:
+                    continue
+                texto = trozo.choices[0].delta.content
+                if texto:
+                    empezo = True
+                    yield texto
+            return
+        except RuntimeError:
+            raise
+        except Exception as e:
+            if (fatal := _error_final(e)):
+                raise fatal
+            if empezo:
+                raise ErrorIA("La respuesta del tutor se interrumpió a la mitad. Vuelve a intentarlo.", "red", str(e))
             ultimo_error = e
-            time.sleep(2 * (intento + 1))
-    raise RuntimeError(f"No se pudo contactar a Groq (límite del plan gratuito o problema de red). Detalle: {ultimo_error}")
+            time.sleep((8 if isinstance(e, RateLimitError) else 2) * (intento + 1))
+    raise _error_agotado(ultimo_error)
 
 
 def _formato_latex(texto: str) -> str:
@@ -137,10 +198,7 @@ def _formatear_contexto(fragmentos: list[dict]) -> str:
     return "\n\n---\n\n".join(f["texto"] for f in fragmentos)
 
 
-def responder(tema: str, pregunta: str, fragmentos: list[dict], historial: list[dict],
-              nivel: str = "normal") -> str:
-    if not fragmentos:
-        return SIN_INFO
+def _mensajes_tutor(tema: str, pregunta: str, fragmentos: list[dict], historial: list[dict], nivel: str) -> list[dict]:
     sistema = SYSTEM_TUTOR.format(tema=tema, sin_info=SIN_INFO)
     if nivel in AJUSTE_TUTOR:
         sistema += "\n" + AJUSTE_TUTOR[nivel]
@@ -149,7 +207,23 @@ def responder(tema: str, pregunta: str, fragmentos: list[dict], historial: list[
         mensajes.append({"role": m["rol"], "content": m["contenido"]})
     mensajes.append({"role": "user",
                      "content": f"CONTEXTO:\n{_formatear_contexto(fragmentos)}\n\nMENSAJE DEL ALUMNO: {pregunta}"})
-    return _formato_latex(_llamar(mensajes, temperature=0.1).strip())
+    return mensajes
+
+
+def responder(tema: str, pregunta: str, fragmentos: list[dict], historial: list[dict],
+              nivel: str = "normal") -> str:
+    if not fragmentos:
+        return SIN_INFO
+    return _formato_latex(_llamar(_mensajes_tutor(tema, pregunta, fragmentos, historial, nivel),
+                                  temperature=0.1).strip())
+
+
+def responder_en_vivo(tema: str, pregunta: str, fragmentos: list[dict], historial: list[dict], nivel: str = "normal"):
+    """Como `responder`, pero entrega la respuesta en trozos de texto para mostrarla mientras se escribe."""
+    if not fragmentos:
+        yield SIN_INFO
+        return
+    yield from _llamar_en_vivo(_mensajes_tutor(tema, pregunta, fragmentos, historial, nivel), temperature=0.1)
 
 
 def calificar_ejercicio(enunciado: str, respuesta: str, fragmentos: list[dict]) -> dict:

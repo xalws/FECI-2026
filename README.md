@@ -56,13 +56,26 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
 - **Preguntas sin respuesta:** lo que el tutor no pudo contestar, es decir, material que falta subir.
 - **Tiempo en la app** por alumno y **actividad a revisar** (respuestas demasiado rápidas, ráfagas de
   respuestas, mejoras bruscas). Son indicios, no prueba de trampa.
-- Descarga del resumen por alumno en CSV.
+- **Aviso de material faltante:** si varios alumnos distintos preguntan lo que el material no cubre en un mismo
+  tema, aparece un aviso en Estadísticas y en la página de material.
+- **Descargas:** resumen por alumno en CSV y reporte completo en Excel (una hoja por tabla; respeta las materias
+  y la búsqueda elegidas).
 
 **Administrador**
 - Crea usuarios, asigna materias a maestros y ve lo mismo que el maestro.
 - **Restablece la contraseña** de cualquier usuario que la olvidó (en «Mi cuenta»).
 
+**Alumno: metas y logros**
+- **Respuestas en vivo:** el tutor escribe la respuesta mientras el modelo la genera. Si la IA falla (límite del
+  plan gratuito, sin conexión) se muestra un mensaje claro con botón «Reintentar».
+- **Meta diaria de estudio** (10 a 60 minutos), calendario de las últimas 5 semanas y **11 logros** (primeras
+  respuestas, aciertos, rachas, ejercicios, niveles). Se calculan con la actividad ya guardada; solo la meta
+  elegida se guarda (`usuarios.meta_diaria_min`).
+
 **Todos los roles**
+- **Sesión recordada:** al marcar «Mantener mi sesión iniciada» (14 días) no hay que volver a entrar al recargar
+  la página. En el navegador solo queda un código aleatorio; la base guarda su huella SHA-256 (tabla `sesiones`).
+  Cerrar sesión, cambiar la contraseña o desactivar la cuenta lo invalidan. No usarla en equipos compartidos.
 - **Mi cuenta:** cambiar la propia contraseña (pide la actual y una confirmación). El mínimo son 6 caracteres y el
   máximo 72 bytes.
 - Si el administrador olvida la suya, se restablece desde la terminal, con el entorno virtual activo y el `.env`:
@@ -102,6 +115,9 @@ core/               Lógica
   sospechas.py        reglas de actividad a revisar
   stats.py            consultas de estadísticas para el maestro
   cuenta.py           cambio y restablecimiento de contraseñas
+  logros.py           meta diaria, calendario y logros del alumno
+  sesion.py           sesión recordada (cookie con código aleatorio; la base guarda solo su huella)
+  tema.py             botón de modo claro/oscuro que conserva la sesión
   chat.py, perfil.py, pdf_loader.py, db.py, config.py, passwords.py, ui.py
 models/schema.py    Tablas (SQLAlchemy)
 vistas/             Pantallas de Streamlit (login, estudio, progreso, historial, cuenta, admin, maestro, estadísticas)

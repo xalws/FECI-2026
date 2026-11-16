@@ -1,11 +1,11 @@
 import streamlit as st
 
-from core import chat, examen, llm, material, niveles, perfil, progreso, quiz, rag, tutoria
+from core import chat, examen, llm, logros, material, niveles, perfil, progreso, quiz, rag, tutoria
 from core.auth import require_login
 from core.estilo import (confeti, datos, encabezado, fecha_local, reanimar, reanimar_siguientes, saludo, svg,
-                         titulo)
+                         titulo, zona_horaria)
 from core.llm import DIFICULTADES
-from core.ui import nombre_tema, selector_cascada
+from core.ui import error_ia, nombre_tema, selector_cascada
 
 user = require_login(["alumno"])
 ss = st.session_state
@@ -37,6 +37,8 @@ if ss.pop("celebrar", False):
     st.balloons()
 if ss.pop("confeti", False):
     confeti()
+if ss.pop("revisar_logros", False) or "logros_vistos" not in ss:  # la primera vez solo toma nota
+    logros.revisar_nuevos(user["id"], zona_horaria())
 
 
 def nombre_dificultad(d) -> str:
@@ -199,7 +201,7 @@ def accion_tutor(intencion: str, texto_alumno: str | None = None) -> None:
         ss.intro_hecha.update({"nueva", _clave_intro(conv)})
         st.rerun()
     except Exception as e:
-        st.error(str(e))
+        error_ia(e)
 
 
 def vista_conversacion() -> None:
@@ -212,10 +214,23 @@ def vista_conversacion() -> None:
     st.selectbox("Conversación", list(etiquetas), format_func=etiquetas.get, key="conv_picker",
                  on_change=cambiar_conversacion, label_visibility="collapsed")
 
+    pregunta = st.chat_input("Escribe tu pregunta o «comencemos»…")  # se lee antes para limpiar errores viejos
+    if pregunta:
+        ss.pop("fallo_ia", None)
+
     mensajes = chat.listar_mensajes(ss.conv_id) if ss.conv_id else []
     for m in mensajes:
         with st.chat_message(m["rol"]):
             st.markdown(m["contenido"])
+
+    # Error pendiente de la respuesta anterior: se muestra en cada ejecución para que «Reintentar» funcione
+    fallo = ss.get("fallo_ia")
+    reintento = None
+    if fallo and fallo["conv"] == ss.conv_id and not pregunta:
+        with st.chat_message("assistant"):
+            if error_ia(fallo["error"], "pregunta"):
+                reintento = fallo["pregunta"]
+                ss.pop("fallo_ia", None)
 
     if _clave_intro(ss.conv_id) not in ss.intro_hecha:
         with st.chat_message("assistant"):
@@ -241,32 +256,44 @@ def vista_conversacion() -> None:
     elif not mensajes:
         st.caption(f"Pregúntame lo que quieras sobre **{tema_nombre}**. También puedes escribir «comencemos».")
 
-    pregunta = st.chat_input("Escribe tu pregunta o «comencemos»…")
-    if not pregunta:
+    if not pregunta and not reintento:
         return
-    intencion = tutoria.detectar_intencion(pregunta)
-    if intencion: 
-        accion_tutor(intencion, pregunta)
-        return
-    conv = ss.conv_id or nueva_conversacion("conv_id", pregunta)
-    ss.intro_hecha.update({"nueva", _clave_intro(conv)})
-    historial = chat.listar_mensajes(conv)
-    fragmentos = rag.buscar(tema_id, construir_consulta(historial, pregunta))
-    chat.guardar_mensaje(conv, "user", pregunta)
-    with st.chat_message("user"):
-        st.markdown(pregunta)
+    if reintento:  # la pregunta ya quedó guardada: solo se vuelve a pedir la respuesta
+        pregunta, conv = reintento, ss.conv_id
+        historial = chat.listar_mensajes(conv)[:-1]  # sin la pregunta que se reintenta (último mensaje)
+    else:
+        intencion = tutoria.detectar_intencion(pregunta)
+        if intencion:
+            accion_tutor(intencion, pregunta)
+            return
+        conv = ss.conv_id or nueva_conversacion("conv_id", pregunta)
+        ss.intro_hecha.update({"nueva", _clave_intro(conv)})
+        historial = chat.listar_mensajes(conv)
+    if not reintento:  # la pregunta aparece al instante, antes de buscar en el material
+        chat.guardar_mensaje(conv, "user", pregunta)
+        with st.chat_message("user"):
+            st.markdown(pregunta)
     with st.chat_message("assistant"):
+        lugar = st.empty()
+        lugar.markdown("Pensando…")
+        escrito = ""
         try:
-            with st.spinner("Pensando…"):
-                respuesta = llm.responder(tema_nombre, pregunta, fragmentos, historial, prog["nivel"])
+            fragmentos = rag.buscar(tema_id, construir_consulta(historial, pregunta))
+            # la respuesta se muestra conforme el modelo la va escribiendo
+            for trozo in llm.responder_en_vivo(tema_nombre, pregunta, fragmentos, historial, prog["nivel"]):
+                escrito += trozo
+                lugar.markdown(llm._formato_latex(escrito) + " ▍")
+            respuesta = llm._formato_latex(escrito.strip())
             if respuesta != llm.SIN_INFO:
                 respuesta += texto_fuentes(fragmentos)
             else:
                 chat.registrar_sin_respuesta(user["id"], tema_id, pregunta)
-            st.markdown(respuesta)
+            lugar.markdown(respuesta)
             chat.guardar_mensaje(conv, "assistant", respuesta)
         except Exception as e:
-            st.error(str(e))
+            lugar.empty()
+            ss["fallo_ia"] = {"error": e, "pregunta": pregunta, "conv": conv}
+            st.rerun()  # el error y su botón «Reintentar» se dibujan en la ejecución siguiente
 
 
 # Vista 2: ejercicio práctico 
@@ -291,7 +318,7 @@ def vista_ejercicio() -> None:
                     ss.ejercicio = {"enunciado": enunciado, "fragmentos": fragmentos, "resultado": None}
                     st.rerun()
                 except Exception as e:
-                    st.error(str(e))
+                    error_ia(e)
         return
 
     with st.container(border=True):
@@ -325,11 +352,12 @@ def vista_ejercicio() -> None:
                                  f"**Calificación: {r['puntaje']}/10**\n\n{r['retroalimentacion']}")
             ej["resultado"] = r
             ss["aviso"] = (f"Calificación: {r['puntaje']}/10", ":material/grading:")
+            ss["revisar_logros"] = True
             if r["puntaje"] >= 9:
                 ss["celebrar"] = True  # globos: calificación sobresaliente
             st.rerun()
         except Exception as e:
-            st.error(str(e))
+            error_ia(e)
 
 
 # Vista 3: examen 
@@ -376,6 +404,7 @@ def responder_examen(q: dict, eleccion: int) -> None:
                       "dificultad": q.get("dificultad"), "elegida": eleccion, "correcta": r["indice_correcto"],
                       "acerto": r["es_correcta"], "explicacion": r["explicacion"]}
     examen.registrar_resultado(ex, r["es_correcta"])
+    ss["revisar_logros"] = True
     puntos = (q.get("dificultad") or 2) if r["es_correcta"] else 0
     ss["aviso"] = ((f"¡Correcto! +{puntos} XP", ":material/celebration:") if r["es_correcta"]
                    else ("Casi: revisa la explicación y sigue", ":material/lightbulb:"))
@@ -428,16 +457,15 @@ def vista_examen_en_curso() -> None:
     if ex["quiz"] is None and ex.get("cola"):  # repaso: se vuelven a plantear las preguntas falladas
         ex["quiz"] = ex["cola"].pop(0)
     if ex["quiz"] is None:
-        error = ""
+        error = None
         try:
             with st.spinner("Preparando la pregunta…"):
                 ex["quiz"] = quiz.crear_quiz(tema_id, ss.conv_examen, ex["dificultad"], user["id"])
         except Exception as e:
-            error = str(e)
+            error = e
         if ex["quiz"] is None:
             if error:
-                st.error(error)
-                st.button("Reintentar", icon=":material/refresh:")  # al pulsarlo la página se ejecuta de nuevo
+                error_ia(error, "pregunta_examen")  # al pulsar «Reintentar» la página se ejecuta de nuevo
             else:
                 st.warning(material.mensaje_sin_material(tema_id))
             if st.button("Salir del examen", icon=":material/logout:"):
