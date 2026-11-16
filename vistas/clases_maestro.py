@@ -1,11 +1,13 @@
 """Clases del maestro: crear grupos, compartir el código, aprobar solicitudes y publicar avisos."""
 from datetime import datetime, time, timedelta, timezone
 
+import pandas as pd
 import streamlit as st
 
-from core import clases, stats, tareas
+from core import boletin, clases, stats, tareas
 from core.auth import require_login
 from core.estilo import datos, encabezado, fecha_local, insignias, titulo, zona_horaria
+from core.estilo import lista as lista_tarjetas
 from core.niveles import NOMBRES as NOMBRES_NIVEL
 from core.perfil_ui import dialogo_perfil
 from core.ui import selector_cascada
@@ -88,9 +90,9 @@ with st.container(border=True, key="tarjeta_clase"):
             st.caption(f"Maestro: {c['maestro']}")
         st.caption("Los alumnos lo escriben en «Mis clases» > «Unirme con un código».")
 
-t_alumnos, t_solicitudes, t_tareas, t_avisos, t_ajustes = st.tabs([
+t_alumnos, t_solicitudes, t_tareas, t_boletin, t_avisos, t_ajustes = st.tabs([
     f":material/group: Alumnos ({c['alumnos']})", f":material/hourglass_top: Solicitudes ({c['pendientes']})",
-    ":material/assignment: Tareas", ":material/campaign: Avisos", ":material/settings: Ajustes"])
+    ":material/assignment: Tareas", ":material/summarize: Boletín", ":material/campaign: Avisos", ":material/settings: Ajustes"])
 
 # ----- Alumnos -----
 with t_alumnos:
@@ -177,6 +179,60 @@ with t_tareas:
                 for d in tareas.detalle(user["id"], t["id"]):
                     marca = ":material/check_circle:" if d["hecha"] else ":material/radio_button_unchecked:"
                     st.markdown(f"{marca} **{d['nombre']}** · {d['avance']} de {d['meta']}")
+
+# ----- Boletín semanal -----
+TONO_ESTADO = {"Necesita apoyo": "rojo", "Sin actividad": "ambar", "Aún no entra": "ambar", "Destacado": "verde", "Al día": "cielo"}
+with t_boletin:
+    if not c["alumnos"]:
+        st.info("Cuando la clase tenga alumnos verás aquí cómo les fue cada semana.", icon=":material/insights:")
+    else:
+        b = boletin.generar(user["id"], clase_id, zona_horaria())
+        st.caption(f"Últimos 7 días: del {b['desde']:%d/%m} al {b['hasta']:%d/%m}, comparados con la semana anterior.")
+        s_, p_ = b["semana"], b["anterior"]
+        datos([{"icono": "users", "etiqueta": "Alumnos activos", "valor": f"{s_['activos']} de {b['total_alumnos']}",
+                "detalle": f"antes: {p_['activos']}", "tono": "indigo"},
+               {"icono": "message", "etiqueta": "Preguntas al tutor", "valor": s_["preguntas"],
+                "detalle": f"antes: {p_['preguntas']}", "tono": "violeta"},
+               {"icono": "help", "etiqueta": "Quizzes respondidos", "valor": s_["quizzes"],
+                "detalle": f"antes: {p_['quizzes']}", "tono": "cielo"},
+               {"icono": "target", "etiqueta": "Aciertos", "valor": "—" if s_["aciertos"] is None else f"{s_['aciertos']:.0f}%",
+                "detalle": "antes: " + ("—" if p_["aciertos"] is None else f"{p_['aciertos']:.0f}%"), "tono": "verde"}])
+        with st.container(border=True):
+            titulo("sparkles", "Lo más importante", nivel=4)
+            for frase in b["frases"]:
+                st.markdown(f"- {frase}")
+        if b["necesitan_apoyo"]:
+            titulo("flame", "A quién buscar", nivel=4)
+            for f in b["necesitan_apoyo"]:
+                g1, g2 = st.columns([1.2, 3], vertical_alignment="center")
+                with g1:
+                    insignias((f["alumno"], TONO_ESTADO[f["estado"]], "user"))
+                g2.caption(f"{f['estado']}. {f['motivo']}")
+        if b["temas_flojos"]:
+            titulo("x", "Temas con más errores", nivel=4)
+            lista_tarjetas([{"icono": "x", "titulo": t["tema"], "tono": "rojo",
+                             "texto": f"{t['% aciertos']:.0f}% de aciertos en {t['intentos']} respuestas."} for t in b["temas_flojos"]])
+        if b["sin_respuesta"]:
+            titulo("bulb", "Falta material", nivel=4)
+            lista_tarjetas([{"icono": "help", "titulo": d["tema"], "tono": "ambar",
+                             "texto": f"El tutor no pudo contestar {d['preguntas']} {'pregunta' if d['preguntas'] == 1 else 'preguntas'}."}
+                            for d in b["sin_respuesta"]])
+        if b["tareas"]:
+            titulo("clipboard", "Tareas de la semana", nivel=4)
+            lista_tarjetas([{"icono": "clipboard", "titulo": t["tarea"], "sub": t["tema"], "tono": "ambar" if not t["vencida"] else "rojo",
+                             "texto": f"{'Venció' if t['vencida'] else 'Vence'} el {t['límite']:%d/%m/%Y}. La cumplieron {t['hechas']} de {t['alumnos']}."}
+                            for t in b["tareas"]])
+        with st.expander("Todos los alumnos", icon=":material/table_rows:"):
+            tabla = pd.DataFrame(b["alumnos"]).drop(columns="motivo").rename(columns={"aciertos": "% aciertos"})
+            st.dataframe(tabla, hide_index=True)
+        d1, d2 = st.columns(2)
+        d1.download_button("Texto para enviar", boletin.como_texto(b).encode("utf-8"), icon=":material/notes:",
+                           file_name=f"boletin_{c['nombre']}_{b['hasta']:%Y-%m-%d}.txt".replace(" ", "_"),
+                           mime="text/plain", width="stretch", key=f"boletin_txt_{clase_id}")
+        d2.download_button("Boletín (Excel)", boletin.como_excel(b), icon=":material/table_view:", type="primary",
+                           file_name=f"boletin_{c['nombre']}_{b['hasta']:%Y-%m-%d}.xlsx".replace(" ", "_"),
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                           width="stretch", key=f"boletin_xlsx_{clase_id}")
 
 # ----- Avisos -----
 with t_avisos:

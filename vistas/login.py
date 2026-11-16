@@ -1,7 +1,8 @@
 import streamlit as st
 
 from core import estilo, sesion, tema
-from core.auth import crear_usuario, login
+from core.auth import crear_usuario, intentar_login
+from core.cuenta import REGLA
 from core.ui import selector_cascada
 
 col_marca, col_acceso = st.columns([1.15, 1], gap="large", vertical_alignment="center")
@@ -26,7 +27,7 @@ with col_acceso:
                                             "Dura 14 días; desmárcala en computadoras compartidas.")
                 if st.form_submit_button("Entrar", type="primary", icon=":material/arrow_forward:", width="stretch"):
                     estilo.mostrar_carga(carga)  # de inmediato: comprobar la contraseña y abrir la sesión puede tardar
-                    u = login(email, password)
+                    u, motivo = intentar_login(email, password)
                     if u:
                         st.session_state["user"] = u
                         st.session_state.pop("_sesion_cerrada", None)
@@ -36,14 +37,14 @@ with col_acceso:
                         st.rerun()
                     else:
                         carga.empty()
-                        st.error("Correo o contraseña incorrectos.", icon=":material/error:")
+                        st.error(motivo, icon=":material/error:")
             st.caption(":material/help: ¿Olvidaste tu contraseña? Pídele al administrador que la restablezca; "
                        "después puedes cambiarla en «Mi cuenta».")
 
         with tab_registro:
             nombre = st.text_input("Nombre completo", key="reg_nombre", placeholder="Como aparecerá en la app")
             email_r = st.text_input("Correo", key="reg_email", placeholder="tu.correo@ejemplo.com")
-            pass_r = st.text_input("Contraseña (mínimo 6 caracteres)", type="password", key="reg_pass")
+            pass_r = st.text_input("Contraseña", type="password", key="reg_pass", help=REGLA, placeholder=REGLA)
             st.markdown("**¿Dónde estudias?**")
             sel_reg = selector_cascada(hasta="cuatrimestre", prefix="reg", buscar=False)
             if st.button("Crear cuenta", type="primary", icon=":material/person_add:", width="stretch"):

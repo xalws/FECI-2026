@@ -16,12 +16,24 @@ def hash_de(email):
 
 class TestValidacion(unittest.TestCase):
     def test_reglas(self):
-        self.assertIsNotNone(cuenta.validar_password("corta"))               # menos de 6
-        self.assertIsNone(cuenta.validar_password("seis66"))
-        self.assertIsNone(cuenta.validar_password("a" * 72))
-        self.assertIsNotNone(cuenta.validar_password("a" * 73))              # pasa el límite de bcrypt
-        self.assertIsNotNone(cuenta.validar_password("ñ" * 40))              # 40 caracteres pero 80 bytes
-        self.assertIsNone(cuenta.validar_password("ñ" * 36))                 # 72 bytes justos
+        self.assertIsNotNone(cuenta.validar_password("corta1"))              # menos de 8
+        self.assertIsNone(cuenta.validar_password("ocho1234"))
+        self.assertIsNone(cuenta.validar_password("abcd" * 17 + "1"))         # 69 caracteres
+        self.assertIsNotNone(cuenta.validar_password("abcd" * 18 + "1"))     # 73 bytes: pasa el límite de bcrypt
+        self.assertIsNotNone(cuenta.validar_password("ñ" * 40 + "ab12"))      # 44 caracteres pero 84 bytes
+        self.assertIsNone(cuenta.validar_password("ñ" * 34 + "ab12"))         # 72 bytes justos
+
+    def test_letras_y_numeros(self):
+        self.assertIn("letra y un número", cuenta.validar_password("sololetras"))
+        self.assertIn("letra y un número", cuenta.validar_password("12345678"))
+        self.assertIsNone(cuenta.validar_password("Ñandú2026"))
+
+    def test_rechaza_las_comunes_las_repetitivas_y_las_que_contienen_el_correo(self):
+        self.assertIn("más usadas", cuenta.validar_password("Password1"))   # sin importar mayúsculas
+        self.assertIn("repetitiva", cuenta.validar_password("aaaa1111"))
+        self.assertIn("correo", cuenta.validar_password("juanperez2026", "juanperez@escuela.mx"))
+        self.assertIsNone(cuenta.validar_password("juanperez2026", "ju@escuela.mx"))  # usuario corto: no se compara
+        self.assertIsNone(cuenta.validar_password("Cielo-azul-77", "juanperez@escuela.mx"))
 
 
 class BaseCuentas(unittest.TestCase):

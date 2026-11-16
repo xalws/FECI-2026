@@ -2,7 +2,7 @@
 import streamlit as st
 from sqlalchemy import select
 
-from core import niveles, reticula
+from core import errores, niveles, reticula
 from core.auth import require_login
 from core.db import get_session
 from core.estilo import encabezado, titulo
@@ -61,6 +61,7 @@ with st.container(border=True):
             with st.spinner("Leyendo la retícula…"):
                 ss.reticula_pendiente = {"datos": reticula.extraer(archivo), "archivo": archivo.name}
         except Exception as e:
+            errores.registrar("reticula", e, user["id"])
             ss.pop("reticula_pendiente", None)
             st.error(str(e), icon=":material/error:")
 

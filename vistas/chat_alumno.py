@@ -1,6 +1,6 @@
 import streamlit as st
 
-from core import chat, clases, examen, llm, logros, material, niveles, perfil, progreso, quiz, rag, tutoria
+from core import chat, clases, errores, examen, llm, logros, material, niveles, perfil, progreso, quiz, rag, tutoria
 from core.auth import require_login
 from core.estudiante import cargando
 from core.hoy import panel_estudio as panel_dia
@@ -236,6 +236,7 @@ def accion_tutor(intencion: str, texto_alumno: str | None = None) -> None:
         ss.intro_hecha.update({"nueva", _clave_intro(conv)})
         st.rerun()
     except Exception as e:
+        errores.registrar("tutor", e, user["id"])
         error_ia(e)
 
 
@@ -340,6 +341,7 @@ def vista_conversacion() -> None:
             chat.guardar_mensaje(conv, "assistant", respuesta)
             st.rerun()  # se vuelve a dibujar con los atajos (más simple, ejemplo, pregunta, resumen) bajo la respuesta nueva
         except Exception as e:
+            errores.registrar("tutor", e, user["id"])
             lugar.empty()
             ss["fallo_ia"] = {"error": e, "pregunta": pregunta, "conv": conv}
             st.rerun()  # el error y su botón «Reintentar» se dibujan en la ejecución siguiente
@@ -367,6 +369,7 @@ def vista_ejercicio() -> None:
                     ss.ejercicio = {"enunciado": enunciado, "fragmentos": fragmentos, "resultado": None}
                     st.rerun()
                 except Exception as e:
+                    errores.registrar("ejercicio", e, user["id"])
                     error_ia(e)
         return
 
@@ -406,6 +409,7 @@ def vista_ejercicio() -> None:
                 ss["celebrar"] = True  # globos: calificación sobresaliente
             st.rerun()
         except Exception as e:
+            errores.registrar("ejercicio", e, user["id"])
             error_ia(e)
 
 
@@ -511,6 +515,7 @@ def vista_examen_en_curso() -> None:
             with cargando("Preparando la pregunta…"):
                 ex["quiz"] = quiz.crear_quiz(tema_id, ss.conv_examen, ex["dificultad"], user["id"])
         except Exception as e:
+            errores.registrar("examen", e, user["id"])
             error = e
         if ex["quiz"] is None:
             if error:

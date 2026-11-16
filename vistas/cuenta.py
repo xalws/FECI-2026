@@ -21,7 +21,7 @@ with col_propia:
         titulo("lock", "Cambiar mi contraseña", nivel=4)
         with st.form("form_cambiar_password", clear_on_submit=True, border=False):
             actual = st.text_input("Contraseña actual", type="password")
-            nueva = st.text_input(f"Nueva contraseña (mínimo {cuenta.MIN_CARACTERES} caracteres)", type="password")
+            nueva = st.text_input("Nueva contraseña", type="password", help=cuenta.REGLA, placeholder=cuenta.REGLA)
             confirmacion = st.text_input("Confirma la nueva contraseña", type="password")
             if st.form_submit_button("Guardar contraseña", type="primary", icon=":material/save:", width="stretch"):
                 ok, mensaje = cuenta.cambiar_password(user["id"], actual, nueva, confirmacion,
@@ -35,7 +35,7 @@ with col_lado:
     if user["rol"] != "admin":
         titulo("shield", "Consejos de seguridad", nivel=4)
         lista([{"icono": "lock", "titulo": "Usa una contraseña única", "tono": "indigo",
-                "texto": f"Mínimo {cuenta.MIN_CARACTERES} caracteres; mejor si mezcla letras, números y símbolos."},
+                "texto": f"{cuenta.REGLA} Mejor si además lleva símbolos y no es una palabra común."},
                {"icono": "users", "titulo": "No la compartas", "tono": "violeta",
                 "texto": "Nadie necesita conocerla para ayudarte con la app."},
                {"icono": "help", "titulo": "¿La olvidaste?", "tono": "ambar",

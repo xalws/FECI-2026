@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import func, select
 
-from core import perfil, respaldo
+from core import errores, perfil, respaldo
 from core.auth import crear_usuario, require_login
 from core.db import get_session
 from core.estilo import datos, encabezado, titulo
@@ -38,10 +38,12 @@ datos([{"icono": "users", "etiqueta": "Usuarios", "valor": total_usuarios, "deta
         "tono": "verde"}])
 
 st.write("")
-tab_cat, tab_usr, tab_asig = st.tabs([
+recientes_errores = errores.recientes(dias=7)
+tab_cat, tab_usr, tab_asig, tab_err = st.tabs([
     ":material/menu_book: Catálogo",
     ":material/group: Usuarios",
     ":material/link: Asignar maestros",
+    f":material/bug_report: Errores ({len(recientes_errores)})" if len(recientes_errores) else ":material/bug_report: Errores",
 ])
 
 # Catálogo
@@ -250,3 +252,26 @@ with st.container(border=True):
         st.download_button("Descargar respaldo (.zip)", contenido, type="primary", icon=":material/download:",
                            file_name=f"respaldo_{datetime.now():%Y-%m-%d_%H%M}.zip", mime="application/zip",
                            key="respaldo_descargar")
+
+# Errores de la app
+with tab_err:
+    titulo("shield", "Errores de los últimos 7 días")
+    if recientes_errores.empty:
+        st.success("No hay errores registrados esta semana.", icon=":material/check_circle:")
+    else:
+        st.caption("Se guardan los fallos del tutor, del material, de la retícula y de cualquier página, sin contraseñas ni claves. "
+                   "Los que más se repiten van primero.")
+        st.dataframe(errores.por_tipo(7), hide_index=True, column_config={
+            "último": st.column_config.DatetimeColumn("último", format="DD/MM/YYYY HH:mm")})
+        origenes = ["Todos"] + sorted(recientes_errores["origen"].unique())
+        origen = st.selectbox("Ver el detalle de", origenes, key="errores_origen")
+        detalle = recientes_errores if origen == "Todos" else recientes_errores[recientes_errores["origen"] == origen]
+        st.dataframe(detalle.drop(columns=["detalle"]), hide_index=True, column_config={
+            "fecha": st.column_config.DatetimeColumn("fecha", format="DD/MM/YYYY HH:mm")})
+        por_id = detalle.set_index("id")
+        elegido = st.selectbox("Seguimiento técnico del fallo", list(por_id.index), key="errores_id",
+                               format_func=lambda i: f"#{i} · {por_id.loc[i, 'tipo']}")
+        if elegido is not None:
+            st.code(por_id.loc[elegido, "detalle"] or "(sin detalle)", language=None)
+        if st.button("Borrar los registros con más de 30 días", icon=":material/delete:", key="errores_purgar"):
+            st.toast(f"Se borraron {errores.borrar_anteriores(30)} registros.")

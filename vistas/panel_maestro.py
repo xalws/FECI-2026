@@ -1,7 +1,7 @@
 import streamlit as st
 from sqlalchemy import select
 
-from core import material, pdf_loader, rag, reticula, stats
+from core import errores, material, pdf_loader, rag, reticula, stats
 from core.auth import require_login
 from core.db import get_session
 from core.estilo import datos, encabezado, fecha_local, lista, titulo
@@ -119,6 +119,7 @@ if "Toda la materia" in modo:
                     if r["sin_tema"]:
                         st.caption(f"{r['sin_tema']} fragmento(s) no se parecían a ningún tema y no se guardaron.")
                 except Exception as e:
+                    errores.registrar("material", e, user["id"])
                     st.error(f"{f.name}: {e}", icon=":material/error:")
     st.stop()
 
@@ -168,6 +169,7 @@ with st.container(border=True):
                         doc.num_chunks = rag.indexar(tema_id, paginas)
                 st.success(f"{f.name}: {doc.num_chunks} fragmentos indexados.", icon=":material/check_circle:")
             except Exception as e:
+                errores.registrar("material", e, user["id"])
                 if doc_id:
                     rag.eliminar_documento(tema_id, doc_id)  # limpia lo que haya quedado en Chroma
                 st.error(f"{f.name}: {e}", icon=":material/error:")

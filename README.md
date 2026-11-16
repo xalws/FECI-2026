@@ -86,6 +86,10 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
 - **Avisos y cumplimiento:** al asignar una tarea se publica un aviso en la clase. «Mis clases (2)» muestra en el menú
   cuántas tareas faltan. El maestro descarga en Excel quién cumplió cada tarea (y el reporte de Estadísticas la
   incluye cuando eliges una clase). Las fechas límite aparecen como puntos ámbar en el calendario de «Mi progreso».
+- **Boletín semanal** (Clases → pestaña «Boletín»): los últimos 7 días contra la semana anterior; cuántos alumnos
+  estuvieron activos, preguntas y quizzes, a quién buscar (con poco acierto, sin actividad o que aún no entran), quién
+  destaca, temas con más errores, tareas de la semana y temas donde falta material. Se descarga como texto para pegar
+  en un correo o como Excel. Solo lo ve el maestro de la clase (o un administrador).
 
 **Alumno: repaso y retos**
 - **Repaso espaciado** (menú «Repaso (n)»): cada pregunta fallada y nunca acertada se vuelve una tarjeta; acertarla la
@@ -131,8 +135,13 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
 - **Sesión recordada:** al marcar «Mantener mi sesión iniciada» (14 días) no hay que volver a entrar al recargar
   la página. En el navegador solo queda un código aleatorio; la base guarda su huella SHA-256 (tabla `sesiones`).
   Cerrar sesión, cambiar la contraseña o desactivar la cuenta lo invalidan. No usarla en equipos compartidos.
-- **Mi cuenta:** cambiar la propia contraseña (pide la actual y una confirmación). El mínimo son 6 caracteres y el
-  máximo 72 bytes.
+- **Mi cuenta:** cambiar la propia contraseña (pide la actual y una confirmación). El mínimo son 8 caracteres con al
+  menos una letra y un número; se rechazan las más comunes (`password1`, `qwerty123`…), las muy repetitivas y las que
+  contienen el correo. El máximo son 72 bytes. Las cuentas que ya existen no se tocan: la regla aplica al crear o cambiar.
+- **Intentos de inicio de sesión:** tras 5 contraseñas incorrectas para un correo, ese correo se bloquea 15 minutos
+  (cuenta también los correos que no existen, para no revelar quién tiene cuenta). Se guarda en la base (`intentos_login`).
+- **Registro de errores:** los fallos del tutor, del material y de cualquier página se guardan en la tabla `errores_app`
+  (sin contraseñas ni claves: se tapan antes de guardar) y el administrador los ve en «Administración → Errores».
 - Si el administrador olvida la suya, se restablece desde la terminal, con el entorno virtual activo y el `.env`:
 
 ```bash
@@ -177,6 +186,9 @@ core/               Lógica
   retos.py            reto de la semana y su avance
   hoy.py              pendientes del día: insignias del menú y panel «Tu día»
   respaldo.py         respaldo de la base en .zip
+  boletin.py          boletín semanal de una clase para su maestro
+  seguridad.py        límite de intentos al iniciar sesión
+  errores.py          registro de fallos de la app (tabla `errores_app`)
   cache.py            caché de lecturas de la base (se vacía al escribir)
   competencia.py      XP, ranking de la clase y perfil público de un alumno
   perfil_ui.py        pantalla de perfil (propio y de compañeros)

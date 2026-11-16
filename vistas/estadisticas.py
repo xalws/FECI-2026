@@ -107,12 +107,13 @@ with b:
         if df.empty:
             st.caption("Sin quizzes respondidos.")
         else:
-            grafica_barras(df, "tema", "% aciertos", "% de aciertos", maximo=100)
+            grafica_barras(df, "tema", "% aciertos", "% aciertos", maximo=100)
+            # anchos en píxeles que suman menos que una pantalla de móvil (si no, la tabla se desplaza de lado)
             st.dataframe(df, hide_index=True, column_config={
-                "tema": st.column_config.TextColumn("Tema", width="medium"),
-                "intentos": st.column_config.NumberColumn("Intentos", width="small"),
-                "% aciertos": st.column_config.ProgressColumn("% de aciertos", min_value=0, max_value=100,
-                                                              format="%.0f%%", width="small")})
+                "tema": st.column_config.TextColumn("Tema", width=150),
+                "intentos": st.column_config.NumberColumn("Intentos", width=62),
+                "% aciertos": st.column_config.ProgressColumn("Aciertos", min_value=0, max_value=100,
+                                                              format="%.0f%%", width=80)})
 
 with st.container(border=True):
     titulo("calendar", "Uso por fecha")

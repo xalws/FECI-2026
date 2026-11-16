@@ -249,3 +249,23 @@ class RespuestaQuiz(Base):
     indice_elegido: Mapped[int] = mapped_column()
     es_correcta: Mapped[bool] = mapped_column(Boolean)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class IntentoLogin(Base):
+    """Un intento fallido de iniciar sesión (sirve para bloquear un rato al correo que lo repite; ver core/seguridad.py)."""
+    __tablename__ = "intentos_login"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(200), index=True)
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora, index=True)
+
+
+class ErrorApp(Base):
+    """Un fallo de la app (ver core/errores.py): qué pasó y dónde; sin contraseñas ni claves."""
+    __tablename__ = "errores_app"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora, index=True)
+    origen: Mapped[str] = mapped_column(String(60))
+    tipo: Mapped[str] = mapped_column(String(80))
+    mensaje: Mapped[str] = mapped_column(Text, default="")
+    detalle: Mapped[str] = mapped_column(Text, default="")
+    usuario_id: Mapped[int | None] = mapped_column(nullable=True)  # sin llave foránea: el registro sobrevive al usuario

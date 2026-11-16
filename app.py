@@ -3,7 +3,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from core import sesion, tema
+from core import errores, sesion, tema
 from core.auth import iniciar_db
 from core.estilo import aplicar_estilo, mostrar_carga, transicion
 from core.hoy import menu_pendientes
@@ -65,6 +65,9 @@ if carga is not None:
     mostrar_carga(carga)
 try:
     nav.run()
+except Exception as e:  # st.stop() y st.rerun() no pasan por aquí; esto es un fallo de verdad
+    errores.registrar(nav.url_path or "app", e, user["id"] if user else None)
+    raise  # Streamlit sigue mostrando su aviso al usuario
 finally:  # también cuando la página termina con st.stop() o st.rerun()
     if carga is not None:
         carga.empty()

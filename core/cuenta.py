@@ -6,17 +6,34 @@ from core.db import get_session
 from core.passwords import hash_password, verificar_password
 from models.schema import Usuario
 
-MIN_CARACTERES = 6
+MIN_CARACTERES = 8
 MAX_BYTES = 72  # límite de bcrypt: una contraseña más larga se rechaza en lugar de truncarse en silencio
+REGLA = f"Mínimo {MIN_CARACTERES} caracteres, con al menos una letra y un número."
+
+# Las contraseñas que más se adivinan (ya con letras y números, para que pasen las otras reglas)
+COMUNES = {"password1", "password12", "password123", "contrasena1", "contrasena123", "contraseña1", "contraseña123",
+           "qwerty123", "qwertyui1", "abc12345", "abcd1234", "admin123", "admin1234", "administrador1", "alumno123",
+           "alumno1234", "maestro123", "estudiante1", "universidad1", "bienvenido1", "bienvenido123", "iloveyou1",
+           "12345678a", "a12345678", "1q2w3e4r", "1qaz2wsx", "pass1234", "test1234", "usuario123", "clave123",
+           "clave1234", "practic123", "practicapp1"}
 
 
-def validar_password(password: str) -> str | None:
-    # Devuelve el motivo si no sirve, o None si es válida.
+def validar_password(password: str, email: str | None = None) -> str | None:
+    # Devuelve el motivo si no sirve, o None si es válida. Con `email` también rechaza las que lo contienen.
     if len(password) < MIN_CARACTERES:
         return f"La contraseña debe tener al menos {MIN_CARACTERES} caracteres."
     if len(password.encode("utf-8")) > MAX_BYTES:
         return ("La contraseña es demasiado larga (el máximo son 72 bytes; los acentos, la ñ y los símbolos "
                 "ocupan más de uno). Usa una más corta.")
+    if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
+        return "La contraseña debe tener al menos una letra y un número."
+    if len(set(password.lower())) < 4:
+        return "La contraseña es demasiado repetitiva. Usa una más variada."
+    if password.lower() in COMUNES:
+        return "Esa contraseña es de las más usadas y la adivinan enseguida. Elige otra."
+    usuario = (email or "").strip().lower().split("@")[0]
+    if len(usuario) >= 4 and usuario in password.lower():
+        return "La contraseña no debe contener tu correo."
     return None
 
 
@@ -37,6 +54,9 @@ def cambiar_password(usuario_id: int, actual: str, nueva: str, confirmacion: str
             return False, "La contraseña actual no es correcta."
         if actual == nueva:
             return False, "La nueva contraseña debe ser distinta de la actual."
+        error = validar_password(nueva, u.email)
+        if error:
+            return False, error
         u.password_hash = hash_password(nueva)
     sesion.revocar_todas(usuario_id, conservar_token)
     return True, "Contraseña actualizada."

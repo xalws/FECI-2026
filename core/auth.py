@@ -1,7 +1,7 @@
 import streamlit as st
 from sqlalchemy import select
 
-from core import actividad, cuenta, estilo, sesion, tema
+from core import actividad, cuenta, estilo, seguridad, sesion, tema
 from core.db import get_session, init_db
 from core.passwords import hash_password, verificar_password
 from models.schema import Cuatrimestre, Usuario
@@ -22,12 +22,34 @@ def login(email: str, password: str) -> dict | None:
     return None
 
 
+def intentar_login(email: str, password: str) -> tuple[dict | None, str]:
+    """Inicia sesión con límite de intentos: devuelve (usuario, "") o (None, motivo para mostrar).
+
+    Tras `seguridad.MAX_FALLOS` fallos el correo se bloquea `seguridad.VENTANA_MIN` minutos; mientras tanto ni siquiera
+    se revisa la contraseña (acertarla tampoco sirve), para que adivinar no avance.
+    """
+    espera = seguridad.segundos_de_bloqueo(email)
+    if espera:
+        return None, f"Demasiados intentos fallidos. Vuelve a intentarlo en {seguridad.texto_de_espera(espera)}."
+    u = login(email, password)
+    if u:
+        seguridad.limpiar(email)
+        return u, ""
+    seguridad.registrar_fallo(email)
+    espera = seguridad.segundos_de_bloqueo(email)
+    if espera:
+        return None, f"Demasiados intentos fallidos. Vuelve a intentarlo en {seguridad.texto_de_espera(espera)}."
+    quedan = seguridad.intentos_restantes(email)
+    aviso = f" Te {'queda' if quedan == 1 else 'quedan'} {quedan} {'intento' if quedan == 1 else 'intentos'}." if quedan <= 2 else ""
+    return None, "Correo o contraseña incorrectos." + aviso
+
+
 def crear_usuario(nombre: str, email: str, password: str, rol: str,
                   cuatrimestre_id: int | None = None) -> tuple[bool, str]:
     nombre, email = nombre.strip(), email.strip().lower()
     if not nombre or "@" not in email:
         return False, "Escribe un nombre y un correo válido."
-    error = cuenta.validar_password(password)
+    error = cuenta.validar_password(password, email)
     if error:
         return False, error
     if rol not in ("alumno", "maestro", "admin"):
