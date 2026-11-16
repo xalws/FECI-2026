@@ -44,7 +44,7 @@ with col_acceso:
         with tab_registro:
             nombre = st.text_input("Nombre completo", key="reg_nombre", placeholder="Como aparecerá en la app")
             email_r = st.text_input("Correo", key="reg_email", placeholder="tu.correo@ejemplo.com")
-            pass_r = st.text_input("Contraseña", type="password", key="reg_pass", help=REGLA, placeholder=REGLA)
+            pass_r = st.text_input("Contraseña", type="password", key="reg_pass", help=REGLA, placeholder="Mínimo 8, con letras y números")
             st.markdown("**¿Dónde estudias?**")
             sel_reg = selector_cascada(hasta="cuatrimestre", prefix="reg", buscar=False)
             if st.button("Crear cuenta", type="primary", icon=":material/person_add:", width="stretch"):

@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 
 from core import errores, perfil, respaldo
 from core.auth import crear_usuario, require_login
+from core.cuenta import REGLA as REGLA_PASSWORD
 from core.db import get_session
 from core.estilo import datos, encabezado, titulo
 from core.ui import NIVELES, selector_cascada
@@ -113,7 +114,7 @@ with tab_usr:
             nombre = c1.text_input("Nombre")
             email = c2.text_input("Correo")
             c3, c4 = st.columns(2)
-            password = c3.text_input("Contraseña inicial", type="password")
+            password = c3.text_input("Contraseña inicial", type="password", help=REGLA_PASSWORD)
             rol = c4.selectbox("Rol", ["maestro", "alumno", "admin"], format_func=ROLES.get)
             if st.form_submit_button("Crear usuario", type="primary", icon=":material/person_add:"):
                 ok, msg = crear_usuario(nombre, email, password, rol)

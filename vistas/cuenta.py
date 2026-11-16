@@ -21,7 +21,7 @@ with col_propia:
         titulo("lock", "Cambiar mi contraseña", nivel=4)
         with st.form("form_cambiar_password", clear_on_submit=True, border=False):
             actual = st.text_input("Contraseña actual", type="password")
-            nueva = st.text_input("Nueva contraseña", type="password", help=cuenta.REGLA, placeholder=cuenta.REGLA)
+            nueva = st.text_input("Nueva contraseña", type="password", help=cuenta.REGLA, placeholder="Mínimo 8, con letras y números")
             confirmacion = st.text_input("Confirma la nueva contraseña", type="password")
             if st.form_submit_button("Guardar contraseña", type="primary", icon=":material/save:", width="stretch"):
                 ok, mensaje = cuenta.cambiar_password(user["id"], actual, nueva, confirmacion,

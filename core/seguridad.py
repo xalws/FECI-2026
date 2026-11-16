@@ -4,6 +4,7 @@ Después de `MAX_FALLOS` contraseñas incorrectas para un correo, ese correo que
 contados desde el último fallo. Se guarda en la base (no en memoria) para que sobreviva a un reinicio de la app y valga
 aunque haya varias copias corriendo. Cuenta igual los correos que no existen, así no se puede averiguar quién tiene cuenta.
 """
+import math
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select
@@ -32,7 +33,7 @@ def segundos_de_bloqueo(email: str, ahora: datetime | None = None) -> int:
                               .where(IntentoLogin.email == _clave(email), IntentoLogin.fecha >= desde)).one()
     if n < MAX_FALLOS or ultimo is None:
         return 0
-    return max(0, int((_utc(ultimo) + timedelta(minutes=VENTANA_MIN) - ahora).total_seconds()) + 1)
+    return max(0, math.ceil((_utc(ultimo) + timedelta(minutes=VENTANA_MIN) - ahora).total_seconds()))
 
 
 def intentos_restantes(email: str, ahora: datetime | None = None) -> int:
