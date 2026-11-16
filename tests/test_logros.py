@@ -46,6 +46,42 @@ class TestReglasPuras(unittest.TestCase):
         self.assertEqual(logros.aciertos_seguidos([]), 0)
         self.assertEqual(logros.aciertos_seguidos([False, False]), 0)
 
+    def test_semanas_y_meses(self):
+        lunes = date(2026, 11, 9)
+        semana = {lunes + timedelta(days=i) for i in range(7)}
+        r = logros.semanas_y_meses(semana | {date(2026, 12, 1)})
+        self.assertEqual((r["semanas_activas"], r["semanas_perfectas"], r["meses_activos"]), (2, 1, 2))
+        self.assertEqual(r["mes_intenso"], 7)
+
+    def test_racha_y_semanas_con_meta(self):
+        lunes = date(2026, 11, 9)
+        minutos = {lunes + timedelta(days=i): 20.0 for i in range(5)}
+        minutos[lunes + timedelta(days=5)] = 5.0
+        self.assertEqual(logros.racha_meta(minutos, 15), 5)
+        self.assertEqual(logros.semanas_con_meta(minutos, 15), 1)
+        self.assertEqual(logros.semanas_con_meta(minutos, 25), 0)
+
+    def test_dias_por_nombre_y_maximos(self):
+        lunes = date(2026, 11, 9)
+        self.assertEqual(logros.dias_por_nombre({lunes, lunes + timedelta(days=7), lunes + timedelta(days=6)}),
+                         [2, 0, 0, 0, 0, 0, 1])
+        self.assertEqual(logros.maximo_por_dia([lunes, lunes, lunes + timedelta(days=1)]), 2)
+        self.assertEqual(logros.maximo_por_dia([]), 0)
+        self.assertEqual(logros.xp_maximos([(lunes, 3), (lunes, 4), (lunes + timedelta(days=2), 5), (lunes + timedelta(days=9), 20)]),
+                         (20, 20))
+
+    def test_franjas_horarias(self):
+        d = datetime(2026, 11, 9)
+        r = logros.franjas_horarias([d.replace(hour=3), d.replace(hour=9), d.replace(hour=20),
+                                     (d + timedelta(days=1)).replace(hour=14), (d + timedelta(days=1)).replace(hour=23)])
+        self.assertEqual((r["dias_buho"], r["dias_manana"], r["dias_noche"], r["dias_tarde"]), (1, 1, 1, 1))
+        self.assertEqual((r["dias_noctambulo"], r["dias_doble_turno"], r["dias_madrugador"]), (1, 1, 1))
+
+    def test_errores_corregidos_y_examenes(self):
+        self.assertEqual(logros.errores_corregidos([(1, False), (1, True), (1, True), (2, False), (3, True)]), 1)
+        buenos = logros.examenes_buenos({1: [True] * 5, 2: [True] * 4 + [False] * 1, 3: [True] * 3})
+        self.assertEqual(buenos, (1, 2))
+
     def test_calendario(self):
         filas = logros.calendario({HOY: 12.0}, HOY, semanas=3)
         self.assertEqual(len(filas), 3)

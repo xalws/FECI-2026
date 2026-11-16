@@ -81,9 +81,9 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
 - **Respuestas en vivo:** el tutor escribe la respuesta mientras el modelo la genera. Si la IA falla (límite del
   plan gratuito, sin conexión) se muestra un mensaje claro con botón «Reintentar».
 - **Meta diaria de estudio** (10 a 60 minutos) y calendario de las últimas 5 semanas en «Mi progreso».
-- **Logros:** 22 logros en 7 categorías (Constancia, Dominio, Práctica, Exámenes, Exploración, Comunidad y
+- **Logros:** 75 logros en 7 categorías (Constancia, Dominio, Práctica, Exámenes, Exploración, Comunidad y
   Especiales), cada uno con 4 niveles: Bronce, Plata, Élite (con el color de su categoría) y Oro, que es el más alto
-  y brilla con una animación. Son 88 medallas. Se calculan con la actividad ya guardada.
+  y brilla con una animación. Son 300 medallas. Se calculan con la actividad ya guardada.
 - **Mi perfil:** título según los XP (Novato a Leyenda), gráfica de XP por semana, temas que domina y el catálogo
   completo de logros. El alumno elige hasta 6 logros para su **vitrina** (`usuarios.vitrina`).
 - **Competencia en la clase:** ranking por XP de todos los compañeros (total o de la semana) y perfil de cada uno
