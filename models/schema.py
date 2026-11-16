@@ -129,6 +129,18 @@ class Tarea(Base):
     creada: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
+class Tarjeta(Base):
+    """Una pregunta que el alumno falló y que vuelve a ver cada vez más espaciada (repaso espaciado)."""
+    __tablename__ = "tarjetas_repaso"
+    __table_args__ = (UniqueConstraint("alumno_id", "quiz_id"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    alumno_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    quiz_id: Mapped[int] = mapped_column(ForeignKey("quizzes.id"))
+    caja: Mapped[int] = mapped_column(default=0)  # 0 a 3 = en repaso; 4 = dominada
+    proxima: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    actualizada: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
 # Sesiones recordadas («Recordarme»): solo se guarda la huella SHA-256 del código que lleva el navegador
 class Sesion(Base):
     __tablename__ = "sesiones"

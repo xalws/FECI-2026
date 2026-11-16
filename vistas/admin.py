@@ -1,8 +1,10 @@
+from datetime import datetime
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy import func, select
 
-from core import perfil
+from core import perfil, respaldo
 from core.auth import crear_usuario, require_login
 from core.db import get_session
 from core.estilo import datos, encabezado, titulo
@@ -226,3 +228,25 @@ with tab_asig:
                     st.rerun()
     else:
         st.caption("Aún no hay asignaciones.")
+
+# Respaldo de la base
+st.write("")
+titulo("shield", "Respaldo de la base")
+with st.container(border=True):
+    st.caption("Descarga una copia de todos los datos (usuarios, clases, avance, material…) en un archivo .zip. "
+               "Incluye los códigos cifrados de las contraseñas: guárdalo en un lugar seguro y no lo compartas. "
+               "También puedes automatizarlo con `python scripts/respaldo.py`.")
+    sin_vectores = st.checkbox("Sin los vectores del material (archivo más ligero)", key="respaldo_sin_vectores",
+                               help="Los vectores se recalculan al volver a subir los PDF.")
+    if st.button("Preparar respaldo", icon=":material/backup:", key="respaldo_preparar"):
+        with st.spinner("Copiando la base…"):
+            contenido, manifiesto = respaldo.crear(incluir_vectores=not sin_vectores)
+        st.session_state["respaldo_listo"] = (contenido, manifiesto)
+    listo = st.session_state.get("respaldo_listo")
+    if listo:
+        contenido, manifiesto = listo
+        st.success(f"Respaldo listo: {sum(manifiesto['filas'].values())} filas en {len(manifiesto['filas'])} tablas "
+                   f"({len(contenido) / 1024:.0f} KB).", icon=":material/check_circle:")
+        st.download_button("Descargar respaldo (.zip)", contenido, type="primary", icon=":material/download:",
+                           file_name=f"respaldo_{datetime.now():%Y-%m-%d_%H%M}.zip", mime="application/zip",
+                           key="respaldo_descargar")

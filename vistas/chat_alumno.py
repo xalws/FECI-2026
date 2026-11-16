@@ -3,6 +3,7 @@ import streamlit as st
 from core import chat, clases, examen, llm, logros, material, niveles, perfil, progreso, quiz, rag, tutoria
 from core.auth import require_login
 from core.estudiante import cargando
+from core.hoy import panel_estudio as panel_dia
 from core.tareas_ui import resumen_estudio as resumen_tareas
 from core.estilo import (confeti, datos, encabezado, fecha_local, reanimar, reanimar_siguientes, saludo, svg,
                          titulo, zona_horaria)
@@ -148,6 +149,7 @@ with cabecera:
                           ("sparkles", f"Modo {NIVELES[prog['nivel']]}")])
 if not en_examen:
     mostrar_avisos()
+    panel_dia(user["id"])
     resumen_tareas(user["id"])
 with st.sidebar:
     if prog["total"]:
@@ -221,6 +223,9 @@ def accion_tutor(intencion: str, texto_alumno: str | None = None) -> None:
                 respuesta = tutoria.SALUDO.format(tema=tema_nombre)
             elif intencion == "retro":
                 respuesta = tutoria.retroalimentar(tema_nombre, historial, fragmentos_para(historial))
+            elif intencion == "resumen":
+                respuesta = tutoria.resumir_tema(tema_nombre, tutoria.objetivos_del_tema(tema_id),
+                                                 rag.chunks_aleatorios(tema_id, 8), prog["nivel"])
             elif intencion == "continuar" and historial:
                 respuesta = tutoria.continuar_leccion(tema_nombre, historial, fragmentos_para(historial), prog["nivel"])
             else:  # iniciar (o continuar sin nada previo)
@@ -245,6 +250,7 @@ def vista_conversacion() -> None:
                  on_change=cambiar_conversacion, label_visibility="collapsed")
 
     pregunta = st.chat_input("Escribe tu pregunta o «comencemos»…")  # se lee antes para limpiar errores viejos
+    pregunta = pregunta or ss.pop("pregunta_rapida", None)  # o la que eligió con un botón bajo la respuesta
     if pregunta:
         ss.pop("fallo_ia", None)
 
@@ -286,6 +292,16 @@ def vista_conversacion() -> None:
     elif not mensajes:
         st.caption(f"Pregúntame lo que quieras sobre **{tema_nombre}**. También puedes escribir «comencemos».")
 
+    # Atajos bajo la última respuesta del tutor: lo mismo que escribir esa frase corta en el chat
+    if (mensajes and mensajes[-1]["rol"] == "assistant" and not fallo and not pregunta
+            and _clave_intro(ss.conv_id) in ss.intro_hecha):
+        atajos = [("Explícamelo más simple", ":material/lightbulb:"), ("Dame un ejemplo", ":material/science:"),
+                  ("Hazme una pregunta", ":material/quiz:"), ("Resumen del tema", ":material/summarize:")]
+        for col, (texto, icono) in zip(st.columns(len(atajos)), atajos):
+            if col.button(texto, key=f"atajo_{ss.conv_id}_{len(mensajes)}_{texto}", icon=icono, width="stretch"):
+                ss["pregunta_rapida"] = texto
+                st.rerun()
+
     if not pregunta and not reintento:
         return
     if reintento:  # la pregunta ya quedó guardada: solo se vuelve a pedir la respuesta
@@ -322,6 +338,7 @@ def vista_conversacion() -> None:
                 chat.registrar_sin_respuesta(user["id"], tema_id, pregunta)
             lugar.markdown(respuesta)
             chat.guardar_mensaje(conv, "assistant", respuesta)
+            st.rerun()  # se vuelve a dibujar con los atajos (más simple, ejemplo, pregunta, resumen) bajo la respuesta nueva
         except Exception as e:
             lugar.empty()
             ss["fallo_ia"] = {"error": e, "pregunta": pregunta, "conv": conv}

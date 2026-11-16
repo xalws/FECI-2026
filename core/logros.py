@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta, timezone, tzinfo
 
 from sqlalchemy import case, func, select
 
-from core import actividad, niveles
+from core import actividad, niveles, retos
 from core.cache import memo
 from core.db import get_session
 from models.schema import (Clase, Conversacion, IntentoEjercicio, Inscripcion, Mensaje, Quiz, RespuestaQuiz, Tema,
@@ -62,6 +62,7 @@ CATALOGO = [
     ("finde", "especiales", "Fin de semana de estudio", "Estudia sábado y domingo en {n} fines de semana", "calendar",
      "fines_de_semana", (1, 3, 8, 16)),
     # ---- Constancia ----
+    ("retador", "constancia", "Retador", "Cumple el reto de la semana {n} veces", "target", "retos_completados", (1, 3, 8, 16)),
     ("semanas_perfectas", "constancia", "Semana perfecta", "Estudia los 7 días de la semana en {n} semanas", "calendar", "semanas_perfectas", (1, 3, 8, 16)),
     ("semanas_activas", "constancia", "Semana a semana", "Estudia en {n} semanas distintas", "calendar", "semanas_activas", (2, 6, 16, 36)),
     ("meses_activos", "constancia", "Mes a mes", "Estudia en {n} meses distintos", "calendar", "meses_activos", (1, 2, 4, 8)),
@@ -363,7 +364,9 @@ def datos_alumno(usuario_id: int, zona: tzinfo, hoy: date | None = None) -> dict
         "dias_meta": dias_meta_cumplida(minutos, meta), "racha_meta": racha_meta(minutos, meta),
         "semanas_meta": semanas_con_meta(minutos, meta), "fines_de_semana": fines_de_semana(dias),
         "antiguedad_dias": antiguedad,
+        "retos_completados": retos.retos_cumplidos(resp_dias, ejer_dias, minutos, eventos_xp),
     }
+    datos.update(retos.valores_de_semana(retos.lunes_de(hoy), resp_dias, ejer_dias, minutos, eventos_xp))
     datos.update(semanas_y_meses(dias))
     datos.update(franjas_horarias(locales))
     for clave, n in zip(("dias_lunes", "dias_martes", "dias_miercoles", "dias_jueves", "dias_viernes", "dias_sabado",
@@ -466,15 +469,16 @@ def elegir_vitrina(evaluados: list[dict], elegidos: list[str]) -> list[dict]:
 # ----------------------------------------------------------------------------------------------------------------
 # Calendario
 # ----------------------------------------------------------------------------------------------------------------
-def calendario(minutos: dict[date, float], hoy: date, semanas: int = SEMANAS_CALENDARIO) -> list[list[dict]]:
-    """Cuadrícula de semanas (lunes a domingo) que termina en la semana de `hoy`.
+def calendario(minutos: dict[date, float], hoy: date, semanas: int = SEMANAS_CALENDARIO,
+               futuras: int = 0) -> list[list[dict]]:
+    """Cuadrícula de semanas (lunes a domingo) que termina en la semana de `hoy` (más `futuras` semanas por delante).
 
     Cada celda: {"fecha", "minutos", "futuro"}; las semanas van de la más antigua a la más reciente.
     """
     lunes_actual = hoy - timedelta(days=hoy.weekday())
     inicio = lunes_actual - timedelta(weeks=semanas - 1)
     filas = []
-    for w in range(semanas):
+    for w in range(semanas + futuras):
         fila = []
         for d in range(7):
             dia = inicio + timedelta(weeks=w, days=d)

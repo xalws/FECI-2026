@@ -33,12 +33,31 @@ Usa SOLO lo que aparece en la conversación y en el CONTEXTO. Responde en españ
 estas tres partes breves: **Lo que ya vimos**, **Dónde tuviste dudas o fallos** (si no hubo, dilo) y
 **Qué te recomiendo repasar o practicar ahora**. Termina preguntando si quiere continuar."""
 
+SYSTEM_RESUMEN = """Eres un tutor universitario. Haz un resumen de estudio del tema "{tema}" para repasar antes de un examen.
+Usa ÚNICAMENTE el CONTEXTO (los OBJETIVOS solo sirven para decidir qué es lo más importante). Responde en español y
+con esta estructura breve: **Idea central** (2 o 3 frases), **Conceptos clave** (4 a 6 viñetas con su definición corta),
+**Fórmulas o pasos importantes** (solo si aparecen en el contexto) y **Qué suelen confundir** (1 o 2 puntos).
+Máximo 250 palabras. No inventes nada que no esté en el contexto."""
+
 _SALUDOS = {"hola", "holaa", "buenas", "buenos", "dias", "tardes", "noches", "hey", "que", "tal", "saludos", "buen", "dia"}
 
 
 _SIGUIENTE = re.compile(r"^(y )?que sigue( ahora)?$|^(la |el |lo )?(siguiente|proxim[oa])( leccion| tema| punto| paso| parte)?$"
                         r"|^(pasemos a |pasar a |vamos a |ir a )?(la |el )?(siguiente|proxim[oa]) (leccion|tema|punto|paso|parte)$"
                         r"|^avancemos$|^avanza$|^adelante$")
+
+
+_RESUMEN = re.compile(r"^(dame |hazme |quiero |necesito )?(el |un )?resumen( general| del tema| del contenido)?$"
+                      r"|^resume(me)?( el)?( tema)?$")
+
+
+def resumir_tema(tema: str, objetivos: str, fragmentos: list[dict], nivel: str = "normal") -> str:
+    if not fragmentos:
+        return "Todavía no hay material de este tema para resumir. Cuando tu maestro lo suba, podré hacerte el resumen."
+    usuario = f"OBJETIVOS DEL TEMA:\n{objetivos or '(no hay)'}\n\nCONTEXTO:\n{llm._formatear_contexto(fragmentos)}"
+    mensajes = [{"role": "system", "content": _sistema(SYSTEM_RESUMEN, tema, nivel)},
+                {"role": "user", "content": usuario}]
+    return llm._formato_latex(llm._llamar(mensajes, temperature=0.2).strip())
 
 
 def consulta_de_busqueda(historial: list[dict], pregunta: str) -> str:
@@ -79,6 +98,8 @@ def detectar_intencion(texto: str) -> str | None:
         return "retro"
     if len(palabras) <= 6 and _SIGUIENTE.search(t):
         return "continuar"  # «siguiente lección», «¿qué sigue?», «avancemos»
+    if len(palabras) <= 5 and _RESUMEN.search(t):
+        return "resumen"  # «resumen del tema» (un resumen de algo concreto es una pregunta de contenido)
     if len(palabras) > 6 or "?" in texto:
         return None
     if any(p.startswith(("comenc", "comenz", "empec", "empez", "inici", "arranc")) for p in palabras):

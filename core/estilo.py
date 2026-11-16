@@ -198,19 +198,29 @@ def lista(items: list[dict]) -> None:
     _html(f'<div class="tu-lista">{"".join(filas)}</div>')
 
 
-def calendario_actividad(filas: list[list[dict]], meta: int, hoy) -> None:
-    """Calendario de semanas (lunes a domingo): más oscuro cuanto más se estudió; el borde marca el día de hoy."""
+def calendario_actividad(filas: list[list[dict]], meta: int, hoy, tareas_por_dia: dict | None = None) -> None:
+    """Calendario de semanas (lunes a domingo): más oscuro cuanto más se estudió; el borde marca el día de hoy.
+
+    `tareas_por_dia` ({fecha: [descripciones]}) pone un punto ámbar en los días con fecha límite de una tarea.
+    """
+    tareas_por_dia = tareas_por_dia or {}
     cabecera = "".join(f'<span class="tu-cal-dia">{d}</span>' for d in "LMMJVSD")
     celdas = []
     for fila in filas:
         for c in fila:
             m = c["minutos"]
             nivel = 0 if m <= 0 else (1 if m < meta * 0.5 else (2 if m < meta else 3))
-            clases = f"tu-cal-celda n{nivel}" + (" futuro" if c["futuro"] else "") + (" hoy" if c["fecha"] == hoy else "")
-            texto = "" if c["futuro"] else f"{c['fecha']:%d/%m}: {round(m)} min"
-            celdas.append(f'<span class="{clases}" title="{_e(texto)}"></span>')
+            hay = tareas_por_dia.get(c["fecha"], [])
+            clases = (f"tu-cal-celda n{nivel}" + (" futuro" if c["futuro"] else "") + (" hoy" if c["fecha"] == hoy else "")
+                      + (" tarea" if hay else ""))
+            partes = [] if c["futuro"] else [f"{c['fecha']:%d/%m}: {round(m)} min"]
+            if hay:
+                partes.append(f"{c['fecha']:%d/%m} vence: " + "; ".join(hay))
+            celdas.append(f'<span class="{clases}" title="{_e(" · ".join(partes))}"></span>')
     leyenda = ('<div class="tu-cal-leyenda"><span>Menos</span><i class="tu-cal-celda n0"></i><i class="tu-cal-celda n1"></i>'
-               '<i class="tu-cal-celda n2"></i><i class="tu-cal-celda n3"></i><span>Meta cumplida</span></div>')
+               '<i class="tu-cal-celda n2"></i><i class="tu-cal-celda n3"></i><span>Meta cumplida</span>'
+               + ('<i class="tu-cal-celda tarea leyenda-tarea"></i><span>Vence una tarea</span>' if tareas_por_dia else "")
+               + '</div>')
     _html(f'<div class="tu-cal-tarjeta"><div class="tu-cal">{cabecera}{"".join(celdas)}</div>{leyenda}</div>')
 
 
@@ -677,6 +687,11 @@ padding:22px 18px;box-shadow:var(--tu-sombra);margin:.3rem 0 1rem}
 .tu-cal-celda.n3{background:var(--tu-indigo)}
 .tu-cal-celda.futuro{background:transparent;border:1px dashed var(--tu-borde)}
 .tu-cal-celda.hoy{outline:2px solid var(--tu-violeta);outline-offset:2px}
+.tu-cal-celda.tarea{position:relative}
+.tu-cal-celda.tarea::after{content:"";position:absolute;right:5px;bottom:4px;width:7px;height:7px;border-radius:50%;background:#F59E0B;box-shadow:0 0 0 1.5px var(--tu-sup)}
+.tu-cal-leyenda i.leyenda-tarea{background:var(--tu-pista);margin-left:8px}
+.tu-cal-leyenda i.leyenda-tarea::after{right:2px;bottom:2px;width:5px;height:5px}
+.tu-cal-leyenda span:last-child{margin-left:3px}
 .tu-cal-leyenda{display:flex;align-items:center;justify-content:flex-end;gap:5px;margin-top:12px;font-size:.72rem;color:var(--tu-gris)}
 .tu-cal-leyenda i{width:13px;height:13px;min-height:0;border-radius:4px}
 .tu-cal-leyenda span:first-child{margin-right:3px}.tu-cal-leyenda span:last-child{margin-left:3px}

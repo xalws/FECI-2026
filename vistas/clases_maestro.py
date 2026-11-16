@@ -3,7 +3,7 @@ from datetime import datetime, time, timedelta, timezone
 
 import streamlit as st
 
-from core import clases, tareas
+from core import clases, stats, tareas
 from core.auth import require_login
 from core.estilo import datos, encabezado, fecha_local, insignias, titulo, zona_horaria
 from core.niveles import NOMBRES as NOMBRES_NIVEL
@@ -151,11 +151,17 @@ with t_tareas:
         if st.button("Asignar tarea", type="primary", icon=":material/add_task:", disabled=tema_id is None,
                      key=f"tarea_asignar_{clase_id}"):
             fin = datetime.combine(limite, time(23, 59), tzinfo=zona)
-            listo(tareas.crear(user["id"], clase_id, tema_id, tipo, int(meta), fin, nota))
+            listo(tareas.crear(user["id"], clase_id, tema_id, tipo, int(meta), fin, nota, zona))
 
     lista_tareas = tareas.tareas_de_clase(user["id"], clase_id)
     if not lista_tareas:
-        st.caption("Todavía no has asignado tareas en esta clase.")
+        st.caption("Todavía no has asignado tareas en esta clase. Al asignar una, los alumnos reciben un aviso.")
+    else:
+        cumplimiento = tareas.matriz(user["id"], clase_id, zona)
+        st.download_button("Descargar cumplimiento (Excel)", stats.exportar_excel({"Cumplimiento": cumplimiento}),
+                           file_name=f"cumplimiento_{c['nombre']}_{datetime.now(zona):%Y-%m-%d}.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                           icon=":material/table_view:", key=f"descargar_tareas_{clase_id}")
     ahora = datetime.now(timezone.utc)
     for t in lista_tareas:
         with st.container(border=True):

@@ -6,6 +6,7 @@ import streamlit as st
 from core import sesion, tema
 from core.auth import iniciar_db
 from core.estilo import aplicar_estilo, mostrar_carga, transicion
+from core.hoy import menu_pendientes
 
 st.set_page_config(page_title="PRACTIC_APP", page_icon="🎓", layout="wide")
 iniciar_db()
@@ -22,6 +23,7 @@ PROGRESO = ("vistas/mi_progreso.py", "Mi progreso", ":material/insights:", "prog
 HISTORIAL = ("vistas/historial.py", "Mi historial", ":material/history:", "historial")
 MIS_CLASES = ("vistas/clases_alumno.py", "Mis clases", ":material/groups:", "mis-clases")
 MI_PERFIL = ("vistas/mi_perfil.py", "Mi perfil", ":material/badge:", "mi-perfil")
+REPASO = ("vistas/repaso.py", "Repaso", ":material/style:", "repaso")
 CLASES = ("vistas/clases_maestro.py", "Clases", ":material/groups:", "clases")
 CUENTA = ("vistas/cuenta.py", "Mi cuenta", ":material/manage_accounts:", "cuenta")
 RETICULA = ("vistas/reticula.py", "Retícula", ":material/account_tree:", "reticula")
@@ -31,7 +33,7 @@ ADMIN = ("vistas/admin.py", "Administración", ":material/admin_panel_settings:"
 
 # rol -> secciones del menú
 PAGINAS_POR_ROL = {
-    "alumno": {"Aprender": [CHAT, PROGRESO, MI_PERFIL, MIS_CLASES, HISTORIAL], "Cuenta": [CUENTA]},
+    "alumno": {"Aprender": [CHAT, REPASO, PROGRESO, MI_PERFIL, MIS_CLASES, HISTORIAL], "Cuenta": [CUENTA]},
     "maestro": {"Docencia": [CLASES, RETICULA, MATERIAL, ESTADISTICAS], "Cuenta": [CUENTA]},
     "admin": {"Administración": [ADMIN], "Docencia": [CLASES, RETICULA, MATERIAL, ESTADISTICAS], "Cuenta": [CUENTA]},
 }
@@ -41,7 +43,10 @@ secciones = PAGINAS_POR_ROL.get(user["rol"]) if user else None
 
 if secciones:
     st.logo(str(ASSETS / "logo.svg"), icon_image=str(ASSETS / "icono.svg"), size="large")
-    nav = st.navigation({seccion: [st.Page(ruta, title=titulo, icon=icono, url_path=url)
+    # Pendientes que se avisan en el menú: «Mis clases (2)» son tareas por hacer; «Repaso (3)», tarjetas que toca ver
+    insignias_menu = menu_pendientes(user) if user["rol"] == "alumno" else {}
+    nav = st.navigation({seccion: [st.Page(ruta, title=titulo + (f" ({insignias_menu[url]})" if insignias_menu.get(url) else ""),
+                                           icon=icono, url_path=url)
                                    for ruta, titulo, icono, url in paginas]
                          for seccion, paginas in secciones.items()})
 else:

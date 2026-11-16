@@ -8,7 +8,7 @@ from sqlalchemy import select
 from core import clases, tareas
 from core.db import get_session, init_db
 from core.passwords import hash_password
-from models.schema import (Asignacion, Carrera, Clase, Conversacion, Cuatrimestre, Inscripcion, IntentoEjercicio, Materia,
+from models.schema import (Asignacion, Aviso, Carrera, Clase, Conversacion, Cuatrimestre, Inscripcion, IntentoEjercicio, Materia,
                            Quiz, RespuestaQuiz, Tarea, Tema, Unidad, Universidad, Usuario)
 
 AHORA = datetime(2026, 11, 16, 15, 0, tzinfo=timezone.utc)
@@ -92,6 +92,7 @@ class TestConBase(unittest.TestCase):
     def setUp(self):
         with get_session() as s:
             s.query(Tarea).delete()
+            s.query(Aviso).delete()
             s.query(Inscripcion).delete()
             s.query(Clase).delete()
             s.query(RespuestaQuiz).delete()
@@ -229,6 +230,37 @@ class TestConBase(unittest.TestCase):
         self.assertEqual(tareas.tareas_del_alumno(self.ana)[0]["estado"], "vencida")
         self.assertEqual(tareas.pendientes(self.ana), [])
         self.assertTrue(tareas.tareas_de_clase(self.prof, self.clase)[0]["vencida"])
+
+    def test_al_asignar_se_avisa_a_la_clase(self):
+        with get_session() as s:
+            s.query(Aviso).delete()
+        self.asignar("preguntas", 5, dias=4, nota="Repasen sus apuntes.")
+        avisos = clases.avisos_para_alumno(self.ana)
+        self.assertEqual(len(avisos), 1)
+        self.assertIn("Nueva tarea: responder 5 preguntas de examen", avisos[0]["texto"])
+        self.assertIn("Tema Mat A tareas", avisos[0]["texto"])
+        self.assertIn("Repasen sus apuntes.", avisos[0]["texto"])
+        self.assertLessEqual(len(avisos[0]["texto"]), 500)
+
+    def test_matriz_de_cumplimiento(self):
+        vacia = tareas.matriz(self.prof, self.clase)
+        self.assertEqual(list(vacia.columns), ["Alumno"])
+        self.asignar("preguntas", 3)
+        self.asignar("preguntas", 3)  # igual a la anterior: las columnas no pueden repetirse
+        self.responder(self.ana, 3)
+        m = tareas.matriz(self.prof, self.clase)
+        self.assertEqual(len(m.columns), 3)
+        self.assertEqual(list(m["Alumno"]), ["Ana", "Beto"])
+        self.assertEqual(list(m.iloc[:, 1]), ["3/3 ✓", "0/3"])
+        self.assertTrue(tareas.matriz(self.otro_prof, self.clase).empty)
+
+    def test_tareas_por_dia_para_el_calendario(self):
+        self.asignar("preguntas", 3, dias=3)
+        self.asignar("ejercicios", 1, dias=3)
+        mapa = tareas.por_dia(self.ana, ZONA)
+        dia = (datetime.now(timezone.utc) + timedelta(days=3)).astimezone(ZONA).date()
+        self.assertEqual(len(mapa[dia]), 2)
+        self.assertIn("Tema Mat A tareas", mapa[dia][0])
 
     def test_eliminar_la_clase_borra_sus_tareas(self):
         self.asignar()

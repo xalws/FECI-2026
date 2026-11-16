@@ -46,6 +46,16 @@ class TestIntencion(unittest.TestCase):
         self.assertFalse(tutoria.es_seguimiento([], "como?"))
         self.assertFalse(tutoria.es_seguimiento([{"rol": "user", "contenido": "x"}], "explícame la ley de ohm completa por favor"))
 
+    def test_resumen_del_tema(self):
+        for texto in ("resumen", "Resumen del tema", "dame un resumen", "hazme el resumen general", "resúmeme el tema"):
+            self.assertEqual(tutoria.detectar_intencion(texto), "resumen", texto)
+        for texto in ("dame un resumen de la ley de ohm", "resumen de la unidad 2 de circuitos"):
+            self.assertIsNone(tutoria.detectar_intencion(texto), texto)  # un resumen de algo concreto es una pregunta
+
+    def test_los_atajos_del_chat_son_preguntas_de_contenido(self):
+        for texto in ("Explícamelo más simple", "Dame un ejemplo", "Hazme una pregunta"):
+            self.assertIsNone(tutoria.detectar_intencion(texto), texto)
+
     def test_saludos(self):
         for texto in ("hola", "Hola!", "buenas tardes", "buenos días", "hey"):
             self.assertEqual(tutoria.detectar_intencion(texto), "saludo", texto)
@@ -100,6 +110,15 @@ class TestRespuestasDelTutor(unittest.TestCase):
         with mock.patch.object(llm, "_llamar") as m:
             self.assertEqual(tutoria.retroalimentar("T", [], self.FRAG), tutoria.SIN_HISTORIAL)
             self.assertEqual(tutoria.continuar_leccion("T", [], self.FRAG), tutoria.SIN_HISTORIAL)
+        m.assert_not_called()
+
+    def test_resumir_pide_la_estructura_y_sin_material_no_llama_a_la_ia(self):
+        with mock.patch.object(llm, "_llamar", return_value="Resumen") as m:
+            self.assertEqual(tutoria.resumir_tema("Metrología", "Saber: x", self.FRAG), "Resumen")
+        for parte in ("Idea central", "Conceptos clave", "Qué suelen confundir"):
+            self.assertIn(parte, m.call_args.args[0][0]["content"])
+        with mock.patch.object(llm, "_llamar") as m:
+            self.assertIn("no hay material", tutoria.resumir_tema("Metrología", "", []))
         m.assert_not_called()
 
     def test_retroalimentar_pide_las_tres_partes(self):

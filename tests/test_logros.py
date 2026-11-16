@@ -82,6 +82,12 @@ class TestReglasPuras(unittest.TestCase):
         buenos = logros.examenes_buenos({1: [True] * 5, 2: [True] * 4 + [False] * 1, 3: [True] * 3})
         self.assertEqual(buenos, (1, 2))
 
+    def test_calendario_con_semanas_por_delante(self):
+        filas = logros.calendario({HOY: 12.0}, HOY, semanas=3, futuras=2)
+        self.assertEqual(len(filas), 5)
+        self.assertTrue(all(c["futuro"] for fila in filas[3:] for c in fila))  # las dos últimas son del futuro
+        self.assertEqual(filas[2][0]["fecha"], HOY - timedelta(days=HOY.weekday()))  # la semana actual sigue en su lugar
+
     def test_calendario(self):
         filas = logros.calendario({HOY: 12.0}, HOY, semanas=3)
         self.assertEqual(len(filas), 3)

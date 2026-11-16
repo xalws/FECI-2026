@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from core import actividad, logros, material, niveles, progreso
+from core import actividad, logros, material, niveles, progreso, tareas
 from core.auth import require_login
 from core.estilo import (TONOS, anillo, calendario_actividad, datos, encabezado, grafica_barras, lista, titulo,
                          vitrina, zona_horaria)
@@ -67,7 +67,8 @@ with col_meta:
     st.selectbox("Mi meta de estudio al día", logros.METAS_MIN, key="meta_diaria", on_change=guardar_meta,
                  format_func=lambda m: f"{m} minutos")
 with col_cal:
-    calendario_actividad(logros.calendario(dl["minutos"], dl["hoy"]), meta_min, dl["hoy"])
+    calendario_actividad(logros.calendario(dl["minutos"], dl["hoy"], futuras=2), meta_min, dl["hoy"],
+                         tareas.por_dia(user["id"], zona))
 
 resumen_logros = logros.resumen(lista_logros)
 titulo("award", f"Tus logros · {resumen_logros['logros']} de {len(lista_logros)} ({resumen_logros['oro']} de oro)")

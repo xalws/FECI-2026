@@ -1,7 +1,7 @@
 """Mis clases: el alumno se une con un código, ve sus clases y los avisos de sus maestros."""
 import streamlit as st
 
-from core import clases, competencia, tareas
+from core import clases, competencia, logros, retos, tareas
 from core.auth import require_login
 from core.estilo import datos, encabezado, fecha_local, fila_ranking, insignias, posicion_html, titulo, zona_horaria
 from core.perfil_ui import dialogo_perfil
@@ -75,6 +75,21 @@ if activas:
                 tarjeta_tarea(t)
     st.caption("Las tareas se cumplen solas con lo que haces en «Estudio»: no hay nada que entregar.")
 
+# ---------------------------------------------------------------------------------------------------------------
+# Reto de la semana
+# ---------------------------------------------------------------------------------------------------------------
+dl = logros.datos_alumno(user["id"], zona_horaria())
+reto = retos.reto_de_semana(dl["hoy"])
+avance_reto = retos.avance_semana(dl, dl["hoy"])
+titulo("target", "Reto de la semana")
+with st.container(border=True, key="reto_semana"):
+    st.markdown(f"**{reto['texto']}**")
+    st.progress(min(1.0, avance_reto / reto["meta"]), text=f"{min(avance_reto, reto['meta'])} de {reto['meta']}")
+    if avance_reto >= reto["meta"]:
+        st.success("¡Reto cumplido esta semana!", icon=":material/emoji_events:")
+    st.caption(f"Cambia el lunes (en {retos.dias_para_reiniciar(dl['hoy'])} días) · "
+               f"Retos cumplidos en total: {dl['retos_completados']}. Se mide con lo que haces en Estudio.")
+
 titulo("users", "Mis grupos")
 for c in mis:
     with st.container(border=True):
@@ -104,14 +119,17 @@ for c in mis:
 # Ranking de la clase y perfil de mis compañeros
 # ---------------------------------------------------------------------------------------------------------------
 if activas:
-    titulo("trending", "Ranking de la clase")
+    titulo("trending", "Ranking y liga semanal")
     st.caption("Se compara el esfuerzo: los XP que gana cada quien al responder preguntas y resolver ejercicios. "
+               "La liga («Esta semana») vuelve a cero cada lunes, así que todos pueden ganarla. "
                "Abre el perfil de un compañero para ver sus logros y su avance.")
     c1, c2 = st.columns([2, 1])
     opciones = {c["id"]: f"{c['nombre']} · {c['materia']}" for c in activas}
     clase_rank = c1.selectbox("Clase", list(opciones), format_func=opciones.get, key="ranking_clase")
     periodo = c2.radio("Periodo", ["Total", "Esta semana"], horizontal=True, key="ranking_periodo")
     filas = competencia.ranking(clase_rank, zona_horaria(), "semana" if periodo == "Esta semana" else "total")
+    if periodo == "Esta semana":
+        st.caption(f":material/timer: La liga se reinicia en {retos.dias_para_reiniciar(dl['hoy'])} días (el lunes).")
     mia = next((f for f in filas if f["alumno_id"] == user["id"]), None)
     if mia:
         st.success(f"Vas en el lugar {mia['posicion']} de {len(filas)} con {mia['xp']} XP"

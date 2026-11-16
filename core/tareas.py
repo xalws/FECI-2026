@@ -8,13 +8,14 @@ El maestro solo puede asignar temas de la materia de la clase, y solo ve a los a
 """
 from datetime import datetime, timedelta, timezone
 
+import pandas as pd
 from sqlalchemy import func, select
 
 from core import niveles
 from core.cache import memo
 from core.clases import ACTIVO, _puede_gestionar
 from core.db import get_session
-from models.schema import Clase, Inscripcion, IntentoEjercicio, Materia, Quiz, RespuestaQuiz, Tarea, Tema, Unidad, Usuario
+from models.schema import Aviso, Clase, Inscripcion, IntentoEjercicio, Materia, Quiz, RespuestaQuiz, Tarea, Tema, Unidad, Usuario
 
 TIPOS = {"preguntas": "Responder preguntas de examen", "ejercicios": "Resolver ejercicios prácticos",
          "nivel": "Llegar a un nivel del tema"}
@@ -60,7 +61,8 @@ def texto_plazo(limite: datetime, ahora: datetime, zona) -> str:
 # Maestro
 # ----------------------------------------------------------------------------------------------------------------
 def crear(usuario_id: int, clase_id: int, tema_id: int, tipo: str, meta: int, fecha_limite: datetime,
-          instrucciones: str = "") -> tuple[bool, str, int | None]:
+          instrucciones: str = "", zona=timezone.utc) -> tuple[bool, str, int | None]:
+    """Asigna una tarea y publica un aviso en la clase para que los alumnos se enteren (la fecha del aviso va en `zona`)."""
     if tipo not in TIPOS:
         return False, "Elige qué debe hacer el alumno.", None
     minimo, maximo, _ = LIMITES[tipo]
@@ -82,7 +84,11 @@ def crear(usuario_id: int, clase_id: int, tema_id: int, tipo: str, meta: int, fe
                   instrucciones=instrucciones or None, fecha_limite=_utc(fecha_limite))
         s.add(t)
         s.flush()
-        return True, "Tarea asignada.", t.id
+        tema = s.scalar(select(Tema.nombre).where(Tema.id == tema_id))
+        s.add(Aviso(clase_id=clase_id, autor_id=usuario_id, texto=(
+            f"Nueva tarea: {descripcion(tipo, meta).lower()} en «{tema}». Fecha límite: "
+            f"{_utc(fecha_limite).astimezone(zona):%d/%m/%Y}." + (f" {instrucciones}" if instrucciones else ""))[:500]))
+        return True, "Tarea asignada y avisada a la clase.", t.id
 
 
 def eliminar(usuario_id: int, tarea_id: int) -> tuple[bool, str]:
@@ -155,6 +161,28 @@ def detalle(usuario_id: int, tarea_id: int) -> list[dict]:
                  "hecha": avances.get(a, 0) >= t.meta} for a, n in alumnos]
 
 
+def matriz(usuario_id: int, clase_id: int, zona=timezone.utc) -> pd.DataFrame:
+    """Cumplimiento de la clase: una fila por alumno y una columna por tarea («3/10» y una palomita si ya la cumplió)."""
+    with get_session() as s:
+        if not _puede_gestionar(s, usuario_id, s.get(Clase, clase_id)):
+            return pd.DataFrame()
+        alumnos = s.execute(select(Usuario.id, Usuario.nombre).join(Inscripcion, Inscripcion.alumno_id == Usuario.id)
+                            .where(Inscripcion.clase_id == clase_id, Inscripcion.estado == ACTIVO)
+                            .order_by(Usuario.nombre)).all()
+        filas = s.execute(select(Tarea, Tema.nombre).join(Tema, Tema.id == Tarea.tema_id)
+                          .where(Tarea.clase_id == clase_id).order_by(Tarea.fecha_limite, Tarea.id)).all()
+        ids = [a for a, _ in alumnos]
+        tabla = {"Alumno": [n for _, n in alumnos]}
+        for t, tema in filas:
+            avances = _avances(s, t, ids)
+            etiqueta = f"{descripcion(t.tipo, t.meta)} · {tema} (hasta {_utc(t.fecha_limite).astimezone(zona):%d/%m})"
+            while etiqueta in tabla:  # dos tareas iguales: Excel y pandas no admiten columnas repetidas
+                etiqueta += " "
+            tabla[etiqueta] = [f"{min(avances.get(a, 0), t.meta)}/{t.meta}" + (" ✓" if avances.get(a, 0) >= t.meta else "")
+                               for a in ids]
+        return pd.DataFrame(tabla)
+
+
 # ----------------------------------------------------------------------------------------------------------------
 # Alumno
 # ----------------------------------------------------------------------------------------------------------------
@@ -186,4 +214,13 @@ def tareas_del_alumno(alumno_id: int) -> list[dict]:
 def pendientes(alumno_id: int) -> list[dict]:
     """Solo las tareas que aún se pueden cumplir (pendientes o por vencer)."""
     return [t for t in tareas_del_alumno(alumno_id) if t["estado"] in ("pendiente", "pronto")]
+
+
+def por_dia(alumno_id: int, zona) -> dict:
+    """{fecha local: [«tarea · tema»]} de las tareas que faltan, para marcarlas en el calendario."""
+    salida: dict = {}
+    for t in pendientes(alumno_id):
+        dia = t["fecha_limite"].astimezone(zona).date()
+        salida.setdefault(dia, []).append(f"{t['descripcion']} · {t['tema']}")
+    return salida
 

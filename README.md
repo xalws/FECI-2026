@@ -83,6 +83,26 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
   el alumno las ve en «Mis clases» y un resumen arriba de Estudio, con su estado (pendiente, por vencer, vencida o
   hecha). Tabla `tareas`.
 
+- **Avisos y cumplimiento:** al asignar una tarea se publica un aviso en la clase. «Mis clases (2)» muestra en el menú
+  cuántas tareas faltan. El maestro descarga en Excel quién cumplió cada tarea (y el reporte de Estadísticas la
+  incluye cuando eliges una clase). Las fechas límite aparecen como puntos ámbar en el calendario de «Mi progreso».
+
+**Alumno: repaso y retos**
+- **Repaso espaciado** (menú «Repaso (n)»): cada pregunta fallada y nunca acertada se vuelve una tarjeta; acertarla la
+  espacia (1, 3, 7 y 14 días) y fallarla la regresa al inicio; tras cuatro aciertos queda dominada. No suma XP.
+  Tabla `tarjetas_repaso` (`core/repaso.py`).
+- **Reto de la semana y liga:** cada lunes cambia el reto (preguntas, días, ejercicios, XP o minutos) y la liga semanal de
+  la clase vuelve a cero. Se mide con la actividad existente, sin tabla propia (`core/retos.py`); hay un logro
+  «Retador».
+- **Tu día** (arriba de Estudio): aviso de racha en riesgo, tarjetas de repaso para hoy y avance del reto.
+- **Atajos del tutor** bajo cada respuesta: «Explícamelo más simple», «Dame un ejemplo», «Hazme una pregunta» y «Resumen
+  del tema» (también se puede escribir «resumen»).
+
+**Respaldo**
+- En Administración, «Respaldo de la base» descarga un .zip con todas las tablas. `python scripts/respaldo.py` guarda uno
+  en `respaldos/` (ignorada por git) y conserva los últimos 10; sirve con el Programador de tareas de Windows.
+  `python scripts/latencia.py` mide el tiempo de ida y vuelta a la base.
+
 **Rendimiento**
 - Con una base remota cada consulta cuesta ~70 ms, así que las pantallas guardan en caché sus lecturas (`core/cache.py`,
   decorador `@memo`): se vacía sola cuando algo se escribe en la base y, a lo más, a los 60 s. Esas lecturas usan una
@@ -93,9 +113,9 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
 - **Respuestas en vivo:** el tutor escribe la respuesta mientras el modelo la genera. Si la IA falla (límite del
   plan gratuito, sin conexión) se muestra un mensaje claro con botón «Reintentar».
 - **Meta diaria de estudio** (10 a 60 minutos) y calendario de las últimas 5 semanas en «Mi progreso».
-- **Logros:** 75 logros en 7 categorías (Constancia, Dominio, Práctica, Exámenes, Exploración, Comunidad y
+- **Logros:** 76 logros en 7 categorías (Constancia, Dominio, Práctica, Exámenes, Exploración, Comunidad y
   Especiales), cada uno con 4 niveles: Bronce, Plata, Élite (con el color de su categoría) y Oro, que es el más alto
-  y brilla con una animación. Son 300 medallas. Se calculan con la actividad ya guardada.
+  y brilla con una animación. Son 304 medallas. Se calculan con la actividad ya guardada.
 - **Mi perfil:** título según los XP (Novato a Leyenda), gráfica de XP por semana, temas que domina y el catálogo
   completo de logros. El alumno elige hasta 6 logros para su **vitrina** (`usuarios.vitrina`).
 - **Competencia en la clase:** ranking por XP de todos los compañeros (total o de la semana) y perfil de cada uno
@@ -153,6 +173,10 @@ core/               Lógica
   logros.py           meta diaria, calendario y logros del alumno
   clases.py           clases: códigos, inscripciones, aprobación y avisos
   tareas.py           tareas con fecha límite: asignar, medir el avance y estados
+  repaso.py           repaso espaciado (tarjetas con cajas de 1, 3, 7 y 14 días)
+  retos.py            reto de la semana y su avance
+  hoy.py              pendientes del día: insignias del menú y panel «Tu día»
+  respaldo.py         respaldo de la base en .zip
   cache.py            caché de lecturas de la base (se vacía al escribir)
   competencia.py      XP, ranking de la clase y perfil público de un alumno
   perfil_ui.py        pantalla de perfil (propio y de compañeros)

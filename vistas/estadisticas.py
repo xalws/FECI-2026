@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import select
 
-from core import actividad, clases, niveles, sospechas, stats
+from core import actividad, clases, niveles, sospechas, stats, tareas
 from core.auth import require_login
 from core.db import get_session
 from core.estilo import datos, encabezado, grafica_barras, grafica_fechas, lista, titulo, zona_horaria
@@ -184,6 +184,10 @@ with e:
                  "Preguntas sin respuesta": sin_resp, "Material faltante": faltantes}
         if materias_con_datos:
             hojas[f"Avance {materias_con_datos[mid]}"] = avance
+        if clase:  # con una clase elegida, el reporte incluye quién cumplió cada tarea
+            cumplimiento = tareas.matriz(user["id"], clase["id"], zona_horaria())
+            if not cumplimiento.empty and len(cumplimiento.columns) > 1:
+                hojas["Tareas de la clase"] = cumplimiento
         d2.download_button("Reporte completo (Excel)", stats.exportar_excel(hojas),
                            file_name=f"reporte_{datetime.now(zona_horaria()):%Y-%m-%d}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
