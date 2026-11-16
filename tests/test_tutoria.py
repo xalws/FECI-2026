@@ -89,6 +89,45 @@ class TestIntencion(unittest.TestCase):
             self.assertIsNone(tutoria.detectar_intencion(texto), texto)
 
 
+class TestRespuestaAUnaPreguntaDelTutor(unittest.TestCase):
+    TUTOR = {"rol": "assistant", "contenido": "Explicación del tema…\n\n**Pregunta de comprobación**\n"
+                                              "¿Cuál es la preposición que usamos para decir la hora en inglés?"}
+
+    def test_una_respuesta_corta_a_la_pregunta_del_tutor(self):
+        self.assertEqual(llm.pregunta_abierta([self.TUTOR], "at"),
+                         "¿Cuál es la preposición que usamos para decir la hora en inglés?")
+        self.assertIsNotNone(llm.pregunta_abierta([self.TUTOR], "Se usa at para las horas exactas"))
+
+    def test_si_el_alumno_pregunta_o_escribe_mucho_es_otra_cosa(self):
+        self.assertIsNone(llm.pregunta_abierta([self.TUTOR], "¿y con los días?"))
+        self.assertIsNone(llm.pregunta_abierta([self.TUTOR], "explícame con más detalle cómo funcionan las preposiciones de "
+                                                             "tiempo en inglés cuando hablamos de horas, días y fechas largas, "
+                                                             "y también cuándo se usan en otros contextos distintos"))
+        self.assertIsNone(llm.pregunta_abierta([self.TUTOR], "   "))
+
+    def test_sin_pregunta_abierta(self):
+        self.assertIsNone(llm.pregunta_abierta([], "at"))
+        self.assertIsNone(llm.pregunta_abierta([{"rol": "assistant", "contenido": "Eso es todo por hoy."}], "at"))
+        self.assertIsNone(llm.pregunta_abierta([{"rol": "user", "contenido": "¿qué es at?"}], "at"))  # el último fue del alumno
+
+    def test_toma_la_ultima_pregunta_del_mensaje_del_tutor(self):
+        tutor = {"rol": "assistant", "contenido": "¿Entendiste?\nExplico otra vez.\n- ¿Qué preposición va con las horas?"}
+        self.assertEqual(llm.pregunta_abierta([tutor], "at"), "¿Qué preposición va con las horas?")
+
+    def test_el_mensaje_al_modelo_pide_evaluar_la_respuesta(self):
+        frag = [{"texto": "Usa at para horas exactas.", "score": 1.0}]
+        con = llm._mensajes_tutor("Inglés", "at", frag, [self.TUTOR], "normal")[-1]["content"]
+        self.assertIn("contestando tu última pregunta", con)
+        self.assertIn("RESPUESTA DEL ALUMNO: at", con)
+        self.assertIn("evalúa su respuesta", con)
+        sin = llm._mensajes_tutor("Inglés", "¿qué es at?", frag, [self.TUTOR], "normal")[-1]["content"]
+        self.assertIn("MENSAJE DEL ALUMNO: ¿qué es at?", sin)
+        self.assertNotIn("contestando", sin)
+
+    def test_la_regla_del_tutor_lo_menciona(self):
+        self.assertIn("EVALÚALA", llm.SYSTEM_TUTOR)
+
+
 class TestRespuestasDelTutor(unittest.TestCase):
     FRAG = [{"texto": "La metrología es la ciencia de la medición.", "score": 1.0, "archivo": "", "pagina": ""}]
 

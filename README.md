@@ -17,7 +17,9 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
   retroalimentación, continuar donde lo dejaron u otra pregunta. También entiende órdenes escritas como
   «comencemos», «continuemos» o «dame retroalimentación», que no son preguntas sobre el contenido. Con «pasemos al
   siguiente tema» (o «otro tema», «cambiemos de tema») el menú pasa solo al tema que sigue en la retícula, aunque sea
-  de otra unidad, y no gasta consultas a la IA; «siguiente lección» sigue la explicación del tema actual.
+  de otra unidad, y no gasta consultas a la IA; «siguiente lección» sigue la explicación del tema actual. Cuando el
+  alumno contesta la pregunta de comprobación del tutor (una respuesta corta, sin «?»), el tutor la **evalúa** con el
+  material —correcta, parcial o incorrecta, y por qué— en lugar de tratarla como una pregunta nueva.
 - **Examen** de varias preguntas (de 3 a 10) en **modo concentración**: mientras dura, se oculta el menú lateral,
   la conversación y las otras vistas. Después de cada pregunta se ve la respuesta correcta y su explicación. La
   dificultad empieza según su nivel en el tema, sube un nivel cuando acierta y baja uno cuando falla (básica,
