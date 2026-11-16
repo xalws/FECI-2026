@@ -89,6 +89,35 @@ class TestIntencion(unittest.TestCase):
             self.assertIsNone(tutoria.detectar_intencion(texto), texto)
 
 
+class TestPreguntasCongruentes(unittest.TestCase):
+    """Las preguntas del tutor deben ser acordes a lo que ya enseñó (ver llm.REGLA_PREGUNTAS)."""
+
+    def test_la_regla_dice_lo_esencial(self):
+        r = llm.REGLA_PREGUNTAS
+        for idea in ("SOLO sobre lo que ya explicaste", "UN solo punto", "MISMO patrón", "completando un hueco",
+                     "traducir oraciones completas", "Nunca escribas la respuesta", "UN solo paso", "MISMO punto",
+                     "baja la dificultad"):
+            self.assertIn(idea, r)
+
+    def test_la_leccion_el_continuar_y_el_chat_la_incluyen(self):
+        for prompt in (tutoria.SYSTEM_INICIAR, tutoria.SYSTEM_CONTINUAR, llm.SYSTEM_TUTOR):
+            self.assertIn(llm.REGLA_PREGUNTAS, prompt)
+
+    def test_la_leccion_explica_un_solo_punto_y_el_continuar_no_repasa_todo(self):
+        self.assertIn("SOLO el primer punto", tutoria.SYSTEM_INICIAR)
+        self.assertIn("UN solo punto nuevo", tutoria.SYSTEM_CONTINUAR)
+        self.assertIn("sin títulos grandes", tutoria.SYSTEM_INICIAR)
+
+    def test_los_prompts_se_pueden_formatear(self):  # las llaves del texto romperían .format
+        self.assertIn("Inglés", llm.SYSTEM_TUTOR.format(tema="Inglés", sin_info="x"))
+        self.assertIn("Inglés", tutoria._sistema(tutoria.SYSTEM_INICIAR, "Inglés", "normal"))
+        self.assertIn("Inglés", tutoria._sistema(tutoria.SYSTEM_CONTINUAR, "Inglés", "normal"))
+
+    def test_los_niveles_piden_preguntas_acordes(self):
+        self.assertIn("reconocer o completar", llm.AJUSTE_TUTOR["apoyo"])
+        self.assertIn("ejemplos del contexto", llm.AJUSTE_TUTOR["avanzado"])
+
+
 class TestRespuestaAUnaPreguntaDelTutor(unittest.TestCase):
     TUTOR = {"rol": "assistant", "contenido": "Explicación del tema…\n\n**Pregunta de comprobación**\n"
                                               "¿Cuál es la preposición que usamos para decir la hora en inglés?"}

@@ -20,6 +20,11 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
   de otra unidad, y no gasta consultas a la IA; «siguiente lección» sigue la explicación del tema actual. Cuando el
   alumno contesta la pregunta de comprobación del tutor (una respuesta corta, sin «?»), el tutor la **evalúa** con el
   material —correcta, parcial o incorrecta, y por qué— en lugar de tratarla como una pregunta nueva.
+- **Preguntas acordes a lo enseñado:** el tutor explica un solo punto por mensaje, muestra ejemplos con el mismo patrón
+  que su pregunta y pregunta una variante mínima (responder con una palabra, un número o completar un hueco), sin
+  combinar conceptos ni traducir oraciones completas, y sin escribir la respuesta. Si el alumno falla, baja la
+  dificultad. Las reglas están en `REGLA_PREGUNTAS` (`core/llm.py`) y valen para la lección, «continuar», el chat y los
+  ejercicios; el examen sigue sus cuatro niveles de dificultad.
 - **Examen** de varias preguntas (de 3 a 10) en **modo concentración**: mientras dura, se oculta el menú lateral,
   la conversación y las otras vistas. Después de cada pregunta se ve la respuesta correcta y su explicación. La
   dificultad empieza según su nivel en el tema, sube un nivel cuando acierta y baja uno cuando falla (básica,
