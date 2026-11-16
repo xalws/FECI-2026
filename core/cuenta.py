@@ -1,4 +1,3 @@
-"""Cuenta del usuario: validación, cambio y restablecimiento de contraseña."""
 from sqlalchemy import select
 
 from core.db import get_session
@@ -6,7 +5,7 @@ from core.passwords import hash_password, verificar_password
 from models.schema import Usuario
 
 MIN_CARACTERES = 6
-MAX_BYTES = 72  # límite de bcrypt: una contraseña más larga se rechaza en lugar de truncarse en silencio
+MAX_BYTES = 72  # límite de encriptacion
 
 
 def validar_password(password: str) -> str | None:
@@ -20,7 +19,7 @@ def validar_password(password: str) -> str | None:
 
 
 def cambiar_password(usuario_id: int, actual: str, nueva: str, confirmacion: str) -> tuple[bool, str]:
-    # El propio usuario cambia su contraseña; debe conocer la actual.
+    # El usuario cambia su contraseña debe conocer la actual.
     if nueva != confirmacion:
         return False, "La confirmación no coincide con la nueva contraseña."
     error = validar_password(nueva)
@@ -39,7 +38,7 @@ def cambiar_password(usuario_id: int, actual: str, nueva: str, confirmacion: str
 
 
 def restablecer_password(admin_id: int, usuario_id: int, nueva: str) -> tuple[bool, str]:
-    # Un administrador fija una contraseña nueva a otro usuario (por ejemplo, si la olvidó).
+    # Un administrador cambia una contraseña
     error = validar_password(nueva)
     if error:
         return False, error
@@ -55,8 +54,7 @@ def restablecer_password(admin_id: int, usuario_id: int, nueva: str) -> tuple[bo
 
 
 def restablecer_por_correo(email: str, nueva: str) -> tuple[bool, str]:
-    # Para usar desde la terminal (scripts/restablecer_password.py): quien tiene acceso a la base de datos puede
-    # restablecer cualquier cuenta, también la del administrador si la olvidó.
+    # quien tiene acceso a la base de datos puede restablecer cualquier cuenta, también la del administrador si la olvidó.
     error = validar_password(nueva)
     if error:
         return False, error

@@ -1,11 +1,10 @@
-"""Reglas del examen de varias preguntas con dificultad progresiva."""
 from core.llm import DIFICULTADES
 
 MIN_DIFICULTAD = 1
 MAX_DIFICULTAD = max(DIFICULTADES)
 PREGUNTAS_POR_DEFECTO = 5
 
-# Nivel del alumno en el tema (core/progreso.py) -> dificultad con la que empieza el examen
+# Nivel del alumno en el tema dificultad con la que empieza el examen
 DIFICULTAD_INICIAL = {"apoyo": 1, "normal": 2, "avanzado": 3}
 
 
@@ -14,7 +13,7 @@ def dificultad_inicial(nivel: str) -> int:
 
 
 def siguiente_dificultad(actual: int, acerto: bool) -> int:
-    # Si acierta, la siguiente pregunta es más difícil; si falla, un poco más fácil.
+    # Si acierta, la siguiente pregunta es más difícil, si falla, un poco más facil
     nueva = actual + 1 if acerto else actual - 1
     return max(MIN_DIFICULTAD, min(MAX_DIFICULTAD, nueva))
 
@@ -24,7 +23,7 @@ def nuevo_examen(total: int, nivel: str) -> dict:
 
 
 def nuevo_repaso(preguntas: list[dict], nivel: str) -> dict:
-    # Repaso de errores: no se generan preguntas nuevas, se vuelven a plantear las que el alumno falló.
+    # No se generan preguntas nuevas, se vuelven a plantear las que el alumno falló.
     ex = nuevo_examen(len(preguntas), nivel)
     ex["tipo"], ex["cola"] = "repaso", list(preguntas)
     return ex
@@ -33,7 +32,7 @@ def nuevo_repaso(preguntas: list[dict], nivel: str) -> dict:
 def resumen_repaso(examen: dict) -> str:
     res = examen["resultados"]
     corregidas = sum(1 for r in res if r["acerto"])
-    detalle = "\n".join(f"- Pregunta {r['numero']}: {'✅ corregida' if r['acerto'] else '❌ sigue pendiente'}" for r in res)
+    detalle = "\n".join(f"- Pregunta {r['numero']}: {'Corregida' if r['acerto'] else 'Sigue pendiente'}" for r in res)
     cierre = ("¡Excelente, ya dominas esas preguntas!" if corregidas == len(res)
               else "Las que siguen pendientes volverán a aparecer en «Repasar errores».")
     return f"**Repaso terminado: corregiste {corregidas} de {len(res)} errores.**\n\n{detalle}\n\n{cierre}"
@@ -53,7 +52,7 @@ def terminado(examen: dict) -> bool:
 
 
 def progreso_texto(nivel_antes: int, xp_antes: int, despues: dict) -> str:
-    # Lo que ganó el alumno en el tema con este examen (despues = estado de core/niveles.py).
+    # Lo que ganó el alumno en el tema con este examen
     ganados = max(0, despues["xp_efectivo"] - xp_antes)
     texto = (f"**XP ganados en el tema: +{ganados}.** Nivel actual: **{despues['nivel']} · "
              f"{despues['nombre_nivel']}**.")
@@ -68,7 +67,7 @@ def resumen_texto(examen: dict) -> str:
     res = examen["resultados"]
     aciertos = sum(1 for r in res if r["acerto"])
     detalle = "\n".join(f"- Pregunta {r['numero']} ({DIFICULTADES.get(r['dificultad'], '—')}): "
-                        f"{'✅' if r['acerto'] else '❌'}" for r in res)
+                        f"{'' if r['acerto'] else ''}" for r in res)
     mas_alta = max((r["dificultad"] for r in res if r["acerto"]), default=None)
     nivel = (f"La dificultad más alta que lograste resolver fue **{DIFICULTADES[mas_alta]}**."
              if mas_alta else "Todavía no resolviste ninguna pregunta; repasa el tema y vuelve a intentarlo.")

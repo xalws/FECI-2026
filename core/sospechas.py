@@ -1,15 +1,14 @@
-# Señales de actividad a revisar. Son indicios, no prueba de trampa.
 import pandas as pd
 from sqlalchemy import text
 
 from core.db import engine
 
-MIN_SEG = 5               # mínimo de segundos para leer y responder un quiz
-SEG_POR_PALABRA = 0.3     # tiempo de lectura extra según el largo de la pregunta
+MIN_SEG = 5               
+SEG_POR_PALABRA = 0.3    
 MAX_MIN_SEG = 15
-RAPIDAS_MIN = 3           # cuántas respuestas rápidas activan la alerta
-RAFAGA_N, RAFAGA_SEG = 5, 60   # 5 respuestas en 60 s
-SALTO_BAJO, SALTO_ALTO = 0.30, 0.80   # mejora brusca: de <=30% a >=80% en 5 respuestas
+RAPIDAS_MIN = 3           
+RAFAGA_N, RAFAGA_SEG = 5, 60 
+SALTO_BAJO, SALTO_ALTO = 0.30, 0.80
 
 SQL = """
 SELECT r.alumno_id, u.nombre AS alumno, r.es_correcta, r.fecha AS fecha_resp,
@@ -29,7 +28,7 @@ def _segundos_minimos(pregunta: str, opciones) -> float:
 
 
 def evaluar(df: pd.DataFrame) -> pd.DataFrame:
-    # Recibe respuestas (columnas de SQL) y devuelve un renglón por alumno con alertas.
+    # Recibe respuestas y devuelve un renglón por alumno con alertas.
     columnas = ["alumno", "respuestas", "rápidas", "motivos"]
     if df.empty:
         return pd.DataFrame(columns=columnas)

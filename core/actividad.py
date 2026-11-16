@@ -21,7 +21,7 @@ def registrar(usuario_id: int) -> None:
         with get_session() as s:
             s.add(Actividad(usuario_id=usuario_id))
     except Exception:
-        pass  # el registro de tiempo nunca debe romper la app
+        pass 
 
 
 def segundos_de_uso(marcas: list) -> float:
@@ -36,7 +36,7 @@ def segundos_de_uso(marcas: list) -> float:
 
 
 def tiempo_por_alumno(alumno_ids: list[int]) -> dict[int, float]:
-    # Segundos de uso de cada alumno (id -> segundos).
+    # Segundos de uso de cada alumno 
     if not alumno_ids:
         return {}
     with get_session() as s:
@@ -67,6 +67,5 @@ def racha_dias(usuario_id: int, zona: tzinfo) -> int:
                                                              Actividad.fecha >= desde)).all()
     except Exception:
         return 0
-    # SQLite devuelve las fechas sin zona; se guardaron en UTC
     dias = {(f if f.tzinfo else f.replace(tzinfo=timezone.utc)).astimezone(zona).date() for f in fechas}
     return dias_seguidos(dias, datetime.now(zona).date())

@@ -34,7 +34,7 @@ GROQ_MODEL = _get("GROQ_MODEL", "openai/gpt-oss-120b")
 CHROMA_PATH = str(BASE_DIR / "chroma_data")
 EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
- # fragmentos que se recuperan por pregunta
+# fragmentos que se recuperan por pregunta
 TOP_K = 4 
 # similitud mínima 
 MIN_SCORE = float(_get("MIN_SCORE", "0.25"))

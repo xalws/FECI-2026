@@ -6,7 +6,6 @@ from models.schema import Quiz, RespuestaQuiz, Tema
 
 
 def _preguntas_del_alumno(alumno_id: int, tema_id: int, solo_falladas: bool, limite: int) -> list[str]:
-    # Preguntas recientes (sin repetir) que el alumno contestó en este tema, de la más nueva a la más vieja.
     q = (select(Quiz.pregunta).join(RespuestaQuiz, RespuestaQuiz.quiz_id == Quiz.id)
          .where(RespuestaQuiz.alumno_id == alumno_id, Quiz.tema_id == tema_id))
     if solo_falladas:
@@ -51,7 +50,7 @@ def crear_quiz(tema_id: int, conversacion_id: int, dificultad: int = 2,
 
 
 def preguntas_pendientes(alumno_id: int, tema_id: int, limite: int = 10) -> list[dict]:
-    # Preguntas que el alumno falló y cuya última respuesta sigue siendo incorrecta (las más recientes primero).
+    # Preguntas que el alumno fallo y siguew fallando
     with get_session() as s:
         filas = s.execute(select(Quiz, RespuestaQuiz.es_correcta, RespuestaQuiz.id)
                           .join(RespuestaQuiz, RespuestaQuiz.quiz_id == Quiz.id)

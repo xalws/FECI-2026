@@ -1,9 +1,3 @@
-"""Búsqueda por significado en el material de cada tema.
-
-Los fragmentos y sus vectores se guardan en la tabla `fragmentos` de la base de datos (la misma que comparte todo el
-equipo), y la similitud se calcula con numpy. Con las decenas o cientos de fragmentos que tiene un tema es
-instantáneo; si algún día fueran decenas de miles, convendría pasar a pgvector.
-"""
 import random
 
 import numpy as np
@@ -38,7 +32,7 @@ def _a_entero(valor) -> int | None:
 def indexar_nodos(tema_id: int, nodos: list) -> int:
     if not nodos:
         return 0
-    # PostgreSQL no acepta el carácter nulo (0x00), que algunos PDF traen al extraer el texto
+    # PostgreSQL no acepta el carácter nulo (0x00),
     textos = [n.get_content(metadata_mode=MetadataMode.NONE).replace("\x00", "") for n in nodos]
     vectores = _embed_model().get_text_embedding_batch(textos)
     with get_session() as s:
@@ -54,8 +48,8 @@ def indexar(tema_id: int, documentos: list[Document]) -> int:
 
 
 def clasificar_por_similitud(vec_nodos: list, vec_temas: list, umbral: float) -> list[int | None]:
-    # Para cada fragmento devuelve la posición del tema más parecido (similitud coseno), o None si ninguno
-    # llega al umbral.
+    # Para cada fragmento devuelve la posición del tema más parecido (similitud coseno), o None si ninguno llega al umbral.
+
     a = np.asarray(vec_nodos, dtype=float)
     b = np.asarray(vec_temas, dtype=float)
     a /= np.linalg.norm(a, axis=1, keepdims=True) + 1e-12
@@ -67,7 +61,6 @@ def clasificar_por_similitud(vec_nodos: list, vec_temas: list, umbral: float) ->
 
 def repartir_por_temas(nodos: list, temas: list[dict]) -> tuple[dict[int, list], int]:
     # Asigna cada fragmento al tema de la retícula que mejor lo describe.
-    # Devuelve ({tema_id: [fragmentos]}, cantidad de fragmentos sin tema claro).
     if not nodos or not temas:
         return {}, len(nodos)
     modelo = _embed_model()

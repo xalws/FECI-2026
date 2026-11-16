@@ -6,8 +6,8 @@ from models.schema import IntentoEjercicio, Materia, Quiz, RespuestaQuiz, Tema, 
 # Cuántas respuestas recientes cuentan y cuántas se necesitan para opinar
 VENTANA = 10
 MIN_INTENTOS = 3
-UMBRAL_APOYO = 50      # menos de este % de aciertos: al alumno le cuesta
-UMBRAL_AVANZADO = 80   # este % o más: domina el tema
+UMBRAL_APOYO = 50      # al alumno le cuesta
+UMBRAL_AVANZADO = 80   # domina el tema
 
 
 def guardar_intento(alumno_id: int, tema_id: int, enunciado: str, respuesta: str,
@@ -18,7 +18,6 @@ def guardar_intento(alumno_id: int, tema_id: int, enunciado: str, respuesta: str
 
 
 def resumen_ejercicios(alumno_id: int) -> dict:
-    # Cantidad de ejercicios calificados y promedio (0 a 10) del alumno.
     with get_session() as s:
         puntajes = list(s.scalars(select(IntentoEjercicio.puntaje).where(IntentoEjercicio.alumno_id == alumno_id)))
     return {"intentos": len(puntajes), "promedio": round(sum(puntajes) / len(puntajes), 1) if puntajes else None}
@@ -33,7 +32,6 @@ def _nivel(total: int, pct: float | None) -> str:
 
 
 def resumen_alumno(alumno_id: int) -> list[dict]:
-    # Aciertos del alumno en cada tema donde ha respondido quizzes (últimos VENTANA por tema).
     with get_session() as s:
         filas = s.execute(
             select(Tema.nombre, Materia.nombre, RespuestaQuiz.es_correcta, Quiz.tema_id)
@@ -59,7 +57,6 @@ def resumen_alumno(alumno_id: int) -> list[dict]:
 
 
 def progreso_tema(alumno_id: int, tema_id: int) -> dict:
-    # Aciertos del alumno en los últimos quizzes de un tema y el nivel que le corresponde.
     with get_session() as s:
         filas = s.scalars(
             select(RespuestaQuiz.es_correcta)

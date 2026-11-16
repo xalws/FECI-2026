@@ -14,7 +14,7 @@ aplicar_estilo()
 
 ASSETS = Path(__file__).parent / "assets"
 
-# (ruta, título, ícono, url)
+# ruta, título, ícono, url
 CHAT = ("vistas/chat_alumno.py", "Estudio", ":material/school:", "chat")
 PROGRESO = ("vistas/mi_progreso.py", "Mi progreso", ":material/insights:", "progreso")
 HISTORIAL = ("vistas/historial.py", "Mi historial", ":material/history:", "historial")

@@ -1,4 +1,3 @@
-"""Retícula de una materia: lectura del PDF del programa de asignatura y creación de unidades y temas."""
 import re
 import time
 import unicodedata
@@ -11,14 +10,14 @@ from core.db import get_session
 from models.schema import Asignacion, Carrera, Cuatrimestre, Materia, Tema, Unidad, Universidad
 
 PAUSA_ENTRE_PARTES = 15  # segundos
-PARTE_MAX = 11000 # caracteres por llamada a la IA (el plan gratuito de Groq tiene límite de tokens)
+PARTE_MAX = 11000 # caracteres por llamada a la IA 
 _RUIDO = re.compile(r"^(ELABORÓ|APROBÓ|F-DA-|REVISÓ|VIGENTE).*$", re.M)
 _CORTES = ("Proceso Enseñanza", "Proceso de Evaluación")
 _CUATRIMESTRE = re.compile(r"Cuatrimestre\s+Créditos\s+Modalidad\s+Horas por semana\s+Horas Totales\s+\w+\s+(\d{1,2})\s+\d")
 
 
 def paginas_utiles(archivo) -> list[str]:
-    # Texto de la portada (asignatura, carrera, cuatrimestre) y de las páginas de unidades y temas, sin ruido.
+    # Texto de la portada 
     lector = PdfReader(archivo)
     if lector.is_encrypted:
         raise ValueError("El PDF está cifrado.")
@@ -46,15 +45,11 @@ def texto_para_ia(archivo) -> str:
 
 
 def cuatrimestre_del_texto(portada: str) -> str:
-    # La tabla de la portada trae el número del cuatrimestre; se lee con una regla fija porque es más fiable
-    # que pedírselo a la IA.
     m = _CUATRIMESTRE.search(re.sub(r"\s+", " ", portada))
     return f"Cuatrimestre {int(m.group(1))}" if m else ""
 
 
 def dividir_en_partes(paginas: list[str], limite: int = PARTE_MAX) -> list[str]:
-    # Agrupa unidades completas (nunca parte una a la mitad) en bloques de a lo más `limite` caracteres.
-    # Cada bloque lleva la portada para que la IA sepa la asignatura.
     portada, resto = paginas[0], paginas[1:]
     unidades: list[list[str]] = []
     for p in resto:
@@ -76,7 +71,7 @@ def dividir_en_partes(paginas: list[str], limite: int = PARTE_MAX) -> list[str]:
 
 
 def unir_resultados(resultados: list[dict]) -> dict:
-    # Junta las unidades de varios bloques; si una unidad se repite, mezcla sus temas sin duplicar.
+    # Junta las unidades de varios bloques
     datos = {**resultados[0], "unidades": []}
     por_nombre: dict[str, dict] = {}
     for r in resultados:
@@ -94,7 +89,6 @@ def _normalizar(texto: str) -> str:
 
 
 def _obtener_o_crear(s, modelo, nombre: str, **filtros):
-    # Busca por nombre (sin distinguir mayúsculas ni acentos) y, si no existe, lo crea.
     nombre = nombre.strip()
     for fila in s.scalars(select(modelo).filter_by(**filtros)):
         if _normalizar(fila.nombre) == _normalizar(nombre):
@@ -107,7 +101,7 @@ def _obtener_o_crear(s, modelo, nombre: str, **filtros):
 
 def crear_desde_reticula(datos: dict, universidad: str, carrera: str, cuatrimestre: str,
                          maestro_id: int | None = None) -> dict:
-    # Crea (o completa) la materia con sus unidades y temas. Devuelve un resumen de lo creado.
+    # Crea o completa la materia con sus unidades y temas. Devuelve un resumen de lo creado.
     resumen = {"materia_id": None, "unidades_nuevas": 0, "temas_nuevos": 0, "temas_actualizados": 0}
     with get_session() as s:
         uni, _ = _obtener_o_crear(s, Universidad, universidad)
@@ -133,19 +127,18 @@ def crear_desde_reticula(datos: dict, universidad: str, carrera: str, cuatrimest
 
 
 def temas_de_materia(materia_id: int) -> list[dict]:
-    # Temas de la materia en orden, con el texto que los describe (nombre + objetivos).
+    # Temas de la materia en orden, con el texto que los describe 
     with get_session() as s:
         filas = s.execute(select(Tema.id, Tema.nombre, Tema.objetivos, Unidad.nombre)
                           .join(Unidad, Unidad.id == Tema.unidad_id)
                           .where(Unidad.materia_id == materia_id)
                           .order_by(Unidad.id, Tema.id)).all()
-    # La unidad ayuda a distinguir temas de nombre parecido (p. ej. «Mallas y nodos» en CD y en CA).
     return [{"id": i, "nombre": n, "unidad": u, "descripcion": f"{u}. {n}. {o or ''}".strip()}
             for i, n, o, u in filas]
 
 
 def estructura(materia_id: int) -> dict:
-    # La materia con sus unidades y temas (con ids), para poder editarlos.
+    # La materia con sus unidades y temas para poder editarlos.
     with get_session() as s:
         materia = s.get(Materia, materia_id)
         filas = s.execute(select(Unidad.id, Unidad.nombre, Tema.id, Tema.nombre, Tema.objetivos)
@@ -161,9 +154,6 @@ def estructura(materia_id: int) -> dict:
 
 def actualizar(materia_id: int, materia: str | None = None, unidades: dict[int, str] | None = None,
                temas: dict[int, dict] | None = None) -> int:
-    # Guarda los nombres y objetivos editados. `temas` es {tema_id: {"nombre", "objetivos"}}.
-    # Solo cambia lo que de verdad es distinto y devuelve cuántos registros modificó.
-    # Los ids deben ser de esta materia; el material y el progreso de los alumnos cuelgan del id, no del nombre.
     cambios = 0
     with get_session() as s:
         m = s.get(Materia, materia_id)
@@ -194,13 +184,13 @@ def actualizar(materia_id: int, materia: str | None = None, unidades: dict[int, 
 
 
 def extraer(archivo) -> dict:
-    # PDF de retícula -> {"materia", "carrera", "cuatrimestre", "unidades": [{"nombre", "temas": [...]}]}
+    # PDF de retícula -> {"materia", "carrera", "cuatrimestre", "unidades": [{"nombre", "temas": etc
     paginas = paginas_utiles(archivo)
     partes = dividir_en_partes(paginas)
     resultados = []
     for i, parte in enumerate(partes):
         if i:
-            time.sleep(PAUSA_ENTRE_PARTES)  # respeta el límite de tokens por minuto de Groq
+            time.sleep(PAUSA_ENTRE_PARTES)  # respeta el límite de tokens
         resultados.append(llm.extraer_reticula(parte))
     datos = unir_resultados(resultados)
     cuatrimestre = cuatrimestre_del_texto(paginas[0])

@@ -1,9 +1,3 @@
-"""Sistema de niveles: puntos de experiencia (XP) por tema y avance por unidad según la retícula.
-
-Cada respuesta correcta suma tantos XP como su dificultad (1 a 4), así que resolver preguntas difíciles
-avanza más. Los ejercicios calificados suman de 0 a 3 XP. El nivel del tema sale de los XP acumulados, pero con
-poca precisión (menos de 50% de aciertos en 4 o más intentos) no pasa de Principiante.
-"""
 import pandas as pd
 from sqlalchemy import select
 
@@ -31,7 +25,6 @@ def nivel_por_xp(xp: int) -> int:
 
 
 def calcular_estado(respuestas: list[tuple[int | None, bool]], puntajes_ejercicio: list[int]) -> dict:
-    # respuestas: [(dificultad, acertó)], puntajes_ejercicio: [0..10]
     intentos = len(respuestas)
     aciertos = sum(1 for _, c in respuestas if c)
     xp = sum(xp_respuesta(d, c) for d, c in respuestas) + sum(xp_ejercicio(p) for p in puntajes_ejercicio)
@@ -95,9 +88,6 @@ def avance_materia(alumno_id: int, materia_id: int) -> dict:
 
 
 def siguiente_recomendado(av: dict, con_material: set[int] | None = None, limite: int = 3) -> list[dict]:
-    # Qué estudiar ahora, en el orden de la retícula: primero lo que hay que reforzar (precisión baja), luego lo
-    # que ya empezó y no llega a Avanzado y, si falta, el primer tema que aún no ha tocado.
-    # `con_material`: ids de temas que tienen material (no se recomienda estudiar lo que no tiene contenido).
     temas = [(u["nombre"], t) for u in av["unidades"] for t in u["temas"]
              if con_material is None or t["id"] in con_material]
     refuerzo = [x for x in temas if x[1]["limitado"]]
@@ -119,7 +109,6 @@ def siguiente_recomendado(av: dict, con_material: set[int] | None = None, limite
 
 
 def materias_disponibles() -> dict[int, str]:
-    # Materias que ya tienen temas (id -> «Materia · Carrera · Cuatrimestre»).
     with get_session() as s:
         filas = s.execute(select(Materia.id, Materia.nombre, Carrera.nombre, Cuatrimestre.nombre)
                           .join(Cuatrimestre, Cuatrimestre.id == Materia.cuatrimestre_id)
@@ -131,7 +120,6 @@ def materias_disponibles() -> dict[int, str]:
 
 
 def materias_con_actividad(alumno_id: int) -> set[int]:
-    # Materias donde el alumno ya respondió preguntas o ejercicios.
     with get_session() as s:
         de_quizzes = set(s.scalars(
             select(Unidad.materia_id).join(Tema, Tema.unidad_id == Unidad.id)
@@ -145,7 +133,6 @@ def materias_con_actividad(alumno_id: int) -> set[int]:
 
 
 def tabla_avance(materia_id: int, alumnos: dict[int, str]) -> pd.DataFrame:
-    # Una fila por alumno: nivel y % de avance de la materia y de cada unidad (para el maestro).
     filas = []
     for alumno_id, nombre in alumnos.items():
         av = avance_materia(alumno_id, materia_id)

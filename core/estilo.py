@@ -1,9 +1,3 @@
-"""Identidad visual de la aplicación: paleta, íconos, hoja de estilos y componentes de presentación.
-
-Toda la apariencia vive aquí y en .streamlit/config.toml (colores y tipografía del tema). Las pantallas solo
-llaman a estas funciones (encabezado, titulo, datos, anillo, lista...) y no repiten CSS.
-Todo texto que viene del usuario o de la base de datos se escapa antes de insertarlo en HTML.
-"""
 import html
 import random
 import re
@@ -14,11 +8,9 @@ import streamlit as st
 
 ZONA_POR_DEFECTO = "America/Ciudad_Juarez"
 
-# Interruptor de las animaciones «llamativas» (entradas, rebotes, conteos, confeti). Con False la app queda
-# con las transiciones básicas. El navegador también las apaga solo si el usuario pidió «reducir movimiento».
+# Interruptor de las animaciones 
 ANIMACIONES = True
 
-# (color del ícono/acento, fondo suave)
 TONOS = {
     "indigo": ("#0B3D91", "#EAF1FC"),
     "violeta": ("#1F63C9", "#EAF1FC"),
@@ -29,7 +21,7 @@ TONOS = {
     "rosa": ("#DB2777", "#FDF2F8"),
 }
 
-# Íconos de línea (estilo Lucide). Incluye los que ya usaban las pantallas para no cambiar su aspecto.
+# Íconos de línea
 ICONOS = {
     "award": '<circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>',
     "book": '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/>',
@@ -73,7 +65,6 @@ TONOS_OSCURO = {"indigo": "#6EA0F0", "violeta": "#8DB6F5", "cielo": "#38BDF8", "
 
 
 def _tono(nombre: str) -> tuple[str, str]:
-    """(color, fondo suave) del tono, más claro cuando el tema es oscuro."""
     color, fondo = TONOS.get(nombre, TONOS["indigo"])
     return (TONOS_OSCURO.get(nombre, color), fondo) if es_oscuro() else (color, fondo)
 
@@ -89,24 +80,18 @@ def svg(nombre: str, tam: int = 22, color: str = "currentColor", grosor: float =
 
 
 def _html(contenido: str) -> None:
-    # Una sola línea: el procesador de Markdown no debe convertir sangrías en bloques de código
+    # El procesador de Markdown no debe convertir sangrías en bloques de código
     st.markdown(contenido, unsafe_allow_html=True)
 
 
-# Enteros que no son la parte decimal de un número ni el denominador de una fracción («8.5/10» anima solo el 8)
 _ENTERO = re.compile(r"(?<![\d.,/])\d+")
 
 
 def con_conteo(valor) -> str:
-    """HTML del valor con cada número entero listo para «contar» desde 0 al aparecer.
-
-    «1 h 35 min» anima el 1 y el 35; «45.0%» anima el 45 y deja fijo «.0%». El número real queda en el texto,
-    así que se lee igual aunque el navegador no anime (o las animaciones estén apagadas).
-    """
     texto, partes, pos = str(valor), [], 0
     for m in _ENTERO.finditer(texto):
         n = m.group()
-        if (len(n) > 1 and n[0] == "0") or len(n) > 7:  # «05» perdería su cero; los muy largos no se animan
+        if (len(n) > 1 and n[0] == "0") or len(n) > 7: 
             continue
         partes.append(_e(texto[pos:m.start()]))
         partes.append(f'<span class="tu-num" style="--tu-n:{int(n)}"><b>{n}</b></span>')
@@ -115,11 +100,9 @@ def con_conteo(valor) -> str:
     return "".join(partes)
 
 
-# ---------------------------------------------------------------------------------------------------------------
 # Componentes
-# ---------------------------------------------------------------------------------------------------------------
+
 def titulo(icono: str, texto: str, nivel: int = 3) -> None:
-    """Título de sección con ícono (misma firma que usaban las pantallas)."""
     if nivel == 1:
         encabezado(texto, icono=icono)
         return
@@ -129,10 +112,6 @@ def titulo(icono: str, texto: str, nivel: int = 3) -> None:
 
 
 def encabezado(titulo: str, subtitulo: str = "", icono: str = "book", chips=(), compacto: bool = False) -> None:
-    """Encabezado principal de cada pantalla, con degradado animado.
-
-    `chips`: textos cortos, o pares (ícono, texto), que se muestran como etiquetas bajo el título.
-    """
     etiquetas = []
     for chip in chips:
         if not chip:
@@ -149,10 +128,6 @@ def encabezado(titulo: str, subtitulo: str = "", icono: str = "book", chips=(), 
 
 
 def datos(items: list[dict]) -> None:
-    """Tarjetas de datos que se acomodan solas al ancho (no recortan el texto como st.metric en columnas).
-
-    Cada item: {"icono", "etiqueta", "valor", "detalle" (opcional), "tono" (opcional)}.
-    """
     tarjetas = []
     for i, d in enumerate(items):
         color, fondo = _tono(d.get("tono", "indigo"))
@@ -172,7 +147,6 @@ def insignia(texto: str, tono: str = "indigo", icono: str | None = None) -> str:
 
 
 def anillo(porcentaje: float, titulo: str, detalle: str = "", etiqueta: str = "", tono: str = "indigo") -> None:
-    """Tarjeta con un anillo de avance (0 a 100) y su explicación."""
     p = max(0, min(100, round(porcentaje)))
     extra = insignia(etiqueta, tono, "award") if etiqueta else ""
     _html(f'<div class="tu-anillo-tarjeta"><div class="tu-anillo" style="--tu-p:{p}">'
@@ -182,7 +156,6 @@ def anillo(porcentaje: float, titulo: str, detalle: str = "", etiqueta: str = ""
 
 
 def lista(items: list[dict]) -> None:
-    """Lista de tarjetas con acento de color. Cada item: {"icono", "titulo", "sub", "texto", "tono"}."""
     filas = []
     for i, it in enumerate(items):
         color, fondo = _tono(it.get("tono", "indigo"))
@@ -196,7 +169,7 @@ def lista(items: list[dict]) -> None:
 
 def grafica_barras(df, categoria: str, valor: str, titulo_valor: str, maximo: float | None = None,
                    color_por: str | None = None, colores: dict | None = None) -> None:
-    """Barras horizontales que muestran el nombre completo de cada categoría (st.bar_chart lo recorta)."""
+    
     import altair as alt
 
     eje_x = {"title": titulo_valor, "axis": alt.Axis(tickCount=5)}
@@ -218,7 +191,6 @@ def grafica_barras(df, categoria: str, valor: str, titulo_valor: str, maximo: fl
 
 
 def grafica_fechas(df, fecha: str, valor: str, titulo_valor: str) -> None:
-    """Área con puntos por día, con fechas en formato día/mes."""
     import altair as alt
 
     color = TONOS["indigo"][0]
@@ -241,7 +213,6 @@ def iniciales(nombre: str) -> str:
 
 
 def tarjeta_usuario(user: dict) -> None:
-    """Tarjeta del usuario en el menú lateral: iniciales, nombre y rol."""
     roles = {"alumno": "Alumno", "maestro": "Maestro", "admin": "Administrador"}
     rol = user.get("rol", "")
     st.sidebar.markdown(
@@ -252,7 +223,6 @@ def tarjeta_usuario(user: dict) -> None:
 
 
 def saludo(nombre: str = "") -> str:
-    """«Buenos días / Buenas tardes / Buenas noches» según la hora del navegador del usuario."""
     try:
         zona = ZoneInfo(st.context.timezone or ZONA_POR_DEFECTO)
     except Exception:
@@ -271,20 +241,17 @@ def zona_horaria() -> ZoneInfo:
 
 
 def fecha_local(fecha: datetime) -> datetime:
-    """Convierte una fecha guardada en UTC a la hora del navegador del usuario."""
     if fecha.tzinfo is None:  # SQLite la devuelve sin zona
         fecha = fecha.replace(tzinfo=timezone.utc)
     return fecha.astimezone(zona_horaria())
 
 
 def insignias(*items: tuple) -> None:
-    """Fila de insignias; cada item es (texto, tono, ícono)."""
     _html(f'<div class="tu-insignias">{"".join(insignia(*it) for it in items)}</div>')
 
 
 def marca_acceso() -> None:
-    """Panel de presentación de la pantalla de inicio de sesión."""
-    rasgos = [("message", "Un tutor siempre disponible",
+    rasgos = [("message", "Tu tutor siempre disponible",
                "Responde con el material de tu materia y te dice de qué página sale."),
               ("target", "Exámenes que se adaptan a ti",
                "Suben de dificultad mientras aciertas y bajan si te cuesta."),
@@ -300,9 +267,8 @@ def marca_acceso() -> None:
           f'maestro, sin distracciones.</div><div class="tu-rasgos">{filas}</div></div>')
 
 
-# ---------------------------------------------------------------------------------------------------------------
-# Hoja de estilos
-# ---------------------------------------------------------------------------------------------------------------
+# CSS
+
 CSS = """
 :root{--tu-indigo:#0B3D91;--tu-violeta:#1F63C9;--tu-cielo:#0EA5E9;--tu-tinta:#0B1F44;--tu-gris:#64748B;
 --tu-borde:#DCE5F3;--tu-suave:#EAF1FC;--tu-degradado:linear-gradient(135deg,#0B3D91 0%,#1F63C9 100%);
@@ -514,13 +480,8 @@ CSS_OSCURO = """
 [data-testid="stHeader"]{background:rgba(10,20,38,.72)!important}
 """
 
-
-# ---------------------------------------------------------------------------------------------------------------
 # Animaciones
-# ---------------------------------------------------------------------------------------------------------------
-# Fotogramas de entrada. Solo describen el inicio: el final es el estado normal del elemento, así que al terminar
-# no queda ninguna transformación aplicada (una transformación residual rompería la pantalla completa de tablas
-# y gráficas, que usan position:fixed, y anularía los efectos al pasar el mouse).
+
 _FOTOGRAMAS = {
     "subir": "from{opacity:0;transform:translateY(24px)}",
     "rebote": ("0%{opacity:0;transform:translateY(28px) scale(.9)}55%{opacity:1;transform:translateY(-7px) scale(1.025)}"
@@ -534,10 +495,9 @@ _FOTOGRAMAS = {
     "barra": "from{transform:translateX(-100%)}",
 }
 _APP = '[data-testid="stApp"]'
-_BLOQUE = '[data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]'  # contenido de la pantalla
+_BLOQUE = '[data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]'  # contenido de la pantall
 
-# Ojo: dentro de <style> no puede haber un «<» seguido de letra (el saneador de st.html quitaría toda la hoja);
-# por eso los tipos de @property se escriben con el escape CSS \3c en lugar de «<».
+
 CSS_ANIMACIONES = (
     ":root{--tu-e-suave:cubic-bezier(.22,1,.36,1);--tu-e-rebote:cubic-bezier(.34,1.56,.64,1)}"
     "@property --tu-ok{syntax:'*';initial-value:1;inherits:false}"
@@ -713,7 +673,7 @@ transform .3s var(--tu-e-rebote),background .2s ease}
 .tu-rasgo:hover .tu-rasgo-icono svg{animation:tu-menear .7s ease}
 .st-key-tarjeta_acceso{animation:tu-rebote .85s var(--tu-e-suave) .2s backwards}
 """.replace("%B", _BLOQUE)
-    # cascada: cada elemento de la pantalla entra un poco después que el anterior
+    # cascada
     + "".join(f"{_BLOQUE}>*:nth-child({i}){{animation-delay:{(i - 1) * 0.055:.3f}s}}" for i in range(2, 13))
     + f"{_BLOQUE}>*:nth-child(n+13){{animation-delay:.66s}}"
 )
@@ -727,21 +687,14 @@ def es_oscuro() -> bool:
 
 
 def aplicar_estilo() -> None:
-    """Inserta la hoja de estilos de la app (se llama una vez por ejecución desde app.py)."""
     st.html(f"<style>{CSS}{CSS_OSCURO if es_oscuro() else ''}{CSS_ANIMACIONES if ANIMACIONES else ''}</style>")
 
 
 def _ficha(token) -> str:
-    """Texto seguro para usarlo dentro del nombre de una animación CSS."""
     return re.sub(r"[^a-z0-9]+", "-", str(token).lower()).strip("-") or "x"
 
 
 def transicion(token) -> None:
-    """Hace que las animaciones de entrada se repitan cuando cambia `token` (app.py lo llama con la página actual).
-
-    Al navegar, Streamlit reutiliza los elementos que ya están en pantalla, y una animación CSS solo vuelve a
-    correr si cambia su nombre. Por eso cada página usa los mismos fotogramas con un nombre propio.
-    """
     if not ANIMACIONES:
         return
     k = _ficha(token)
@@ -760,7 +713,6 @@ def transicion(token) -> None:
 
 
 def reanimar(clave: str, token, efecto: str = "subir", duracion: float = 0.6) -> None:
-    """Repite la entrada del contenedor creado con key=`clave` cada vez que cambia `token` (p. ej. otra pregunta)."""
     if not ANIMACIONES:
         return
     nombre = f"tu-{efecto}-{_ficha(clave)}-{_ficha(token)}"
@@ -769,7 +721,6 @@ def reanimar(clave: str, token, efecto: str = "subir", duracion: float = 0.6) ->
 
 
 def reanimar_siguientes(clave: str, token) -> None:
-    """Repite la entrada de todo lo que está debajo del widget con key=`clave` cuando cambia `token` (otra pestaña)."""
     if not ANIMACIONES:
         return
     nombre = f"tu-subir-{_ficha(clave)}-{_ficha(token)}"
@@ -778,7 +729,6 @@ def reanimar_siguientes(clave: str, token) -> None:
 
 
 def confeti(piezas: int = 80) -> None:
-    """Estallido de confeti hecho solo con CSS; se dibuja en la ejecución en que se llama y dura unos 2 segundos."""
     if not ANIMACIONES:
         return
     colores = ("#0B3D91", "#1F63C9", "#5B9BEF", "#0EA5E9", "#F59E0B", "#FBBF24", "#22C55E", "#F43F5E", "#FFFFFF")

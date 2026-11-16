@@ -1,8 +1,3 @@
-"""El tutor como guía de la conversación: iniciar la lección, retomarla y dar retroalimentación.
-
-No todo mensaje del alumno es una búsqueda en el material: «comencemos», «continuemos» u «hola» son órdenes
-para el tutor, no preguntas sobre el tema.
-"""
 import re
 import unicodedata
 
@@ -42,7 +37,6 @@ def _normalizar(texto: str) -> str:
 
 
 def detectar_intencion(texto: str) -> str | None:
-    # Devuelve "iniciar", "continuar", "retro", "saludo" o None (es una pregunta de contenido).
     t = _normalizar(texto)
     palabras = t.split()
     if not palabras:

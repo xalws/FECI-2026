@@ -25,19 +25,24 @@ def entero(v):
         return None
 
 
+def nombre_coleccion(coleccion) -> str:
+    return coleccion if isinstance(coleccion, str) else coleccion.name
+
+
 def main() -> None:
-    init_db()
     if not Path(CHROMA_PATH).exists():
         print(f"No hay carpeta {CHROMA_PATH}; no hay nada que migrar.")
         return
+    init_db()
     cliente = chromadb.PersistentClient(path=CHROMA_PATH)
     with get_session() as s:
         temas_validos = set(s.scalars(select(Tema.id)))
     copiados = saltados = huerfanos = 0
-    for col in sorted(cliente.list_collections(), key=lambda c: c.name):
-        if not col.name.startswith("tema_"):
+    for coleccion in sorted(cliente.list_collections(), key=nombre_coleccion):
+        nombre = nombre_coleccion(coleccion)
+        if not nombre.startswith("tema_"):
             continue
-        tema_id = int(col.name.split("_", 1)[1])
+        tema_id = int(nombre.split("_", 1)[1])
         if tema_id not in temas_validos:
             huerfanos += 1
             continue
@@ -46,6 +51,7 @@ def main() -> None:
         if ya:
             saltados += 1
             continue
+        col = cliente.get_collection(name=nombre)
         datos = col.get(include=["documents", "metadatas", "embeddings"])
         with get_session() as s:
             for texto, meta, emb in zip(datos["documents"], datos["metadatas"], datos["embeddings"]):

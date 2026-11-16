@@ -157,5 +157,5 @@ with st.container(border=True):
                 st.success(f"{f.name}: {doc.num_chunks} fragmentos indexados.", icon=":material/check_circle:")
             except Exception as e:
                 if doc_id:
-                    rag.eliminar_documento(tema_id, doc_id)  # limpia lo que haya quedado en Chroma
+                    rag.eliminar_documento(tema_id, doc_id)
                 st.error(f"{f.name}: {e}", icon=":material/error:")

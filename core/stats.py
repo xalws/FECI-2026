@@ -1,4 +1,3 @@
-# Estadísticas para el maestro 
 import pandas as pd
 from sqlalchemy import text
 
@@ -42,7 +41,7 @@ ORDER BY p.id DESC
 
 
 def preguntas_sin_respuesta(materias_ids: list[int] | None = None) -> pd.DataFrame:
-    # Preguntas que el tutor no pudo contestar: señal de material que falta subir.
+    # Preguntas que el tutor no pudo contestar señal de material que falta subir.
     with engine.connect() as conn:
         df = pd.read_sql(text(SQL_SIN_RESPUESTA), conn)
     if materias_ids is not None:

@@ -1,9 +1,3 @@
-"""Botón para cambiar entre modo claro y oscuro.
-
-Streamlit lee el tema al cargar la página (de la preferencia guardada en el navegador), así que cambiarlo exige
-recargarla, y al recargar se abre una sesión nueva. Para que el usuario no tenga que volver a entrar, antes de
-recargar se le entrega al navegador un código de un solo uso (válido 60 s) que la sesión nueva canjea una vez.
-"""
 import secrets
 import time
 
@@ -13,7 +7,8 @@ from core import estilo
 
 PARAM = "cambio_tema"
 VIGENCIA = 60  # segundos
-# Streamlit guarda la preferencia por ruta (stActiveTheme-<ruta>-v2); se fija en todas las páginas de la app
+
+# Streamlit guarda la preferencia por ruta, se fija en todas las páginas de la app
 RUTAS = ["/", "/chat", "/progreso", "/historial", "/cuenta", "/reticula", "/material", "/estadisticas", "/admin", "/login"]
 
 
@@ -32,7 +27,7 @@ def _emitir(user: dict | None) -> str:
 
 
 def restaurar_sesion() -> None:
-    """Si la página se recargó por un cambio de tema, devuelve al usuario a su sesión (el código sirve una vez)."""
+    #Si la página se recargó por un cambio de tema, devuelve al usuario a su sesión
     codigo = st.query_params.get(PARAM)
     if not codigo:
         return
@@ -42,7 +37,7 @@ def restaurar_sesion() -> None:
         st.session_state["user"] = item[0]
 
 
-# JavaScript que se ejecuta en la página (no en un iframe, que no puede navegar): guarda la preferencia y recarga
+# JavaScript que guarda la preferencia y recarga
 _CAMBIAR = st.components.v2.component("cambio_de_tema", js="""
 export default function ({ data }) {
   const valor = JSON.stringify(data.modo);
@@ -56,7 +51,7 @@ def _aplicar(destino: str, codigo: str) -> None:
     _CAMBIAR(data={"modo": destino, "rutas": RUTAS, "param": PARAM, "codigo": codigo}, key="cambio_de_tema")
 
 def boton(en_barra_lateral: bool = True) -> None:
-    """Botón «Modo oscuro / Modo claro»; al pulsarlo se guarda la preferencia y se recarga la página."""
+    # Botón Modo oscuro / Modo claro al presionarlo se guarda la preferencia y se recarga la página.
     oscuro = estilo.es_oscuro()
     contenedor = st.sidebar if en_barra_lateral else st
     etiqueta, icono = ("Modo claro", ":material/light_mode:") if oscuro else ("Modo oscuro", ":material/dark_mode:")

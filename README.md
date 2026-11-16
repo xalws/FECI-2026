@@ -175,6 +175,13 @@ Es seguro repetirlo (salta lo ya copiado) y no borra `chroma_data/`. Hazlo en **
 material con la versión anterior; si no, esos temas aparecen en el panel de cobertura como «Documento sin contenido
 indexado» y el tutor no podrá responder con ellos.
 
+El script lee el índice local de `chroma_data/` y lo copia a la base indicada por `DATABASE_URL`; no migra datos de
+`local.db` ni descarga el índice desde Neon. Ejecútalo en la computadora que conserva esa carpeta. Si no existe,
+esa computadora no tiene el índice local que se debe migrar.
+
+La relación se hace por ID: una colección `tema_123` se copia al tema `id=123` de la base destino. Confirma que esos
+IDs correspondan a los mismos temas en Neon; el script no puede relacionarlos por nombre.
+
 ## Parte 3 - Ejecución
 
 Con el entorno virtual activado y el `.env` listo:

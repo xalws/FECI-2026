@@ -13,7 +13,6 @@ user = require_login(["admin"])
 
 ROLES = {"admin": "Admin", "maestro": "Maestro", "alumno": "Alumno"}
 
-# Los íconos, títulos y estilos vienen de core/estilo.py (compartidos por todas las pantallas)
 
 # Encabezado
 encabezado("Panel de administración", "Catálogo académico, cuentas de usuario y materias de cada maestro.",

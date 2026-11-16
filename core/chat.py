@@ -3,7 +3,7 @@ from sqlalchemy import func, or_, select
 from core.db import get_session
 from models.schema import Conversacion, Materia, Mensaje, PreguntaSinRespuesta, Tema, Unidad
 
-# Títulos que usaban los ejercicios y exámenes antes de que existiera la columna «tipo»
+# Títulos que usaban los ejercicios y exámenes antes de que existiera la columna tipo
 TITULOS_ANTIGUOS_NO_CHAT = ("Examen", "Ejercicio práctico", "Quiz")
 
 
@@ -37,7 +37,7 @@ def listar_mensajes(conversacion_id: int) -> list[dict]:
 
 
 def conversaciones_del_tema(alumno_id: int, tema_id: int, limite: int = 20) -> list[dict]:
-    # Conversaciones de chat (no ejercicios ni exámenes) del alumno en un tema que ya tienen mensajes.
+    # Conversaciones de chat del alumno en un tema que ya tienen mensajes.
     with get_session() as s:
         con_mensajes = select(Mensaje.conversacion_id).group_by(Mensaje.conversacion_id)
         q = (select(Conversacion, func.count(Mensaje.id))
@@ -70,7 +70,7 @@ def listar_conversaciones(alumno_id: int, texto: str = "") -> list[dict]:
 
 
 def _tipo(c: Conversacion) -> str:
-    # Las conversaciones antiguas no tienen «tipo»: se deduce de su título
+    # Las conversaciones antiguas no tienen tipo: se deduce de su título
     if c.tipo:
         return c.tipo
     if c.titulo in TITULOS_ANTIGUOS_NO_CHAT:

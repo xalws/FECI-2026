@@ -1,4 +1,3 @@
-"""Subida de material: un PDF de toda la materia que se reparte entre los temas de su retícula."""
 from sqlalchemy import func, select
 
 from core import pdf_loader, rag, reticula
@@ -16,8 +15,6 @@ def ya_subido(materia_id: int, nombre_archivo: str) -> bool:
 
 
 def estado_tema(tema_id: int) -> str:
-    # «ok» (hay fragmentos), «sin_indice» (hay un PDF registrado pero su contenido no está en la base) o
-    # «sin_material» (nunca se subió nada).
     with get_session() as s:
         if s.scalar(select(func.count()).select_from(Fragmento).where(Fragmento.tema_id == tema_id)):
             return "ok"
@@ -38,9 +35,6 @@ def mensaje_sin_material(tema_id: int) -> str:
 
 
 def cobertura(materia_id: int) -> list[dict]:
-    # Por cada tema de la retícula: cuántos fragmentos reales tiene y qué documentos hay registrados.
-    # estado: «ok» (con material), «sin_material» (nada) o «sin_indice» (hay un documento registrado pero sus
-    # fragmentos no están en la base, p. ej. porque se subió antes de que el índice fuera compartido).
     temas = reticula.temas_de_materia(materia_id)
     if not temas:
         return []
@@ -61,7 +55,7 @@ def cobertura(materia_id: int) -> list[dict]:
 
 
 def eliminar_archivo(materia_id: int, nombre_archivo: str) -> int:
-    # Borra un PDF de la materia (sus documentos y fragmentos en todos los temas). Devuelve cuántos documentos.
+    # Borra un PDF de la materia 
     ids = [t["id"] for t in reticula.temas_de_materia(materia_id)]
     with get_session() as s:
         docs = s.scalars(select(Documento).where(Documento.tema_id.in_(ids),
@@ -74,7 +68,6 @@ def eliminar_archivo(materia_id: int, nombre_archivo: str) -> int:
 
 def subir_a_materia(archivo, nombre_archivo: str, materia_id: int, maestro_id: int) -> dict:
     # Lee el PDF, asigna cada fragmento al tema de la retícula que mejor lo describe y lo indexa ahí.
-    # Devuelve {"por_tema": {nombre del tema: fragmentos}, "sin_tema": fragmentos sin tema claro}.
     temas = reticula.temas_de_materia(materia_id)
     if not temas:
         raise ValueError("Esta materia todavía no tiene temas. Primero sube su retícula.")
@@ -93,7 +86,7 @@ def subir_a_materia(archivo, nombre_archivo: str, materia_id: int, maestro_id: i
         try:
             cantidad = rag.indexar_nodos(tema_id, nodos)
         except Exception:
-            rag.eliminar_documento(tema_id, doc_id)  # limpia lo que haya quedado en Chroma
+            rag.eliminar_documento(tema_id, doc_id)
             with get_session() as s:
                 s.delete(s.get(Documento, doc_id))
             raise
