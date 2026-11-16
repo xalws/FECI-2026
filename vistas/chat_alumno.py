@@ -35,10 +35,10 @@ if aviso:
     st.toast(aviso[0], icon=aviso[1])
 if ss.pop("celebrar", False):
     st.balloons()
-if ss.pop("confeti", False):
-    confeti()
 if ss.pop("revisar_logros", False) or "logros_vistos" not in ss:  # la primera vez solo toma nota
     logros.revisar_nuevos(user["id"], zona_horaria())
+if ss.pop("confeti", False):  # (después de revisar logros: subir a Oro también lanza confeti)
+    confeti()
 
 
 @st.cache_data(ttl=30, show_spinner=False)

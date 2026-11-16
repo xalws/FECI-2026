@@ -14,7 +14,7 @@ from core import estilo
 PARAM = "cambio_tema"
 VIGENCIA = 60  # segundos
 # Streamlit guarda la preferencia por ruta (stActiveTheme-<ruta>-v2); se fija en todas las páginas de la app
-RUTAS = ["/", "/chat", "/progreso", "/historial", "/cuenta", "/reticula", "/material", "/estadisticas", "/admin", "/clases", "/mis-clases", "/login"]
+RUTAS = ["/", "/chat", "/progreso", "/historial", "/cuenta", "/reticula", "/material", "/estadisticas", "/admin", "/clases", "/mis-clases", "/mi-perfil", "/login"]
 
 
 @st.cache_resource

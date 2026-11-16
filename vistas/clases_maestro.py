@@ -4,6 +4,7 @@ import streamlit as st
 from core import clases
 from core.auth import require_login
 from core.estilo import datos, encabezado, fecha_local, insignias, titulo
+from core.perfil_ui import dialogo_perfil
 
 user = require_login(["maestro", "admin"])
 ss = st.session_state
@@ -93,10 +94,12 @@ with t_alumnos:
     if not alumnos:
         st.info("Todavía no hay alumnos en esta clase. Comparte el código para que se unan.", icon=":material/group_add:")
     for a in alumnos:
-        f1, f2, f3 = st.columns([3, 3, 1], vertical_alignment="center")
+        f1, f2, f3, f4 = st.columns([3, 3, 1.3, 1], vertical_alignment="center")
         f1.markdown(f"**{a['nombre']}**")
         f2.caption(f"{a['email']} · desde {fecha_local(a['fecha']):%d/%m/%Y}")
-        if f3.button("Quitar", key=f"quitar_{clase_id}_{a['alumno_id']}", icon=":material/person_remove:", width="stretch"):
+        if f3.button("Ver perfil", key=f"perfil_{clase_id}_{a['alumno_id']}", icon=":material/badge:", width="stretch"):
+            dialogo_perfil(user["id"], a["alumno_id"])
+        if f4.button("Quitar", key=f"quitar_{clase_id}_{a['alumno_id']}", icon=":material/person_remove:", width="stretch"):
             listo(clases.quitar_alumno(user["id"], clase_id, a["alumno_id"]))
 
 # ----- Solicitudes -----

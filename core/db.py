@@ -31,6 +31,7 @@ COLUMNAS_NUEVAS = [
     ("quizzes", "dificultad", "INTEGER"),
     ("conversaciones", "tipo", "VARCHAR(20)"),
     ("usuarios", "meta_diaria_min", "INTEGER"),
+    ("usuarios", "vitrina", "TEXT"),
 ]
 
 

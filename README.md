@@ -80,9 +80,15 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
 **Alumno: metas y logros**
 - **Respuestas en vivo:** el tutor escribe la respuesta mientras el modelo la genera. Si la IA falla (límite del
   plan gratuito, sin conexión) se muestra un mensaje claro con botón «Reintentar».
-- **Meta diaria de estudio** (10 a 60 minutos), calendario de las últimas 5 semanas y **11 logros** (primeras
-  respuestas, aciertos, rachas, ejercicios, niveles). Se calculan con la actividad ya guardada; solo la meta
-  elegida se guarda (`usuarios.meta_diaria_min`).
+- **Meta diaria de estudio** (10 a 60 minutos) y calendario de las últimas 5 semanas en «Mi progreso».
+- **Logros:** 22 logros en 7 categorías (Constancia, Dominio, Práctica, Exámenes, Exploración, Comunidad y
+  Especiales), cada uno con 4 niveles: Bronce, Plata, Élite (con el color de su categoría) y Oro, que es el más alto
+  y brilla con una animación. Son 88 medallas. Se calculan con la actividad ya guardada.
+- **Mi perfil:** título según los XP (Novato a Leyenda), gráfica de XP por semana, temas que domina y el catálogo
+  completo de logros. El alumno elige hasta 6 logros para su **vitrina** (`usuarios.vitrina`).
+- **Competencia en la clase:** ranking por XP de todos los compañeros (total o de la semana) y perfil de cada uno
+  con su vitrina, racha, minutos de estudio, temas dominados y gráfica de XP por semana. Solo se comparte esfuerzo:
+  no se muestran calificaciones ni errores. Solo lo ven los compañeros de clase, su maestro y el administrador.
 
 **Todos los roles**
 - **Sesión recordada:** al marcar «Mantener mi sesión iniciada» (14 días) no hay que volver a entrar al recargar
@@ -129,6 +135,8 @@ core/               Lógica
   cuenta.py           cambio y restablecimiento de contraseñas
   logros.py           meta diaria, calendario y logros del alumno
   clases.py           clases: códigos, inscripciones, aprobación y avisos
+  competencia.py      XP, ranking de la clase y perfil público de un alumno
+  perfil_ui.py        pantalla de perfil (propio y de compañeros)
   sesion.py           sesión recordada (cookie con código aleatorio; la base guarda solo su huella)
   tema.py             botón de modo claro/oscuro que conserva la sesión
   chat.py, perfil.py, pdf_loader.py, db.py, config.py, passwords.py, ui.py

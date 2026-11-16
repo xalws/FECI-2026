@@ -70,6 +70,8 @@ class Usuario(Base):
     cuatrimestre_id: Mapped[int | None] = mapped_column(ForeignKey("cuatrimestres.id"), nullable=True)
     # Meta diaria de estudio en minutos (el alumno la elige en «Mi progreso»)
     meta_diaria_min: Mapped[int | None] = mapped_column(nullable=True)
+    # Logros que el alumno muestra en su perfil (ids separados por comas; ver core/logros.py)
+    vitrina: Mapped[str | None] = mapped_column(Text, nullable=True)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 

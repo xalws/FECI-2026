@@ -1,9 +1,10 @@
 """Mis clases: el alumno se une con un código, ve sus clases y los avisos de sus maestros."""
 import streamlit as st
 
-from core import clases
+from core import clases, competencia
 from core.auth import require_login
-from core.estilo import datos, encabezado, fecha_local, insignias, titulo
+from core.estilo import datos, encabezado, fecha_local, fila_ranking, insignias, posicion_html, titulo, zona_horaria
+from core.perfil_ui import dialogo_perfil
 
 user = require_login(["alumno"])
 ss = st.session_state
@@ -76,6 +77,31 @@ for c in mis:
             if b2.button("No", key=f"no_salir_{c['id']}", width="stretch"):
                 ss.pop("confirmar_salir", None)
                 st.rerun()
+
+# ---------------------------------------------------------------------------------------------------------------
+# Ranking de la clase y perfil de mis compañeros
+# ---------------------------------------------------------------------------------------------------------------
+if activas:
+    titulo("trending", "Ranking de la clase")
+    st.caption("Se compara el esfuerzo: los XP que gana cada quien al responder preguntas y resolver ejercicios. "
+               "Abre el perfil de un compañero para ver sus logros y su avance.")
+    c1, c2 = st.columns([2, 1])
+    opciones = {c["id"]: f"{c['nombre']} · {c['materia']}" for c in activas}
+    clase_rank = c1.selectbox("Clase", list(opciones), format_func=opciones.get, key="ranking_clase")
+    periodo = c2.radio("Periodo", ["Total", "Esta semana"], horizontal=True, key="ranking_periodo")
+    filas = competencia.ranking(clase_rank, zona_horaria(), "semana" if periodo == "Esta semana" else "total")
+    mia = next((f for f in filas if f["alumno_id"] == user["id"]), None)
+    if mia:
+        st.success(f"Vas en el lugar {mia['posicion']} de {len(filas)} con {mia['xp']} XP"
+                   + (" esta semana." if periodo == "Esta semana" else "."), icon=":material/emoji_events:")
+    for f in filas:
+        yo = f["alumno_id"] == user["id"]
+        k1, k2, k3 = st.columns([0.6, 5, 1.6], vertical_alignment="center")
+        k1.markdown(posicion_html(f["posicion"]), unsafe_allow_html=True)
+        k2.markdown(fila_ranking(f["nombre"], f["titulo"] or "", f["xp"], yo), unsafe_allow_html=True)
+        if k3.button("Mi perfil" if yo else "Ver perfil", key=f"ver_{clase_rank}_{f['alumno_id']}", icon=":material/badge:",
+                     width="stretch"):
+            dialogo_perfil(user["id"], f["alumno_id"])
 
 # ---------------------------------------------------------------------------------------------------------------
 # Avisos de mis maestros

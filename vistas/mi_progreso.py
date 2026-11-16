@@ -3,8 +3,8 @@ import streamlit as st
 
 from core import actividad, logros, material, niveles, progreso
 from core.auth import require_login
-from core.estilo import (TONOS, anillo, calendario_actividad, datos, encabezado, grafica_barras, lista, logros_grid,
-                         titulo, zona_horaria)
+from core.estilo import (TONOS, anillo, calendario_actividad, datos, encabezado, grafica_barras, lista, titulo,
+                         vitrina, zona_horaria)
 
 user = require_login(["alumno"])
 
@@ -69,9 +69,11 @@ with col_meta:
 with col_cal:
     calendario_actividad(logros.calendario(dl["minutos"], dl["hoy"]), meta_min, dl["hoy"])
 
-conseguidos = sum(1 for l in lista_logros if l["logrado"])
-titulo("award", f"Logros · {conseguidos} de {len(lista_logros)}")
-logros_grid(lista_logros)
+resumen_logros = logros.resumen(lista_logros)
+titulo("award", f"Tus logros · {resumen_logros['logros']} de {len(lista_logros)} ({resumen_logros['oro']} de oro)")
+vitrina(logros.elegir_vitrina(lista_logros, logros.vitrina_de(user["id"])),
+        "Aún no tienes logros: responde preguntas, resuelve ejercicios y estudia a diario para conseguirlos.")
+st.page_link("vistas/mi_perfil.py", label="Ver todos mis logros y elegir cuáles mostrar", icon=":material/badge:")
 
 
 def texto_tema(t: dict) -> str:

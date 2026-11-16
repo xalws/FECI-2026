@@ -210,24 +210,81 @@ def calendario_actividad(filas: list[list[dict]], meta: int, hoy) -> None:
     _html(f'<div class="tu-cal-tarjeta"><div class="tu-cal">{cabecera}{"".join(celdas)}</div>{leyenda}</div>')
 
 
+NOMBRES_MEDALLA = ["Sin conseguir", "Bronce", "Plata", "Élite", "Oro"]
+
+
+def medalla(logro: dict, tam: int = 64, retraso: float = 0.0) -> str:
+    """Medalla de un logro: bronce, plata, élite (color de su categoría) u oro (con brillo animado). Nivel 0 = gris."""
+    color, fondo = _tono(logro["tono"])
+    nivel = logro["nivel"]
+    return (f'<span class="tu-med n{nivel}" style="--tam:{tam}px;--color:{color};--fondo:{fondo};animation-delay:{retraso:.2f}s" '
+            f'title="{_e(logro["titulo"])} · {NOMBRES_MEDALLA[nivel]}"><span class="tu-med-aro">'
+            f'<span class="tu-med-disco">{svg(logro["icono"], 24)}</span></span></span>')
+
+
+def _pasos(logro: dict) -> str:
+    return "".join(f'<i class="p n{n}{" on" if logro["nivel"] >= n else ""}" title="{NOMBRES_MEDALLA[n]}"></i>' for n in (1, 2, 3, 4))
+
+
 def logros_grid(items: list[dict]) -> None:
-    """Tarjetas de logros: los conseguidos a color y los pendientes en gris con su avance."""
+    """Tarjetas de logros con su medalla, su avance hacia el siguiente nivel y los 4 niveles posibles."""
     tarjetas = []
-    for i, it in enumerate(items):
-        color, fondo = _tono(it.get("tono", "indigo"))
-        if it["logrado"]:
-            pie = f'<div class="tu-logro-ok">{svg("check", 14)}Conseguido</div>'
+    for i, l in enumerate(items):
+        color, fondo = _tono(l["tono"])
+        if l["siguiente"] is None:
+            pie = '<div class="tu-lg-pie oro">¡Nivel máximo!</div>'
         else:
-            pct = round(it["actual"] / it["meta"] * 100)
-            pie = (f'<div class="tu-logro-barra"><i style="width:{pct}%"></i></div>'
-                   f'<div class="tu-logro-avance">{it["actual"]} de {it["meta"]}</div>')
+            pie = f'<div class="tu-lg-pie">{l["valor"]} de {l["siguiente"]}</div>'
+        nivel = NOMBRES_MEDALLA[l["nivel"]]
         tarjetas.append(
-            f'<div class="tu-logro {"logrado" if it["logrado"] else "pendiente"}" '
-            f'style="--color:{color};--fondo:{fondo};animation-delay:{min(i, 8) * 0.04:.2f}s">'
-            f'<span class="tu-logro-icono">{svg(it["icono"], 22)}</span>'
-            f'<div class="tu-logro-titulo">{_e(it["titulo"])}</div>'
-            f'<div class="tu-logro-texto">{_e(it["descripcion"])}</div>{pie}</div>')
-    _html(f'<div class="tu-logros">{"".join(tarjetas)}</div>')
+            f'<div class="tu-lg n{l["nivel"]}" style="--color:{color};--fondo:{fondo};animation-delay:{min(i, 10) * 0.04:.2f}s">'
+            f'{medalla(l, 68, min(i, 10) * 0.04)}<div class="tu-lg-textos"><div class="tu-lg-titulo">{_e(l["titulo"])}</div>'
+            f'<div class="tu-lg-nivel">{nivel}</div><div class="tu-lg-desc">{_e(l["descripcion"])}</div>'
+            f'<div class="tu-lg-barra"><i style="width:{l["avance"]}%"></i></div>{pie}'
+            f'<div class="tu-lg-pasos">{_pasos(l)}</div></div></div>')
+    _html(f'<div class="tu-lgs">{"".join(tarjetas)}</div>')
+
+
+def vitrina(items: list[dict], vacio: str = "Todavía no hay logros para mostrar.") -> None:
+    """Fila de medallas grandes (los logros que el alumno eligió mostrar)."""
+    if not items:
+        st.caption(vacio)
+        return
+    cuerpo = "".join(f'<div class="tu-vit">{medalla(l, 84, i * 0.08)}<b>{_e(l["titulo"])}</b>'
+                     f'<span class="n{l["nivel"]}">{NOMBRES_MEDALLA[l["nivel"]]}</span></div>' for i, l in enumerate(items))
+    _html(f'<div class="tu-vitrina">{cuerpo}</div>')
+
+
+def posicion_html(n: int) -> str:
+    """Insignia con la posición en el ranking: oro, plata y bronce para los tres primeros."""
+    return f'<span class="tu-pos p{n if n <= 3 else 0}">{n}</span>'
+
+
+def fila_ranking(nombre: str, detalle: str, xp: int, yo: bool = False) -> str:
+    """Nombre, título y XP de un alumno en el ranking (el botón «Ver perfil» lo pone la pantalla al lado)."""
+    etiqueta = ' <span class="tu-yo">Tú</span>' if yo else ""
+    return (f'<div class="tu-rank{" yo" if yo else ""}"><div class="tu-rank-nombre">{_e(nombre)}{etiqueta}</div>'
+            f'<div class="tu-rank-det">{_e(detalle)}</div><div class="tu-rank-xp"><b>{xp}</b> XP</div></div>')
+
+
+def grafica_xp_semanal(filas: list[dict]) -> None:
+    """Área con los XP ganados cada semana (8 semanas); `filas` trae «semana» (fecha) y «xp»."""
+    import altair as alt
+    import pandas as pd
+
+    df = pd.DataFrame(filas)
+    df["etiqueta"] = pd.to_datetime(df["semana"]).dt.strftime("%d/%m")
+    color = TONOS["indigo"][0]
+    relleno = alt.Gradient(gradient="linear", x1=1, x2=1, y1=1, y2=0,
+                           stops=[alt.GradientStop(color="rgba(11,61,145,0.02)", offset=0),
+                                  alt.GradientStop(color="rgba(11,61,145,0.38)", offset=1)])
+    base = alt.Chart(df).encode(
+        x=alt.X("etiqueta:O", sort=None, title="Semana (lunes)", axis=alt.Axis(labelAngle=0)),
+        y=alt.Y("xp:Q", title="XP", scale=alt.Scale(domainMin=0)),
+        tooltip=[alt.Tooltip("etiqueta:O", title="Semana del"), alt.Tooltip("xp:Q", title="XP")])
+    capas = (base.mark_area(line={"color": color, "strokeWidth": 2.5}, color=relleno, interpolate="monotone")
+             + base.mark_point(filled=True, size=80, color=color))
+    st.altair_chart(capas.properties(height=220), width="stretch")
 
 
 def grafica_barras(df, categoria: str, valor: str, titulo_valor: str, maximo: float | None = None,
@@ -508,6 +565,56 @@ background:linear-gradient(135deg,#2F6FD8,#5B9BEF);color:#fff;font-weight:800;fo
 .tu-rol-alumno{background:rgba(14,165,233,.2);color:#7DD3FC}.tu-rol-maestro{background:rgba(16,185,129,.2);color:#6EE7B7}
 .tu-rol-admin{background:rgba(245,158,11,.2);color:#FCD34D}
 
+/* Medallas de logros: bronce, plata, élite (color de la categoría) y oro (con brillo) */
+.tu-med{position:relative;display:inline-block;width:var(--tam,64px);height:var(--tam,64px);flex-shrink:0;border-radius:50%}
+.tu-med-aro{position:absolute;inset:0;border-radius:50%;padding:calc(var(--tam,64px)*.085);background:var(--aro);box-shadow:var(--halo,none)}
+.tu-med-disco{display:flex;align-items:center;justify-content:center;width:100%;height:100%;border-radius:50%;background:var(--disco);color:var(--icono);
+box-shadow:inset 0 2px 6px rgba(0,0,0,.12)}
+.tu-med-disco svg{width:46%;height:46%}
+.tu-med.n0{--aro:linear-gradient(145deg,var(--tu-pista),var(--tu-borde));--disco:var(--tu-sup);--icono:var(--tu-gris);opacity:.7;filter:grayscale(1)}
+.tu-med.n1{--aro:linear-gradient(145deg,#7C4A1E,#E8AE76 52%,#A8622B);--disco:var(--tu-sup);--icono:#A8622B;--halo:0 4px 12px -6px rgba(168,98,43,.8)}
+.tu-med.n2{--aro:linear-gradient(145deg,#8793A6,#F8FAFC 50%,#94A3B8);--disco:var(--tu-sup);--icono:#64748B;--halo:0 4px 14px -6px rgba(100,116,139,.8)}
+.tu-med.n3{--aro:linear-gradient(145deg,var(--color),color-mix(in srgb,var(--color) 40%,#fff) 55%,var(--color));--disco:var(--tu-sup);--icono:var(--color);
+--halo:0 6px 18px -6px var(--color)}
+.tu-med.n4{--aro:linear-gradient(145deg,#B7791F,#FDE68A 38%,#F59E0B 68%,#FCD34D);--disco:linear-gradient(145deg,#FFFBEB,#FDE68A);--icono:#B45309;
+--halo:0 0 0 2px rgba(245,158,11,.22),0 8px 22px -6px rgba(245,158,11,.85)}
+.tu-med.n4 .tu-med-aro{animation:tu-resplandor 3.2s ease-in-out infinite}
+.tu-med.n4::after{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;background:linear-gradient(115deg,transparent 38%,rgba(255,255,255,.95) 50%,transparent 62%);
+background-size:260% 100%;background-position:160% 0;animation:tu-brillo-oro 3.4s ease-in-out infinite;mix-blend-mode:soft-light}
+@keyframes tu-brillo-oro{0%,45%{background-position:160% 0}80%,100%{background-position:-60% 0}}
+@keyframes tu-resplandor{0%,100%{box-shadow:0 0 0 2px rgba(245,158,11,.22),0 8px 22px -6px rgba(245,158,11,.75)}50%{box-shadow:0 0 0 5px rgba(245,158,11,.14),0 10px 30px -4px rgba(245,158,11,1)}}
+.tu-lgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;margin:.3rem 0 1.2rem}
+.tu-lg{display:flex;gap:16px;align-items:center;background:var(--tu-sup);border:1px solid var(--tu-borde);border-radius:18px;padding:16px;box-shadow:var(--tu-sombra)}
+.tu-lg.n4{border-color:#F5D77A;background:linear-gradient(135deg,var(--tu-sup),color-mix(in srgb,#FBBF24 9%,var(--tu-sup)))}
+.tu-lg.n3{border-color:color-mix(in srgb,var(--color) 45%,var(--tu-borde))}
+.tu-lg-textos{min-width:0;flex:1}
+.tu-lg-titulo{font-family:"Plus Jakarta Sans",sans-serif;font-weight:800;color:var(--tu-tinta);line-height:1.2}
+.tu-lg-nivel{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--tu-gris);margin:2px 0 4px}
+.tu-lg.n1 .tu-lg-nivel{color:#A8622B}.tu-lg.n2 .tu-lg-nivel{color:#64748B}.tu-lg.n3 .tu-lg-nivel{color:var(--color)}.tu-lg.n4 .tu-lg-nivel{color:#B45309}
+.tu-lg-desc{font-size:.82rem;color:var(--tu-gris);line-height:1.35}
+.tu-lg-barra{height:6px;border-radius:999px;background:var(--tu-pista);overflow:hidden;margin-top:8px}
+.tu-lg-barra i{display:block;height:100%;border-radius:999px;background:var(--color)}
+.tu-lg.n4 .tu-lg-barra i{background:linear-gradient(90deg,#F59E0B,#FDE68A)}
+.tu-lg-pie{font-size:.74rem;font-weight:600;color:var(--tu-gris);margin-top:4px}.tu-lg-pie.oro{color:#B45309;font-weight:800}
+.tu-lg-pasos{display:flex;gap:5px;margin-top:8px}
+.tu-lg-pasos i{width:12px;height:12px;border-radius:50%;background:var(--tu-pista)}
+.tu-lg-pasos i.n1.on{background:linear-gradient(145deg,#A8622B,#E8AE76)}.tu-lg-pasos i.n2.on{background:linear-gradient(145deg,#94A3B8,#F1F5F9)}
+.tu-lg-pasos i.n3.on{background:var(--color)}.tu-lg-pasos i.n4.on{background:linear-gradient(145deg,#F59E0B,#FDE68A);box-shadow:0 0 6px rgba(245,158,11,.8)}
+.tu-vitrina{display:flex;flex-wrap:wrap;gap:22px;justify-content:center;background:var(--tu-sup);border:1px solid var(--tu-borde);border-radius:20px;
+padding:22px 18px;box-shadow:var(--tu-sombra);margin:.3rem 0 1rem}
+.tu-vit{display:flex;flex-direction:column;align-items:center;gap:6px;width:112px;text-align:center}
+.tu-vit b{font-size:.84rem;color:var(--tu-tinta);line-height:1.2}
+.tu-vit span{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--tu-gris)}
+.tu-vit span.n1{color:#A8622B}.tu-vit span.n2{color:#64748B}.tu-vit span.n4{color:#B45309}
+.tu-pos{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;font-weight:800;font-size:.9rem;background:var(--tu-pista);color:var(--tu-gris)}
+.tu-pos.p1{background:linear-gradient(145deg,#B7791F,#FDE68A 45%,#F59E0B);color:#78350F;box-shadow:0 0 12px rgba(245,158,11,.6)}
+.tu-pos.p2{background:linear-gradient(145deg,#8793A6,#F8FAFC 50%,#94A3B8);color:#334155}
+.tu-pos.p3{background:linear-gradient(145deg,#7C4A1E,#E8AE76 52%,#A8622B);color:#fff}
+.tu-rank{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.tu-rank-nombre{font-weight:700;color:var(--tu-tinta)}.tu-rank-det{font-size:.8rem;color:var(--tu-gris);flex:1}
+.tu-rank-xp{font-size:.85rem;color:var(--tu-gris)}.tu-rank-xp b{font-size:1.05rem;color:var(--tu-tinta)}
+.tu-yo{display:inline-block;padding:1px 8px;border-radius:999px;font-size:.66rem;font-weight:800;background:var(--tu-violeta);color:#fff;vertical-align:1px}
+
 /* Calendario de actividad y logros */
 .tu-cal-tarjeta{background:var(--tu-sup);border:1px solid var(--tu-borde);border-radius:18px;padding:16px 18px;box-shadow:var(--tu-sombra);margin:.2rem 0 1rem}
 .tu-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
@@ -743,6 +850,15 @@ background var(--tu-rapido) var(--tu-e),transform var(--tu-rapido) var(--tu-e)}
 .tu-dato:hover .tu-dato-icono svg,.tu-item:hover .tu-item-icono svg,.tit:hover .tit-icono svg,
 .tu-rasgo:hover .tu-rasgo-icono svg,.tu-chip:hover svg,.tu-insignia:hover svg{display:inline-block;animation:tu-vibrar .9s ease-in-out 1;transform-origin:50% 60%}
 [data-testid="stTab"] span[role="img"],[class*="st-key-modo_"] [data-testid="stRadioOption"] span[role="img"]{display:inline-block}
+
+/* Medallas y tarjetas de logros: entrada con «pop» y, al pasar el mouse, un giro corto */
+.tu-med{animation:tu-pop .5s var(--tu-e) backwards;transition:transform var(--tu-normal) var(--tu-e)}
+.tu-lg,.tu-vit,.tu-vitrina{animation:tu-rebote .4s var(--tu-e) backwards}
+.tu-lg{transition:transform var(--tu-normal) var(--tu-e),box-shadow var(--tu-normal) var(--tu-e)}
+.tu-lg:hover{transform:translateY(-2px) scale(1.015);box-shadow:var(--tu-sombra-alta)}
+.tu-lg:hover .tu-med:not(.n0),.tu-vit:hover .tu-med{transform:scale(1.1) rotate(-4deg)}
+.tu-lg:hover .tu-med svg,.tu-vit:hover .tu-med svg{animation:tu-vibrar .9s ease-in-out 1}
+.tu-pos.p1{animation:tu-resplandor 3.2s ease-in-out infinite}
 
 /* Calendario y logros: entrada corta y elevación leve */
 .tu-cal-tarjeta{animation:tu-rebote .4s var(--tu-e) backwards}
