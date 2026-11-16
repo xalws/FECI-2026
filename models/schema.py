@@ -52,6 +52,8 @@ class Tema(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     nombre: Mapped[str] = mapped_column(String(200))
     unidad_id: Mapped[int] = mapped_column(ForeignKey("unidades.id"))
+    # Lo que el alumno debe saber y saber hacer en este tema (viene de la retícula)
+    objetivos: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 # Usuarios 
@@ -106,6 +108,33 @@ class PreguntaSinRespuesta(Base):
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
+# Fragmentos del material de cada tema con su vector, para buscar por significado. Viven en la base de datos
+# compartida (antes estaban en una carpeta local) para que toda persona que use la app vea el mismo contenido.
+class Fragmento(Base):
+    __tablename__ = "fragmentos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tema_id: Mapped[int] = mapped_column(ForeignKey("temas.id"), index=True)
+    # Sin llave foránea a propósito: el fragmento se guarda mientras el documento aún se está registrando
+    documento_id: Mapped[int | None] = mapped_column(index=True, nullable=True)
+    texto: Mapped[str] = mapped_column(Text)
+    archivo: Mapped[str] = mapped_column(String(300), default="")
+    pagina: Mapped[int | None] = mapped_column(nullable=True)
+    embedding: Mapped[list] = mapped_column(JSON)
+
+
+# Ejercicios prácticos calificados por la IA
+class IntentoEjercicio(Base):
+    __tablename__ = "intentos_ejercicio"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    alumno_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    tema_id: Mapped[int] = mapped_column(ForeignKey("temas.id"))
+    enunciado: Mapped[str] = mapped_column(Text)
+    respuesta: Mapped[str] = mapped_column(Text)
+    puntaje: Mapped[int] = mapped_column()  # 0 a 10
+    retroalimentacion: Mapped[str] = mapped_column(Text, default="")
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
 # Chats y quizzes
 class Conversacion(Base):
     __tablename__ = "conversaciones"
@@ -113,6 +142,8 @@ class Conversacion(Base):
     alumno_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
     tema_id: Mapped[int] = mapped_column(ForeignKey("temas.id"))
     titulo: Mapped[str] = mapped_column(String(200), default="")
+    # chat | ejercicio | examen (las conversaciones antiguas no lo tienen y se tratan como chat)
+    tipo: Mapped[str | None] = mapped_column(String(20), nullable=True)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
@@ -134,6 +165,7 @@ class Quiz(Base):
     opciones: Mapped[list] = mapped_column(JSON)
     indice_correcto: Mapped[int] = mapped_column()
     explicacion: Mapped[str] = mapped_column(Text, default="")
+    dificultad: Mapped[int | None] = mapped_column(nullable=True)  # 1 (básica) a 4 (experta)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 

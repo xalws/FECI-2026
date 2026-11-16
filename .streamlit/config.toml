@@ -1,0 +1,60 @@
+# Identidad visual de Tutor Universitario. Los estilos que el tema no cubre están en core/estilo.py.
+# El tema claro u oscuro sigue al del sistema; también se cambia con el botón de la barra lateral.
+
+[client]
+# Oculta el botón «Deploy» y el menú de desarrollo para que la app se vea como un producto terminado
+toolbarMode = "minimal"
+
+[theme]
+baseRadius = "0.75rem"
+buttonRadius = "0.75rem"
+showWidgetBorder = true
+showSidebarBorder = false
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
+headingFont = "Plus Jakarta Sans:https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap, sans-serif"
+headingFontWeights = [800, 700, 700, 700, 600, 600]
+metricValueFontWeight = 800
+chartCategoricalColors = ["#0B3D91", "#14B8A6", "#F59E0B", "#EC4899", "#2F6FD8", "#0EA5E9", "#22C55E", "#F43F5E"]
+
+[theme.light]
+primaryColor = "#0B3D91"
+backgroundColor = "#F4F7FC"
+secondaryBackgroundColor = "#E9EFFA"
+textColor = "#0B1F44"
+linkColor = "#0B3D91"
+borderColor = "#DCE5F3"
+dataframeHeaderBackgroundColor = "#E6EDFA"
+greenColor = "#059669"
+redColor = "#DC2626"
+blueColor = "#0B3D91"
+
+[theme.light.sidebar]
+backgroundColor = "#0A1B3D"
+secondaryBackgroundColor = "#12295A"
+textColor = "#DCE8FB"
+primaryColor = "#9DBBF0"
+borderColor = "#1E3F7A"
+linkColor = "#C5D8F8"
+
+[theme.dark]
+primaryColor = "#6EA0F0"
+backgroundColor = "#0A1426"
+secondaryBackgroundColor = "#12203F"
+textColor = "#E6EEFC"
+linkColor = "#9DBBF0"
+borderColor = "#1D3566"
+dataframeHeaderBackgroundColor = "#12295A"
+greenColor = "#34D399"
+redColor = "#F87171"
+blueColor = "#6EA0F0"
+
+[theme.dark.sidebar]
+backgroundColor = "#060E1E"
+secondaryBackgroundColor = "#10234A"
+textColor = "#DCE8FB"
+primaryColor = "#9DBBF0"
+borderColor = "#183063"
+linkColor = "#C5D8F8"
+
+
+

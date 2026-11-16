@@ -1,7 +1,7 @@
 import streamlit as st
 from sqlalchemy import select
 
-from core import actividad
+from core import actividad, cuenta, estilo, tema
 from core.db import get_session, init_db
 from core.passwords import hash_password, verificar_password
 from models.schema import Cuatrimestre, Usuario
@@ -27,8 +27,9 @@ def crear_usuario(nombre: str, email: str, password: str, rol: str,
     nombre, email = nombre.strip(), email.strip().lower()
     if not nombre or "@" not in email:
         return False, "Escribe un nombre y un correo válido."
-    if len(password) < 6:
-        return False, "La contraseña debe tener al menos 6 caracteres."
+    error = cuenta.validar_password(password)
+    if error:
+        return False, error
     if rol not in ("alumno", "maestro", "admin"):
         return False, "Rol inválido."
     with get_session() as s:
@@ -47,8 +48,9 @@ def cerrar_sesion() -> None:
 
 
 def barra_lateral(user: dict) -> None:
-    st.sidebar.markdown(f" **{user['nombre']}**  \nRol: `{user['rol']}`")
-    if st.sidebar.button("Cerrar sesión"):
+    estilo.tarjeta_usuario(user)
+    tema.boton()
+    if st.sidebar.button("Cerrar sesión", icon=":material/logout:", width="stretch", key="btn_cerrar_sesion"):
         cerrar_sesion()
         st.rerun()
 

@@ -3,7 +3,7 @@ from PyPDF2 import PdfReader
 
 
 def extraer_documentos(archivo, tema_id: int, documento_id: int, nombre: str) -> list[Document]:
-    # Devuelve un Document por pagina con texto. Lanza ValueError si el PDF no sirve.
+    # Devuelve un Document por pagina con texto
     reader = PdfReader(archivo)
     if reader.is_encrypted:
         raise ValueError("El PDF está cifrado.")

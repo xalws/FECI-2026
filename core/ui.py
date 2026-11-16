@@ -26,7 +26,6 @@ def _permitidos(s, materias_ids: list[int]) -> dict[str, set[int]]:
 
 def _buscar(s, texto: str, hasta: str, materias_permitidas: list[int] | None,
             cuatrimestre_id: int | None = None) -> list[dict]:
-    """Busca `texto` en los nombres de toda la jerarquía. Devuelve rutas completas {nivel: (id, nombre)}."""
     niveles = [n for n, _, _ in NIVELES][: [n for n, _, _ in NIVELES].index(hasta) + 1]
     cols = [Universidad, Carrera, Cuatrimestre, Materia, Unidad, Tema][: len(niveles)]
     q = (select(*[c for m in cols for c in (m.id, m.nombre)])

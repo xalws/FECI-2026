@@ -1,4 +1,3 @@
-# Estadísticas para el maestro 
 import pandas as pd
 from sqlalchemy import text
 
@@ -42,7 +41,7 @@ ORDER BY p.id DESC
 
 
 def preguntas_sin_respuesta(materias_ids: list[int] | None = None) -> pd.DataFrame:
-    # Preguntas que el tutor no pudo contestar: señal de material que falta subir.
+    # Preguntas que el tutor no pudo contestar señal de material que falta subir.
     with engine.connect() as conn:
         df = pd.read_sql(text(SQL_SIN_RESPUESTA), conn)
     if materias_ids is not None:
@@ -83,6 +82,19 @@ def aciertos_por_tema(resp: pd.DataFrame) -> pd.DataFrame:
     g = resp.groupby("tema")["es_correcta"].agg(intentos="count", aciertos="sum")
     g["% aciertos"] = (g["aciertos"] / g["intentos"] * 100).round(1)
     return g.drop(columns="aciertos").reset_index()
+
+
+def resumen_por_alumno(msgs: pd.DataFrame, resp: pd.DataFrame, minutos: dict[str, float]) -> pd.DataFrame:
+    # Una fila por alumno con su actividad, para exportar a CSV.
+    nombres = sorted(set(msgs["alumno"]) | set(resp["alumno"]))
+    filas = []
+    for n in nombres:
+        preguntas = int(((msgs["alumno"] == n) & (msgs["rol"] == "user")).sum())
+        r = resp[resp["alumno"] == n]
+        filas.append({"alumno": n, "preguntas": preguntas, "quizzes": int(len(r)),
+                      "% aciertos": round(float(r["es_correcta"].mean() * 100), 1) if len(r) else None,
+                      "minutos en la app": minutos.get(n, 0.0)})
+    return pd.DataFrame(filas, columns=["alumno", "preguntas", "quizzes", "% aciertos", "minutos en la app"])
 
 
 def alumnos_mas_activos(msgs: pd.DataFrame, top: int = 10) -> pd.DataFrame:
