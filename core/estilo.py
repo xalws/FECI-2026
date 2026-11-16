@@ -292,11 +292,7 @@ def marca_acceso() -> None:
                "Niveles por tema, unidad y materia, según la retícula oficial.")]
     filas = "".join(f'<div class="tu-rasgo"><span class="tu-rasgo-icono">{svg(i, 20)}</span>'
                     f'<div><b>{_e(t)}</b><span>{_e(d)}</span></div></div>' for i, t, d in rasgos)
-    # burbujas decorativas que suben por el panel: (posición horizontal, tamaño, duración, retraso)
-    burbujas = "".join(f'<i class="tu-acceso-burbuja" style="--x:{x}%;--s:{s}px;--t:{t}s;--d:{d}s"></i>'
-                       for x, s, t, d in ((8, 26, 11, 0), (27, 14, 9, 3), (49, 34, 13, 1.5), (68, 18, 10, 5),
-                                          (86, 24, 12, 2.5), (38, 10, 8, 6.5)))
-    _html(f'<div class="tu-acceso-hero">{burbujas}<div class="tu-acceso-marca"><span class="tu-acceso-logo">'
+    _html(f'<div class="tu-acceso-hero"><div class="tu-acceso-marca"><span class="tu-acceso-logo">'
           f'{svg("cap", 30)}</span><div><div class="tu-acceso-nombre">Tutor Universitario</div>'
           f'<div class="tu-acceso-lema">Estudia a tu ritmo, con tu propio material</div></div></div>'
           f'<div class="tu-acceso-titulo">Aprende con un tutor que conoce tu clase</div>'
@@ -328,13 +324,8 @@ hr{border-color:var(--tu-borde)!important}
 
 /* Encabezado principal */
 .tu-hero{position:relative;overflow:hidden;border-radius:22px;padding:26px 30px;margin:0 0 1.3rem;color:#fff;
-background:linear-gradient(120deg,#072A63 0%,#0B3D91 38%,#1F63C9 70%,#0EA5E9 120%);background-size:220% 220%;
-animation:tu-degradado 16s ease infinite;
+background:#0B3D91;
 box-shadow:0 20px 44px -22px rgba(11,61,145,.65)}
-.tu-hero::before{content:"";position:absolute;width:260px;height:260px;right:-70px;top:-90px;border-radius:50%;
-background:radial-gradient(circle,rgba(255,255,255,.28),rgba(255,255,255,0) 70%);animation:tu-flotar 9s ease-in-out infinite}
-.tu-hero::after{content:"";position:absolute;width:180px;height:180px;right:22%;bottom:-120px;border-radius:50%;
-background:radial-gradient(circle,rgba(14,165,233,.35),rgba(14,165,233,0) 70%);animation:tu-flotar 12s ease-in-out infinite reverse}
 .tu-hero-fila{position:relative;z-index:1;display:flex;align-items:center;gap:16px}
 .tu-hero-icono{width:54px;height:54px;flex-shrink:0;border-radius:16px;display:flex;align-items:center;justify-content:center;
 background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);backdrop-filter:blur(6px);color:#fff}
@@ -483,12 +474,8 @@ background:linear-gradient(135deg,#2F6FD8,#5B9BEF);color:#fff;font-weight:800;fo
 
 /* Pantalla de inicio de sesión */
 .tu-acceso-hero{position:relative;overflow:hidden;border-radius:26px;padding:38px 36px;color:#fff;min-height:520px;
-background:linear-gradient(135deg,#0B1F44 0%,#0A3478 45%,#1F63C9 80%,#0EA5E9 130%);background-size:200% 200%;
-animation:tu-degradado 18s ease infinite,tu-aparecer .6s ease-out backwards;box-shadow:0 30px 60px -30px rgba(11,61,145,.75)}
-.tu-acceso-hero::before{content:"";position:absolute;width:340px;height:340px;right:-120px;top:-120px;border-radius:50%;
-background:radial-gradient(circle,rgba(255,255,255,.22),rgba(255,255,255,0) 70%);animation:tu-flotar 10s ease-in-out infinite}
-.tu-acceso-hero::after{content:"";position:absolute;width:260px;height:260px;left:-90px;bottom:-110px;border-radius:50%;
-background:radial-gradient(circle,rgba(14,165,233,.4),rgba(14,165,233,0) 70%);animation:tu-flotar 13s ease-in-out infinite reverse}
+background:#0B3D91;
+animation:tu-aparecer .6s ease-out backwards;box-shadow:0 30px 60px -30px rgba(11,61,145,.75)}
 .tu-acceso-hero>*{position:relative;z-index:1}
 .tu-acceso-marca{display:flex;align-items:center;gap:14px}
 .tu-acceso-logo{width:56px;height:56px;border-radius:17px;display:flex;align-items:center;justify-content:center;
@@ -571,15 +558,11 @@ CSS_ANIMACIONES = (
 @keyframes tu-brillo-barra{0%{transform:translateX(-420px);opacity:0}20%{opacity:1}60%,100%{transform:translateX(100px);opacity:0}}
 @keyframes tu-seleccion{0%{transform:scale(.93)}55%{transform:scale(1.05)}}
 @keyframes tu-aurora{0%{transform:translate3d(-3%,-2%,0) scale(1)}50%{transform:translate3d(3%,2%,0) scale(1.08)}100%{transform:translate3d(-2%,3%,0) scale(1.03)}}
-@keyframes tu-burbuja{0%{transform:translateY(0) scale(.6);opacity:0}12%{opacity:.75}100%{transform:translateY(-580px) scale(1.2);opacity:0}}
 @keyframes tu-conf-x{to{transform:translateX(var(--dx))}}
 @keyframes tu-conf-y{0%{opacity:1;transform:translateY(0) rotate(0);animation-timing-function:cubic-bezier(.12,.8,.3,1)}40%{opacity:1;transform:translateY(var(--up)) rotate(calc(var(--r)*.45));animation-timing-function:cubic-bezier(.6,0,.95,.55)}100%{opacity:0;transform:translateY(55vh) rotate(var(--r))}}
 
 /* Fondo: luces azules que se mueven despacio detrás del contenido. Va con position:fixed para que no agregue
    área desplazable a la app (con absolute, cualquier scrollIntoView recorría toda la pantalla unos píxeles) */
-[data-testid="stApp"]::before{content:"";position:fixed;inset:-12%;pointer-events:none;
-background:radial-gradient(38% 34% at 82% 12%,rgba(31,99,201,.14),transparent 70%),radial-gradient(34% 30% at 12% 88%,rgba(14,165,233,.12),transparent 70%),
-radial-gradient(26% 24% at 55% 48%,rgba(91,155,239,.07),transparent 70%);animation:tu-aurora 24s ease-in-out infinite alternate}
 
 /* Cambio de pantalla: el contenido entra en cascada (los retrasos por posición se agregan abajo) */
 %B>*:not(:has(.tu-confeti)){animation:tu-subir .6s var(--tu-e-suave) backwards}
@@ -589,9 +572,7 @@ radial-gradient(26% 24% at 55% 48%,rgba(91,155,239,.07),transparent 70%);animati
 [data-testid="stExpander"] summary:hover [data-testid="stIconMaterial"]{animation:tu-menear .6s ease}
 
 /* Encabezado */
-.tu-hero-brillo{position:absolute;z-index:1;top:0;bottom:0;left:0;width:22%;pointer-events:none;
-background:linear-gradient(100deg,transparent,rgba(255,255,255,.22),transparent);transform:translateX(-160%) skewX(-22deg);
-animation:tu-barrido 7s ease-in-out 1.2s infinite}
+.tu-hero-brillo{display:none}
 .tu-hero-icono{animation:tu-pop .7s var(--tu-e-rebote) .15s backwards,tu-flotar-y 4.5s ease-in-out 1s infinite}
 .tu-hero-titulo{animation:tu-izq .6s var(--tu-e-suave) .12s backwards}
 .tu-hero-sub{animation:tu-izq .6s var(--tu-e-suave) .22s backwards}
@@ -655,9 +636,6 @@ width:140%;aspect-ratio:1;border-radius:50%;pointer-events:none;background:radia
 transform:translate(-50%,-50%) scale(1.5);opacity:0;transition:transform .65s ease-out,opacity .8s ease-out}
 [data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]::before{background:radial-gradient(circle,rgba(31,99,201,.32) 0%,rgba(31,99,201,0) 62%)}
 [data-testid^="stBaseButton-primary"]:active::before,[data-testid^="stBaseButton-secondary"]:active::before{transform:translate(-50%,-50%) scale(0);opacity:1;transition:0s}
-[data-testid^="stBaseButton-primary"]:not(:disabled)::after{content:"";position:absolute;top:0;bottom:0;left:0;width:38%;pointer-events:none;
-background:linear-gradient(100deg,rgba(255,255,255,0),rgba(255,255,255,.5),rgba(255,255,255,0));transform:translateX(-140%) skewX(-22deg);
-animation:tu-destello 4.6s ease-in-out 1s infinite}
 [data-testid^="stBaseButton"]:hover:not(:disabled) [data-testid="stIconMaterial"]{animation:tu-menear .6s ease}
 [class*="st-key-cta_"] [data-testid^="stBaseButton-primary"]:not(:disabled),.st-key-btn_iniciar [data-testid^="stBaseButton-primary"]:not(:disabled){animation:tu-pulso 2.2s ease-out infinite}
 
@@ -723,9 +701,7 @@ transform .3s var(--tu-e-rebote),background .2s ease}
 .tu-confeti i{display:block;width:var(--w);height:var(--h);background:var(--c);border-radius:var(--br);opacity:0;animation:tu-conf-y var(--t) linear var(--d) both}
 
 /* Inicio de sesión */
-.tu-acceso-hero{animation:tu-degradado 18s ease infinite,tu-izq .8s var(--tu-e-suave) backwards}
-.tu-acceso-burbuja{position:absolute!important;z-index:0!important;left:var(--x);bottom:-40px;width:var(--s);height:var(--s);border-radius:50%;
-background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.24);opacity:0;animation:tu-burbuja var(--t) linear var(--d) infinite}
+.tu-acceso-hero{animation:tu-izq .8s var(--tu-e-suave) backwards}
 .tu-acceso-logo{animation:tu-pop .7s var(--tu-e-rebote) .25s backwards,tu-flotar-y 4s ease-in-out 1.2s infinite}
 .tu-acceso-titulo{animation:tu-subir .7s var(--tu-e-suave) .3s backwards}
 .tu-acceso-texto{animation:tu-subir .7s var(--tu-e-suave) .4s backwards}
