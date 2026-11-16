@@ -1,6 +1,6 @@
 import streamlit as st
 
-from core import chat, clases, errores, examen, llm, logros, material, niveles, perfil, progreso, quiz, rag, tutoria
+from core import chat, clases, errores, examen, llm, logros, material, niveles, perfil, progreso, quiz, rag, reticula, tutoria
 from core.auth import require_login
 from core.estudiante import cargando
 from core.hoy import panel_estudio as panel_dia
@@ -115,6 +115,12 @@ with st.sidebar:
     ver = st.radio("Materias a mostrar", opciones_ver, key="ver_materias",
                    help="«Mis clases» muestra las materias de las clases donde tu maestro ya te aceptó. Con «Todas las "
                         "materias» puedes estudiar una que no sea de tu cuatrimestre.")
+    PREFIJO_SELECTOR = {"Mi cuatrimestre": "chat", "Mis clases": "chat_clases"}.get(ver, "chat_todas")
+    salto = ss.pop("ir_a_tema", None)  # «pasemos al siguiente tema»: se mueve el menú antes de dibujarlo
+    if salto:
+        ss[f"{PREFIJO_SELECTOR}_buscar"] = ""  # si había una búsqueda escrita, el menú paso a paso vuelve a verse
+        ss[f"{PREFIJO_SELECTOR}_unidad_{salto['materia_id']}"] = salto["unidad_id"]
+        ss[f"{PREFIJO_SELECTOR}_tema_{salto['unidad_id']}"] = salto["tema_id"]
     if ver == "Mi cuatrimestre":
         sel = selector_cascada(hasta="tema", prefix="chat", cuatrimestre_id=cuat_id)
     elif ver == "Mis clases":
@@ -210,8 +216,28 @@ def fragmentos_para(historial: list[dict]) -> list[dict]:
     return encontrados or rag.chunks_aleatorios(tema_id, 3)
 
 
+def ir_al_siguiente_tema(texto_alumno: str | None) -> None:
+    """«Pasemos al siguiente tema»: mueve el menú al tema que sigue en la retícula (no gasta consultas a la IA)."""
+    sig = tutoria.siguiente_tema(reticula.estructura(sel["materia"]), tema_id) if sel.get("materia") else None
+    if sig:
+        ss["ir_a_tema"] = {"materia_id": sel["materia"], "unidad_id": sig["unidad_id"], "tema_id": sig["tema_id"]}
+        donde = f" (unidad «{sig['unidad']}»)" if sig["cambia_unidad"] else ""
+        ss["aviso"] = (f"Pasamos a «{sig['nombre']}»{donde}.", ":material/arrow_forward:")
+        st.rerun()
+    conv = ss.conv_id or nueva_conversacion("conv_id", texto_alumno or "Conversación")
+    if texto_alumno:
+        chat.guardar_mensaje(conv, "user", texto_alumno)
+    chat.guardar_mensaje(conv, "assistant", "Este es el último tema de la materia: ya recorriste toda la retícula. "
+                                            "Puedes repasarlo con «Resumen del tema» o practicar en «Examen».")
+    ss.intro_hecha.update({"nueva", _clave_intro(conv)})
+    st.rerun()
+
+
 def accion_tutor(intencion: str, texto_alumno: str | None = None) -> None:
     # El tutor guía la conversación
+    if intencion == "siguiente_tema":
+        ir_al_siguiente_tema(texto_alumno)
+        return
     try:
         with cargando("Pensando…"):
             conv = ss.conv_id or nueva_conversacion(

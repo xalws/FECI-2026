@@ -23,8 +23,29 @@ class TestIntencion(unittest.TestCase):
 
     def test_siguiente_leccion_es_continuar(self):
         for texto in ("siguiente leccion", "Siguiente lección", "siguiente", "la siguiente", "¿Qué sigue?", "y que sigue",
-                      "pasemos a la siguiente lección", "próximo tema", "avancemos", "adelante"):
+                      "pasemos a la siguiente lección", "avancemos", "adelante"):
             self.assertEqual(tutoria.detectar_intencion(texto), "continuar", texto)
+
+    def test_pasar_al_siguiente_tema_cambia_de_tema(self):
+        for texto in ("pasemos al siguiente tema", "Pasemos al siguiente tema", "siguiente tema", "próximo tema", "el siguiente tema",
+                      "vamos al siguiente tema", "¿Pasamos al siguiente tema?", "quiero otro tema", "cambiemos de tema",
+                      "ya entendí, pasemos al siguiente tema"):
+            self.assertEqual(tutoria.detectar_intencion(texto), "siguiente_tema", texto)
+
+    def test_preguntas_sobre_el_siguiente_tema_no_lo_cambian(self):
+        for texto in ("¿cuál es el siguiente tema?", "qué tema sigue", "cómo se relaciona con el siguiente tema de la unidad 2"):
+            self.assertNotEqual(tutoria.detectar_intencion(texto), "siguiente_tema", texto)
+
+    def test_siguiente_tema_de_la_reticula(self):
+        est = {"unidades": [{"id": 1, "nombre": "U1", "temas": [{"id": 10, "nombre": "A"}, {"id": 11, "nombre": "B"}]},
+                            {"id": 2, "nombre": "U2", "temas": []},
+                            {"id": 3, "nombre": "U3", "temas": [{"id": 30, "nombre": "C"}]}]}
+        self.assertEqual(tutoria.siguiente_tema(est, 10), {"tema_id": 11, "nombre": "B", "unidad_id": 1, "unidad": "U1",
+                                                         "cambia_unidad": False})
+        sig = tutoria.siguiente_tema(est, 11)  # salta la unidad vacía y cambia de unidad
+        self.assertEqual((sig["tema_id"], sig["unidad_id"], sig["cambia_unidad"]), (30, 3, True))
+        self.assertIsNone(tutoria.siguiente_tema(est, 30))   # el último tema
+        self.assertIsNone(tutoria.siguiente_tema(est, 999))  # un tema que no está
 
     def test_siguiente_dentro_de_una_pregunta_de_contenido_no_se_confunde(self):
         for texto in ("cuál es el siguiente paso para calcular la resistencia equivalente",

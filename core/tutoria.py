@@ -47,6 +47,27 @@ _SIGUIENTE = re.compile(r"^(y )?que sigue( ahora)?$|^(la |el |lo )?(siguiente|pr
                         r"|^avancemos$|^avanza$|^adelante$")
 
 
+# «pasemos al siguiente tema», «otro tema», «cambiemos de tema»: el alumno quiere dejar este tema (no es una pregunta)
+_SIGUIENTE_TEMA = re.compile(r"\b(siguiente|proxim[oa]|otro) tema\b|\bcambi\w* de tema\b")
+_PALABRAS_DE_PREGUNTA = {"cual", "cuales", "que", "como", "donde", "cuando", "quien", "por"}
+
+
+def siguiente_tema(estructura: dict, tema_id: int) -> dict | None:
+    """El tema que sigue en la retícula (aunque sea de otra unidad), o None si este es el último o no se encuentra.
+
+    `estructura` es lo que devuelve `reticula.estructura`: {"unidades": [{"id", "nombre", "temas": [{"id", "nombre"}]}]}.
+    """
+    planos = [(u["id"], u["nombre"], t) for u in estructura["unidades"] for t in u["temas"]]
+    for i, (unidad_id, _unidad, tema) in enumerate(planos):
+        if tema["id"] == tema_id:
+            if i + 1 >= len(planos):
+                return None
+            sig_unidad_id, sig_unidad, sig = planos[i + 1]
+            return {"tema_id": sig["id"], "nombre": sig["nombre"], "unidad_id": sig_unidad_id, "unidad": sig_unidad,
+                    "cambia_unidad": sig_unidad_id != unidad_id}
+    return None
+
+
 _RESUMEN = re.compile(r"^(dame |hazme |quiero |necesito )?(el |un )?resumen( general| del tema| del contenido)?$"
                       r"|^resume(me)?( el)?( tema)?$")
 
@@ -89,13 +110,15 @@ def _normalizar(texto: str) -> str:
 
 
 def detectar_intencion(texto: str) -> str | None:
-    # Devuelve "iniciar", "continuar", "retro", "saludo" o None (es una pregunta de contenido).
+    # Devuelve "iniciar", "continuar", "retro", "resumen", "siguiente_tema", "saludo" o None (es una pregunta de contenido).
     t = _normalizar(texto)
     palabras = t.split()
     if not palabras:
         return None
     if len(palabras) <= 8 and re.search(r"retroaliment|que vimos|que hemos visto|lo visto|como voy|como me fue", t):
         return "retro"
+    if len(palabras) <= 8 and _SIGUIENTE_TEMA.search(t) and not set(palabras) & _PALABRAS_DE_PREGUNTA:
+        return "siguiente_tema"  # «pasemos al siguiente tema»: se cambia de tema en el menú, no se sigue esta lección
     if len(palabras) <= 6 and _SIGUIENTE.search(t):
         return "continuar"  # «siguiente lección», «¿qué sigue?», «avancemos»
     if len(palabras) <= 5 and _RESUMEN.search(t):
