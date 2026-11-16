@@ -5,6 +5,8 @@ llaman a estas funciones (encabezado, titulo, datos, anillo, lista...) y no repi
 Todo texto que viene del usuario o de la base de datos se escapa antes de insertarlo en HTML.
 """
 import html
+import random
+import re
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -12,10 +14,14 @@ import streamlit as st
 
 ZONA_POR_DEFECTO = "America/Ciudad_Juarez"
 
+# Interruptor de las animaciones «llamativas» (entradas, rebotes, conteos, confeti). Con False la app queda
+# con las transiciones básicas. El navegador también las apaga solo si el usuario pidió «reducir movimiento».
+ANIMACIONES = True
+
 # (color del ícono/acento, fondo suave)
 TONOS = {
-    "indigo": ("#4F46E5", "#EEF2FF"),
-    "violeta": ("#7C3AED", "#F5F3FF"),
+    "indigo": ("#0B3D91", "#EAF1FC"),
+    "violeta": ("#1F63C9", "#EAF1FC"),
     "cielo": ("#0284C7", "#E0F2FE"),
     "verde": ("#059669", "#ECFDF5"),
     "ambar": ("#D97706", "#FFFBEB"),
@@ -62,7 +68,7 @@ ICONOS = {
 }
 
 
-TONOS_OSCURO = {"indigo": "#818CF8", "violeta": "#A78BFA", "cielo": "#38BDF8", "verde": "#34D399", "ambar": "#FBBF24",
+TONOS_OSCURO = {"indigo": "#6EA0F0", "violeta": "#8DB6F5", "cielo": "#38BDF8", "verde": "#34D399", "ambar": "#FBBF24",
                 "rojo": "#F87171", "rosa": "#F472B6"}
 
 
@@ -85,6 +91,28 @@ def svg(nombre: str, tam: int = 22, color: str = "currentColor", grosor: float =
 def _html(contenido: str) -> None:
     # Una sola línea: el procesador de Markdown no debe convertir sangrías en bloques de código
     st.markdown(contenido, unsafe_allow_html=True)
+
+
+# Enteros que no son la parte decimal de un número ni el denominador de una fracción («8.5/10» anima solo el 8)
+_ENTERO = re.compile(r"(?<![\d.,/])\d+")
+
+
+def con_conteo(valor) -> str:
+    """HTML del valor con cada número entero listo para «contar» desde 0 al aparecer.
+
+    «1 h 35 min» anima el 1 y el 35; «45.0%» anima el 45 y deja fijo «.0%». El número real queda en el texto,
+    así que se lee igual aunque el navegador no anime (o las animaciones estén apagadas).
+    """
+    texto, partes, pos = str(valor), [], 0
+    for m in _ENTERO.finditer(texto):
+        n = m.group()
+        if (len(n) > 1 and n[0] == "0") or len(n) > 7:  # «05» perdería su cero; los muy largos no se animan
+            continue
+        partes.append(_e(texto[pos:m.start()]))
+        partes.append(f'<span class="tu-num" style="--tu-n:{int(n)}"><b>{n}</b></span>')
+        pos = m.end()
+    partes.append(_e(texto[pos:]))
+    return "".join(partes)
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -113,7 +141,8 @@ def encabezado(titulo: str, subtitulo: str = "", icono: str = "book", chips=(), 
         etiquetas.append(f'<span class="tu-chip">{svg(icono_chip, 14) if icono_chip else ""}{_e(texto)}</span>')
     sub = f'<div class="tu-hero-sub">{_e(subtitulo)}</div>' if subtitulo else ""
     fila_chips = f'<div class="tu-chips">{"".join(etiquetas)}</div>' if etiquetas else ""
-    _html(f'<div class="tu-hero{" tu-hero-compacto" if compacto else ""}"><div class="tu-hero-fila">'
+    _html(f'<div class="tu-hero{" tu-hero-compacto" if compacto else ""}"><i class="tu-hero-brillo"></i>'
+          f'<div class="tu-hero-fila">'
           f'<div class="tu-hero-icono">{svg(icono, 26)}</div><div class="tu-hero-textos">'
           f'<div class="tu-hero-titulo" role="heading" aria-level="1">{_e(titulo)}</div>{sub}</div></div>'
           f'{fila_chips}</div>')
@@ -129,10 +158,10 @@ def datos(items: list[dict]) -> None:
         color, fondo = _tono(d.get("tono", "indigo"))
         detalle = f'<div class="tu-dato-detalle">{_e(d["detalle"])}</div>' if d.get("detalle") else ""
         tarjetas.append(
-            f'<div class="tu-dato" style="--color:{color};--fondo:{fondo};animation-delay:{i * 0.06:.2f}s">'
+            f'<div class="tu-dato" style="--color:{color};--fondo:{fondo};animation-delay:{i * 0.08:.2f}s">'
             f'<div class="tu-dato-cab"><span class="tu-dato-icono">{svg(d.get("icono", "circle"), 19)}</span>'
             f'<span class="tu-dato-etiqueta">{_e(d["etiqueta"])}</span></div>'
-            f'<div class="tu-dato-valor">{_e(d["valor"])}</div>{detalle}</div>')
+            f'<div class="tu-dato-valor">{con_conteo(d["valor"])}</div>{detalle}</div>')
     _html(f'<div class="tu-datos">{"".join(tarjetas)}</div>')
 
 
@@ -146,8 +175,8 @@ def anillo(porcentaje: float, titulo: str, detalle: str = "", etiqueta: str = ""
     """Tarjeta con un anillo de avance (0 a 100) y su explicación."""
     p = max(0, min(100, round(porcentaje)))
     extra = insignia(etiqueta, tono, "award") if etiqueta else ""
-    _html(f'<div class="tu-anillo-tarjeta"><div class="tu-anillo" style="--p:{p}">'
-          f'<div class="tu-anillo-centro">{p}%<small>avance</small></div></div>'
+    _html(f'<div class="tu-anillo-tarjeta"><div class="tu-anillo" style="--tu-p:{p}">'
+          f'<div class="tu-anillo-centro"><span>{con_conteo(p)}%</span><small>avance</small></div></div>'
           f'<div class="tu-anillo-textos"><div class="tu-anillo-titulo">{_e(titulo)}</div>{extra}'
           f'<div class="tu-anillo-detalle">{_e(detalle)}</div></div></div>')
 
@@ -194,8 +223,8 @@ def grafica_fechas(df, fecha: str, valor: str, titulo_valor: str) -> None:
 
     color = TONOS["indigo"][0]
     relleno = alt.Gradient(gradient="linear", x1=1, x2=1, y1=1, y2=0,
-                           stops=[alt.GradientStop(color="rgba(79,70,229,0.02)", offset=0),
-                                  alt.GradientStop(color="rgba(79,70,229,0.32)", offset=1)])
+                           stops=[alt.GradientStop(color="rgba(11,61,145,0.02)", offset=0),
+                                  alt.GradientStop(color="rgba(11,61,145,0.32)", offset=1)])
     base = alt.Chart(df).encode(
         x=alt.X(f"{fecha}:T", title=None, axis=alt.Axis(format="%d/%m", labelAngle=0, tickCount="day")),
         y=alt.Y(f"{valor}:Q", title=titulo_valor),
@@ -263,7 +292,11 @@ def marca_acceso() -> None:
                "Niveles por tema, unidad y materia, según la retícula oficial.")]
     filas = "".join(f'<div class="tu-rasgo"><span class="tu-rasgo-icono">{svg(i, 20)}</span>'
                     f'<div><b>{_e(t)}</b><span>{_e(d)}</span></div></div>' for i, t, d in rasgos)
-    _html(f'<div class="tu-acceso-hero"><div class="tu-acceso-marca"><span class="tu-acceso-logo">'
+    # burbujas decorativas que suben por el panel: (posición horizontal, tamaño, duración, retraso)
+    burbujas = "".join(f'<i class="tu-acceso-burbuja" style="--x:{x}%;--s:{s}px;--t:{t}s;--d:{d}s"></i>'
+                       for x, s, t, d in ((8, 26, 11, 0), (27, 14, 9, 3), (49, 34, 13, 1.5), (68, 18, 10, 5),
+                                          (86, 24, 12, 2.5), (38, 10, 8, 6.5)))
+    _html(f'<div class="tu-acceso-hero">{burbujas}<div class="tu-acceso-marca"><span class="tu-acceso-logo">'
           f'{svg("cap", 30)}</span><div><div class="tu-acceso-nombre">Tutor Universitario</div>'
           f'<div class="tu-acceso-lema">Estudia a tu ritmo, con tu propio material</div></div></div>'
           f'<div class="tu-acceso-titulo">Aprende con un tutor que conoce tu clase</div>'
@@ -275,29 +308,29 @@ def marca_acceso() -> None:
 # Hoja de estilos
 # ---------------------------------------------------------------------------------------------------------------
 CSS = """
-:root{--tu-indigo:#4F46E5;--tu-violeta:#7C3AED;--tu-cielo:#0EA5E9;--tu-tinta:#1E1B4B;--tu-gris:#64748B;
---tu-borde:#E2E5F1;--tu-suave:#EEF2FF;--tu-degradado:linear-gradient(135deg,#4F46E5 0%,#7C3AED 100%);
---tu-sombra:0 1px 2px rgba(30,27,75,.05),0 6px 20px rgba(30,27,75,.06);
---tu-sombra-alta:0 2px 6px rgba(30,27,75,.07),0 16px 34px rgba(30,27,75,.11);
---tu-texto:#334155;--tu-sup:#fff;--tu-pista:#E7E9F5;--tu-burbuja:linear-gradient(135deg,#EEF2FF,#F5F3FF);}
+:root{--tu-indigo:#0B3D91;--tu-violeta:#1F63C9;--tu-cielo:#0EA5E9;--tu-tinta:#0B1F44;--tu-gris:#64748B;
+--tu-borde:#DCE5F3;--tu-suave:#EAF1FC;--tu-degradado:linear-gradient(135deg,#0B3D91 0%,#1F63C9 100%);
+--tu-sombra:0 1px 2px rgba(11,31,68,.05),0 6px 20px rgba(11,31,68,.06);
+--tu-sombra-alta:0 2px 6px rgba(11,31,68,.07),0 16px 34px rgba(11,31,68,.11);
+--tu-texto:#334155;--tu-sup:#fff;--tu-pista:#DEE7F5;--tu-burbuja:linear-gradient(135deg,#EAF1FC,#EAF1FC);}
 [style*="--fondo"]{--fondo:color-mix(in srgb,var(--color) 13%,transparent)!important}
 @keyframes tu-aparecer{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes tu-degradado{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 @keyframes tu-flotar{0%,100%{transform:translate(0,0)}50%{transform:translate(-10px,12px)}}
-@keyframes tu-latido{0%,100%{box-shadow:0 0 0 0 rgba(79,70,229,.35)}50%{box-shadow:0 0 0 8px rgba(79,70,229,0)}}
+@keyframes tu-latido{0%,100%{box-shadow:0 0 0 0 rgba(11,61,145,.35)}50%{box-shadow:0 0 0 8px rgba(11,61,145,0)}}
 
 /* Lienzo general */
 [data-testid="stMainBlockContainer"]{max-width:1180px;padding-top:3.6rem;padding-bottom:4rem}
 [data-testid="stHeader"]{background:rgba(246,247,251,.78);backdrop-filter:blur(10px)}
 [data-testid="stAppDeployButton"]{display:none}
 hr{border-color:var(--tu-borde)!important}
-[data-testid="stSidebar"] hr{border-color:rgba(165,180,252,.16)!important;margin:1.1rem 0!important}
+[data-testid="stSidebar"] hr{border-color:rgba(157,187,240,.16)!important;margin:1.1rem 0!important}
 
 /* Encabezado principal */
 .tu-hero{position:relative;overflow:hidden;border-radius:22px;padding:26px 30px;margin:0 0 1.3rem;color:#fff;
-background:linear-gradient(120deg,#312E81 0%,#4F46E5 38%,#7C3AED 70%,#0EA5E9 120%);background-size:220% 220%;
-animation:tu-degradado 16s ease infinite,tu-aparecer .5s ease-out both;
-box-shadow:0 20px 44px -22px rgba(79,70,229,.65)}
+background:linear-gradient(120deg,#072A63 0%,#0B3D91 38%,#1F63C9 70%,#0EA5E9 120%);background-size:220% 220%;
+animation:tu-degradado 16s ease infinite;
+box-shadow:0 20px 44px -22px rgba(11,61,145,.65)}
 .tu-hero::before{content:"";position:absolute;width:260px;height:260px;right:-70px;top:-90px;border-radius:50%;
 background:radial-gradient(circle,rgba(255,255,255,.28),rgba(255,255,255,0) 70%);animation:tu-flotar 9s ease-in-out infinite}
 .tu-hero::after{content:"";position:absolute;width:180px;height:180px;right:22%;bottom:-120px;border-radius:50%;
@@ -320,13 +353,13 @@ background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.26);color:#f
 .tit h3{font-size:1.18rem}.tit h4{font-size:1.04rem}
 .tit-icono{width:34px;height:34px;flex-shrink:0;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;
 background:var(--tu-suave);color:var(--tu-indigo)}
-[data-testid="stSidebar"] .tit h1,[data-testid="stSidebar"] .tit h2,[data-testid="stSidebar"] .tit h3,[data-testid="stSidebar"] .tit h4{color:#EEF2FF}
-[data-testid="stSidebar"] .tit-icono{background:rgba(165,180,252,.14);color:#A5B4FC}
+[data-testid="stSidebar"] .tit h1,[data-testid="stSidebar"] .tit h2,[data-testid="stSidebar"] .tit h3,[data-testid="stSidebar"] .tit h4{color:#EAF1FC}
+[data-testid="stSidebar"] .tit-icono{background:rgba(157,187,240,.14);color:#9DBBF0}
 
 /* Tarjetas de datos */
 .tu-datos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:14px;margin:.2rem 0 1.2rem}
 .tu-dato{background:var(--tu-sup);border:1px solid var(--tu-borde);border-radius:18px;padding:16px 18px;box-shadow:var(--tu-sombra);
-transition:transform .18s ease,box-shadow .18s ease;animation:tu-aparecer .45s ease-out both}
+transition:transform .18s ease,box-shadow .18s ease;animation:tu-aparecer .45s ease-out backwards}
 .tu-dato:hover{transform:translateY(-3px);box-shadow:var(--tu-sombra-alta)}
 .tu-dato-cab{display:flex;align-items:center;gap:10px}
 .tu-dato-icono{width:36px;height:36px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;
@@ -342,9 +375,9 @@ background:var(--fondo);color:var(--color)}
 
 /* Anillo de avance */
 .tu-anillo-tarjeta{display:flex;align-items:center;gap:22px;background:var(--tu-sup);border:1px solid var(--tu-borde);border-radius:20px;
-padding:18px 22px;margin:.3rem 0 1rem;box-shadow:var(--tu-sombra);animation:tu-aparecer .45s ease-out both}
+padding:18px 22px;margin:.3rem 0 1rem;box-shadow:var(--tu-sombra);animation:tu-aparecer .45s ease-out backwards}
 .tu-anillo{width:104px;height:104px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;
-background:conic-gradient(#4F46E5 0%,#7C3AED calc(var(--p)*1%),var(--tu-pista) calc(var(--p)*1%))}
+background:conic-gradient(#0B3D91 0%,#1F63C9 calc(var(--tu-p)*1%),var(--tu-pista) calc(var(--tu-p)*1%))}
 .tu-anillo-centro{width:80px;height:80px;border-radius:50%;background:var(--tu-sup);display:flex;flex-direction:column;align-items:center;
 justify-content:center;font-family:"Plus Jakarta Sans",sans-serif;font-weight:800;font-size:1.35rem;color:var(--tu-tinta)}
 .tu-anillo-centro small{font-family:Inter,sans-serif;font-size:.62rem;font-weight:700;color:var(--tu-gris);text-transform:uppercase;letter-spacing:.08em}
@@ -355,7 +388,7 @@ justify-content:center;font-family:"Plus Jakarta Sans",sans-serif;font-weight:80
 .tu-lista{display:grid;gap:10px;margin:.3rem 0 1.1rem}
 .tu-item{display:flex;gap:14px;align-items:flex-start;background:var(--tu-sup);border:1px solid var(--tu-borde);border-left:4px solid var(--color);
 border-radius:14px;padding:13px 16px;box-shadow:var(--tu-sombra);transition:transform .18s ease,box-shadow .18s ease;
-animation:tu-aparecer .45s ease-out both}
+animation:tu-aparecer .45s ease-out backwards}
 .tu-item:hover{transform:translateX(4px);box-shadow:var(--tu-sombra-alta)}
 .tu-item-icono{width:36px;height:36px;border-radius:11px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
 background:var(--fondo);color:var(--color)}
@@ -378,39 +411,36 @@ white-space:normal!important;overflow:visible!important;text-overflow:clip!impor
 background:var(--tu-sup);border-radius:18px;box-shadow:var(--tu-sombra);transition:box-shadow .2s ease}
 [data-testid="stMainBlockContainer"] [data-testid="stLayoutWrapper"]>[data-testid="stVerticalBlock"][data-test-scroll-behavior]:hover{box-shadow:var(--tu-sombra-alta)}
 [data-testid="stMainBlockContainer"] [data-testid="stExpander"] details{background:var(--tu-sup);border-radius:16px;border-color:var(--tu-borde);
-box-shadow:0 1px 2px rgba(30,27,75,.04)}
+box-shadow:0 1px 2px rgba(11,31,68,.04)}
 [data-testid="stMainBlockContainer"] [data-testid="stExpander"] summary:hover{color:var(--tu-indigo)}
 [data-testid="stAlert"]>div{border-radius:14px}
 
 /* Botones */
 [data-testid^="stBaseButton-primary"]{background:var(--tu-degradado)!important;border:0!important;color:#fff!important;
-box-shadow:0 8px 18px -8px rgba(79,70,229,.65);transition:transform .15s ease,box-shadow .15s ease,filter .15s ease}
-[data-testid^="stBaseButton-primary"]:hover{transform:translateY(-1px);filter:brightness(1.07);box-shadow:0 12px 24px -10px rgba(79,70,229,.75)}
+box-shadow:0 8px 18px -8px rgba(11,61,145,.65);transition:transform .15s ease,box-shadow .15s ease,filter .15s ease}
+[data-testid^="stBaseButton-primary"]:hover{transform:translateY(-1px);filter:brightness(1.07);box-shadow:0 12px 24px -10px rgba(11,61,145,.75)}
 [data-testid^="stBaseButton-primary"]:active{transform:translateY(0)}
 [data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]{background:var(--tu-sup);border:1px solid var(--tu-borde);
 color:var(--tu-tinta);transition:transform .15s ease,border-color .15s ease,color .15s ease,background .15s ease}
-[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]:hover{border-color:var(--tu-indigo);color:var(--tu-indigo);
-background:#F8F9FF;transform:translateY(-1px)}
-[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);color:#E0E7FF}
-[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]:hover{background:rgba(255,255,255,.12);border-color:#A5B4FC;color:#fff}
+[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]:hover{border-color:var(--tu-violeta);color:var(--tu-violeta);
+background:var(--tu-suave);transform:translateY(-1px)}
+[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);color:#DCE8FB}
+[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]:hover{background:rgba(255,255,255,.12);border-color:#9DBBF0;color:#fff}
 
 /* Pestañas */
-[data-baseweb="tab-list"]{gap:.3rem}
-[data-baseweb="tab"]{border-radius:10px 10px 0 0;padding:.55rem 1rem;font-weight:600}
-[data-baseweb="tab"][aria-selected="true"]{color:var(--tu-indigo)}
-[data-baseweb="tab-highlight"]{background:var(--tu-degradado)!important;height:3px;border-radius:3px}
+[data-testid="stTab"] p{font-weight:600}
 
 /* Barras de progreso */
 [data-testid="stProgressBarTrack"]{background:var(--tu-pista);border-radius:999px;overflow:hidden}
-[data-testid="stProgressBarTrack"]>div{background:linear-gradient(90deg,#4F46E5,#7C3AED 60%,#0EA5E9)!important;border-radius:999px;
+[data-testid="stProgressBarTrack"]>div{background:linear-gradient(90deg,#0B3D91,#1F63C9 60%,#0EA5E9)!important;border-radius:999px;
 transition:transform .9s cubic-bezier(.2,.8,.2,1)}
 [data-testid="stSidebar"] [data-testid="stProgressBarTrack"]{background:rgba(255,255,255,.12)}
 
 /* Chat */
 [data-testid="stChatMessage"]{background:var(--tu-sup);border:1px solid var(--tu-borde);border-radius:18px;padding:.95rem 1.15rem;
-box-shadow:0 1px 2px rgba(30,27,75,.05);animation:tu-aparecer .35s ease-out both}
+box-shadow:0 1px 2px rgba(11,31,68,.05);animation:tu-aparecer .35s ease-out backwards}
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]){background:var(--tu-burbuja);
-border-color:#C7D2FE;margin-left:min(12%,6rem)}
+border-color:#C5D8F8;margin-left:min(12%,6rem)}
 [data-testid="stChatMessageAvatarAssistant"]{background:var(--tu-degradado)!important;color:#fff!important;border-radius:12px!important}
 [data-testid="stChatMessageAvatarUser"]{background:#0EA5E9!important;color:#fff!important;border-radius:12px!important}
 [data-testid="stChatInput"]{border-radius:18px;box-shadow:var(--tu-sombra)}
@@ -423,7 +453,7 @@ transition:background .2s ease,box-shadow .2s ease}
 [class*="st-key-modo_"] [data-testid="stRadioOption"]>div>div:first-child{display:none}
 [class*="st-key-modo_"] [data-testid="stRadioOption"] p{font-weight:600}
 [class*="st-key-modo_"] [data-testid="stRadioOption"]:hover{background:var(--tu-suave)}
-[class*="st-key-modo_"] [data-testid="stRadioOption"][data-selected="true"]{background:var(--tu-degradado);box-shadow:0 8px 18px -8px rgba(79,70,229,.6)}
+[class*="st-key-modo_"] [data-testid="stRadioOption"][data-selected="true"]{background:var(--tu-degradado);box-shadow:0 8px 18px -8px rgba(11,61,145,.6)}
 [class*="st-key-modo_"] [data-testid="stRadioOption"][data-selected="true"] p,[class*="st-key-modo_"] [data-testid="stRadioOption"][data-selected="true"] span{color:#fff!important}
 
 /* Opciones del examen como tarjetas seleccionables */
@@ -431,21 +461,21 @@ transition:background .2s ease,box-shadow .2s ease}
 [class*="st-key-quiz_"] [data-testid="stRadioGroup"]>div{width:100%}
 [class*="st-key-quiz_"] [data-testid="stRadioOption"]{width:100%;margin:0!important;background:var(--tu-sup);border:1.5px solid var(--tu-borde);
 border-radius:14px;padding:.85rem 1rem;cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease,background .15s ease}
-[class*="st-key-quiz_"] [data-testid="stRadioOption"]:hover{border-color:#A5B4FC;transform:translateY(-1px);box-shadow:var(--tu-sombra)}
-[class*="st-key-quiz_"] [data-testid="stRadioOption"][data-selected="true"]{border-color:var(--tu-indigo);background:#F5F6FF;
-box-shadow:0 0 0 4px rgba(79,70,229,.12)}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"]:hover{border-color:#9DBBF0;transform:translateY(-1px);box-shadow:var(--tu-sombra)}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"][data-selected="true"]{border-color:var(--tu-violeta);background:var(--tu-suave);
+box-shadow:0 0 0 4px rgba(31,99,201,.16)}
 [class*="st-key-quiz_"] [data-testid="stRadioOption"] p{font-size:1.02rem}
 
 /* Menú lateral */
 [data-testid="stSidebarNavLink"]{border-radius:10px;margin:2px 0;transition:background .15s ease}
 [data-testid="stSidebarNavLink"]:hover{background:rgba(255,255,255,.07)}
-[data-testid="stSidebarNavLink"][aria-current="page"]{background:linear-gradient(90deg,rgba(99,102,241,.38),rgba(124,58,237,.16))!important}
+[data-testid="stSidebarNavLink"][aria-current="page"]{background:linear-gradient(90deg,rgba(47,111,216,.38),rgba(31,99,201,.16))!important}
 [data-testid="stSidebarNavLink"][aria-current="page"] p,[data-testid="stSidebarNavLink"][aria-current="page"] span{color:#fff!important;font-weight:700}
-[data-testid="stNavSectionHeader"]{text-transform:uppercase;letter-spacing:.09em;font-size:.7rem!important;font-weight:700!important;color:#8E95D9!important}
+[data-testid="stNavSectionHeader"]{text-transform:uppercase;letter-spacing:.09em;font-size:.7rem!important;font-weight:700!important;color:#7FA3E0!important}
 .tu-usuario{display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;background:rgba(255,255,255,.06);
 border:1px solid rgba(255,255,255,.1);margin:.2rem 0 .4rem}
 .tu-avatar{width:42px;height:42px;flex-shrink:0;border-radius:13px;display:flex;align-items:center;justify-content:center;
-background:linear-gradient(135deg,#6366F1,#A855F7);color:#fff;font-weight:800;font-size:.95rem;animation:tu-latido 3s ease-in-out infinite}
+background:linear-gradient(135deg,#2F6FD8,#5B9BEF);color:#fff;font-weight:800;font-size:.95rem;animation:tu-latido 3s ease-in-out infinite}
 .tu-usuario-nombre{color:#fff;font-weight:700;font-size:.95rem;line-height:1.25}
 .tu-rol{display:inline-block;margin-top:3px;padding:1px 9px;border-radius:999px;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em}
 .tu-rol-alumno{background:rgba(14,165,233,.2);color:#7DD3FC}.tu-rol-maestro{background:rgba(16,185,129,.2);color:#6EE7B7}
@@ -453,8 +483,8 @@ background:linear-gradient(135deg,#6366F1,#A855F7);color:#fff;font-weight:800;fo
 
 /* Pantalla de inicio de sesión */
 .tu-acceso-hero{position:relative;overflow:hidden;border-radius:26px;padding:38px 36px;color:#fff;min-height:520px;
-background:linear-gradient(135deg,#1E1B4B 0%,#4338CA 45%,#7C3AED 80%,#0EA5E9 130%);background-size:200% 200%;
-animation:tu-degradado 18s ease infinite,tu-aparecer .6s ease-out both;box-shadow:0 30px 60px -30px rgba(67,56,202,.75)}
+background:linear-gradient(135deg,#0B1F44 0%,#0A3478 45%,#1F63C9 80%,#0EA5E9 130%);background-size:200% 200%;
+animation:tu-degradado 18s ease infinite,tu-aparecer .6s ease-out backwards;box-shadow:0 30px 60px -30px rgba(11,61,145,.75)}
 .tu-acceso-hero::before{content:"";position:absolute;width:340px;height:340px;right:-120px;top:-120px;border-radius:50%;
 background:radial-gradient(circle,rgba(255,255,255,.22),rgba(255,255,255,0) 70%);animation:tu-flotar 10s ease-in-out infinite}
 .tu-acceso-hero::after{content:"";position:absolute;width:260px;height:260px;left:-90px;bottom:-110px;border-radius:50%;
@@ -462,7 +492,7 @@ background:radial-gradient(circle,rgba(14,165,233,.4),rgba(14,165,233,0) 70%);an
 .tu-acceso-hero>*{position:relative;z-index:1}
 .tu-acceso-marca{display:flex;align-items:center;gap:14px}
 .tu-acceso-logo{width:56px;height:56px;border-radius:17px;display:flex;align-items:center;justify-content:center;
-background:linear-gradient(135deg,#6366F1,#A855F7);box-shadow:0 10px 24px -10px rgba(0,0,0,.5);color:#fff}
+background:linear-gradient(135deg,#2F6FD8,#5B9BEF);box-shadow:0 10px 24px -10px rgba(0,0,0,.5);color:#fff}
 .tu-acceso-nombre{font-family:"Plus Jakarta Sans",sans-serif;font-weight:800;font-size:1.3rem;color:#fff}
 .tu-acceso-lema{font-size:.86rem;color:rgba(255,255,255,.75)}
 .tu-acceso-titulo{margin-top:38px;font-family:"Plus Jakarta Sans",sans-serif;font-weight:800;font-size:2.25rem;line-height:1.12;
@@ -470,14 +500,14 @@ letter-spacing:-.02em;color:#fff}
 .tu-acceso-texto{margin-top:12px;font-size:1.02rem;color:rgba(255,255,255,.85);max-width:30rem}
 .tu-rasgos{display:grid;gap:12px;margin-top:30px}
 .tu-rasgo{display:flex;gap:13px;align-items:flex-start;padding:13px 14px;border-radius:16px;background:rgba(255,255,255,.09);
-border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(6px);transition:transform .2s ease,background .2s ease;animation:tu-aparecer .6s ease-out both}
+border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(6px);transition:transform .2s ease,background .2s ease;animation:tu-aparecer .6s ease-out backwards}
 .tu-rasgo:nth-child(2){animation-delay:.12s}.tu-rasgo:nth-child(3){animation-delay:.24s}
 .tu-rasgo:hover{transform:translateX(4px);background:rgba(255,255,255,.14)}
 .tu-rasgo b{display:block;color:#fff;font-size:.95rem}
 .tu-rasgo div span{display:block;color:rgba(255,255,255,.78);font-size:.84rem;margin-top:2px}
 .tu-rasgo-icono{width:42px;height:42px;flex-shrink:0;border-radius:13px;display:inline-flex;align-items:center;justify-content:center;align-self:center;
 background:rgba(255,255,255,.16);color:#fff}
-.st-key-tarjeta_acceso{padding:1.7rem 1.7rem 1.3rem!important;border-radius:26px!important;box-shadow:0 24px 50px -28px rgba(30,27,75,.35)!important}
+.st-key-tarjeta_acceso{padding:1.7rem 1.7rem 1.3rem!important;border-radius:26px!important;box-shadow:0 24px 50px -28px rgba(11,31,68,.35)!important}
 .tu-acceso-bienvenida{font-family:"Plus Jakarta Sans",sans-serif;font-weight:800;font-size:1.6rem;color:var(--tu-tinta);margin:.2rem 0 .1rem}
 .tu-acceso-ayuda{color:var(--tu-gris);font-size:.92rem;margin-bottom:.4rem}
 
@@ -486,16 +516,231 @@ background:rgba(255,255,255,.16);color:#fff}
 .tu-datos{gap:10px}.tu-dato{padding:14px}.tu-dato-valor{font-size:1.45rem}
 .tu-acceso-hero{min-height:auto;padding:28px 24px}.tu-acceso-titulo{font-size:1.7rem;margin-top:26px}
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]){margin-left:0}}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 """
 
 
 CSS_OSCURO = """
-:root{--tu-tinta:#E8EAFF;--tu-gris:#A3A9CF;--tu-borde:#2E2B63;--tu-suave:#25225A;--tu-pista:#2E2B63;
+:root{--tu-tinta:#E6EEFC;--tu-gris:#9FB1D3;--tu-borde:#1D3566;--tu-suave:#12295A;--tu-pista:#1D3566;
 --tu-sombra:0 1px 2px rgba(0,0,0,.35),0 6px 20px rgba(0,0,0,.28);--tu-sombra-alta:0 2px 6px rgba(0,0,0,.4),0 16px 34px rgba(0,0,0,.4);
---tu-texto:#C7CCEE;--tu-sup:#1D1A44;--tu-burbuja:linear-gradient(135deg,#2A2766,#34286E)}
-[data-testid="stHeader"]{background:rgba(17,16,40,.72)!important}
+--tu-texto:#C3D1EA;--tu-sup:#12203F;--tu-burbuja:linear-gradient(135deg,#17315F,#1E3A70)}
+[data-testid="stHeader"]{background:rgba(10,20,38,.72)!important}
 """
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Animaciones
+# ---------------------------------------------------------------------------------------------------------------
+# Fotogramas de entrada. Solo describen el inicio: el final es el estado normal del elemento, así que al terminar
+# no queda ninguna transformación aplicada (una transformación residual rompería la pantalla completa de tablas
+# y gráficas, que usan position:fixed, y anularía los efectos al pasar el mouse).
+_FOTOGRAMAS = {
+    "subir": "from{opacity:0;transform:translateY(24px)}",
+    "rebote": ("0%{opacity:0;transform:translateY(28px) scale(.9)}55%{opacity:1;transform:translateY(-7px) scale(1.025)}"
+               "78%{transform:translateY(3px) scale(.995)}"),
+    "pop": "0%{opacity:0;transform:scale(.4)}60%{opacity:1;transform:scale(1.14)}82%{transform:scale(.96)}",
+    "izq": "from{opacity:0;transform:translateX(-40px)}",
+    "der": "from{opacity:0;transform:translateX(40px)}",
+    "voltear": "from{opacity:0;transform:perspective(1000px) rotateX(-65deg) translateY(-14px)}",
+    "contar": "from{--tu-n:0}",
+    "llenar": "from{--tu-p:0}",
+    "barra": "from{transform:translateX(-100%)}",
+}
+_APP = '[data-testid="stApp"]'
+_BLOQUE = '[data-testid="stMainBlockContainer"]>[data-testid="stVerticalBlock"]'  # contenido de la pantalla
+
+# Ojo: dentro de <style> no puede haber un «<» seguido de letra (el saneador de st.html quitaría toda la hoja);
+# por eso los tipos de @property se escriben con el escape CSS \3c en lugar de «<».
+CSS_ANIMACIONES = (
+    ":root{--tu-e-suave:cubic-bezier(.22,1,.36,1);--tu-e-rebote:cubic-bezier(.34,1.56,.64,1)}"
+    "@property --tu-ok{syntax:'*';initial-value:1;inherits:false}"
+    "@property --tu-n{syntax:'\\3c integer>';initial-value:0;inherits:false}"
+    "@property --tu-p{syntax:'\\3c number>';initial-value:0;inherits:false}"
+    + "".join(f"@keyframes tu-{nombre}{{{cuadros}}}" for nombre, cuadros in _FOTOGRAMAS.items())
+    + """
+@keyframes tu-desplegar{from{opacity:0;transform:translateY(-10px)}}
+@keyframes tu-sacudir{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(5px)}30%,50%,70%{transform:translateX(-9px)}40%,60%{transform:translateX(9px)}}
+@keyframes tu-menear{20%{transform:rotate(-14deg) scale(1.15)}45%{transform:rotate(11deg) scale(1.15)}70%{transform:rotate(-6deg) scale(1.08)}}
+@keyframes tu-flotar-y{50%{transform:translateY(-7px)}}
+@keyframes tu-respirar{50%{opacity:.5}}
+@keyframes tu-pulso{0%{box-shadow:0 0 0 0 rgba(31,99,201,.6),0 8px 18px -8px rgba(11,61,145,.65)}70%,100%{box-shadow:0 0 0 16px rgba(31,99,201,0),0 8px 18px -8px rgba(11,61,145,.65)}}
+@keyframes tu-pulso-verde{0%{box-shadow:0 0 0 0 rgba(5,150,105,.55)}100%{box-shadow:0 0 0 18px rgba(5,150,105,0)}}
+@keyframes tu-destello{0%{transform:translateX(-140%) skewX(-22deg)}45%,100%{transform:translateX(380%) skewX(-22deg)}}
+@keyframes tu-destello-una{from{transform:translateX(-150%) skewX(-22deg)}to{transform:translateX(430%) skewX(-22deg)}}
+@keyframes tu-barrido{0%{transform:translateX(-160%) skewX(-22deg)}30%,100%{transform:translateX(640%) skewX(-22deg)}}
+@keyframes tu-brillo-barra{0%{transform:translateX(-420px);opacity:0}20%{opacity:1}60%,100%{transform:translateX(100px);opacity:0}}
+@keyframes tu-seleccion{0%{transform:scale(.93)}55%{transform:scale(1.05)}}
+@keyframes tu-aurora{0%{transform:translate3d(-3%,-2%,0) scale(1)}50%{transform:translate3d(3%,2%,0) scale(1.08)}100%{transform:translate3d(-2%,3%,0) scale(1.03)}}
+@keyframes tu-burbuja{0%{transform:translateY(0) scale(.6);opacity:0}12%{opacity:.75}100%{transform:translateY(-580px) scale(1.2);opacity:0}}
+@keyframes tu-conf-x{to{transform:translateX(var(--dx))}}
+@keyframes tu-conf-y{0%{opacity:1;transform:translateY(0) rotate(0);animation-timing-function:cubic-bezier(.12,.8,.3,1)}40%{opacity:1;transform:translateY(var(--up)) rotate(calc(var(--r)*.45));animation-timing-function:cubic-bezier(.6,0,.95,.55)}100%{opacity:0;transform:translateY(55vh) rotate(var(--r))}}
+
+/* Fondo: luces azules que se mueven despacio detrás del contenido. Va con position:fixed para que no agregue
+   área desplazable a la app (con absolute, cualquier scrollIntoView recorría toda la pantalla unos píxeles) */
+[data-testid="stApp"]::before{content:"";position:fixed;inset:-12%;pointer-events:none;
+background:radial-gradient(38% 34% at 82% 12%,rgba(31,99,201,.14),transparent 70%),radial-gradient(34% 30% at 12% 88%,rgba(14,165,233,.12),transparent 70%),
+radial-gradient(26% 24% at 55% 48%,rgba(91,155,239,.07),transparent 70%);animation:tu-aurora 24s ease-in-out infinite alternate}
+
+/* Cambio de pantalla: el contenido entra en cascada (los retrasos por posición se agregan abajo) */
+%B>*:not(:has(.tu-confeti)){animation:tu-subir .6s var(--tu-e-suave) backwards}
+[data-testid="stBottomBlockContainer"]{animation:tu-subir .6s var(--tu-e-suave) .3s backwards}
+[data-testid="stTabPanel"]{animation:tu-subir .5s var(--tu-e-suave) backwards}
+[data-testid="stExpander"] details[open]>[data-testid="stExpanderDetails"]{animation:tu-desplegar .45s var(--tu-e-suave)}
+[data-testid="stExpander"] summary:hover [data-testid="stIconMaterial"]{animation:tu-menear .6s ease}
+
+/* Encabezado */
+.tu-hero-brillo{position:absolute;z-index:1;top:0;bottom:0;left:0;width:22%;pointer-events:none;
+background:linear-gradient(100deg,transparent,rgba(255,255,255,.22),transparent);transform:translateX(-160%) skewX(-22deg);
+animation:tu-barrido 7s ease-in-out 1.2s infinite}
+.tu-hero-icono{animation:tu-pop .7s var(--tu-e-rebote) .15s backwards,tu-flotar-y 4.5s ease-in-out 1s infinite}
+.tu-hero-titulo{animation:tu-izq .6s var(--tu-e-suave) .12s backwards}
+.tu-hero-sub{animation:tu-izq .6s var(--tu-e-suave) .22s backwards}
+.tu-chip{animation:tu-pop .55s var(--tu-e-rebote) .65s backwards;transition:transform .3s var(--tu-e-rebote),background .25s ease}
+.tu-chip:nth-child(1){animation-delay:.35s}.tu-chip:nth-child(2){animation-delay:.45s}.tu-chip:nth-child(3){animation-delay:.55s}
+.tu-chip:hover{transform:translateY(-3px) scale(1.06);background:rgba(255,255,255,.28)}
+
+/* Títulos de sección */
+.tit-icono{transition:transform .35s var(--tu-e-rebote),box-shadow .3s ease}
+.tit:hover .tit-icono{transform:scale(1.15) rotate(-8deg);box-shadow:0 8px 16px -8px rgba(11,61,145,.5)}
+.tit:hover .tit-icono svg{animation:tu-menear .7s ease}
+
+/* Tarjetas de datos, anillo, listas e insignias */
+.tu-dato{position:relative;overflow:hidden;animation:tu-rebote .75s var(--tu-e-suave) backwards;
+transition:transform .35s var(--tu-e-rebote),box-shadow .3s ease,border-color .3s ease}
+.tu-dato:hover{transform:translateY(-7px) scale(1.025);border-color:color-mix(in srgb,var(--color) 45%,var(--tu-borde));
+box-shadow:0 22px 40px -22px color-mix(in srgb,var(--color) 65%,transparent),var(--tu-sombra-alta)}
+.tu-dato::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;transform:scaleX(0);transform-origin:left;
+background:linear-gradient(90deg,var(--color),color-mix(in srgb,var(--color) 30%,transparent));transition:transform .45s var(--tu-e-suave)}
+.tu-dato:hover::before{transform:scaleX(1)}
+.tu-dato::after{content:"";position:absolute;top:0;bottom:0;left:0;width:35%;pointer-events:none;transform:translateX(-150%) skewX(-22deg);
+background:linear-gradient(100deg,transparent,color-mix(in srgb,var(--color) 16%,transparent),transparent)}
+.tu-dato:hover::after{animation:tu-destello-una .8s ease-out}
+.tu-dato-icono,.tu-item-icono{transition:transform .35s var(--tu-e-rebote)}
+.tu-dato:hover .tu-dato-icono,.tu-item:hover .tu-item-icono{transform:scale(1.15) rotate(-8deg)}
+.tu-dato:hover .tu-dato-icono svg,.tu-item:hover .tu-item-icono svg{animation:tu-menear .7s ease}
+.tu-dato-valor{transform-origin:left center;transition:transform .35s var(--tu-e-rebote)}
+.tu-dato:hover .tu-dato-valor{transform:scale(1.07)}
+.tu-anillo-tarjeta{animation:tu-rebote .75s var(--tu-e-suave) backwards;transition:box-shadow .3s ease,transform .35s var(--tu-e-rebote)}
+.tu-anillo-tarjeta:hover{transform:translateY(-4px);box-shadow:var(--tu-sombra-alta)}
+.tu-item{animation:tu-der .6s var(--tu-e-suave) backwards;transition:transform .35s var(--tu-e-rebote),box-shadow .3s ease}
+.tu-item:hover{transform:translateX(8px);box-shadow:var(--tu-sombra-alta)}
+.tu-insignia{transition:transform .3s var(--tu-e-rebote)}
+.tu-insignia:hover{transform:translateY(-2px) scale(1.07)}
+
+/* Números que cuentan, anillo que se llena y barras de progreso */
+.tu-num{counter-reset:tu-n var(--tu-n);animation:tu-contar 1.6s var(--tu-e-suave) .2s backwards;transition:--tu-n .9s var(--tu-e-suave)}
+.tu-num::after{content:counter(tu-n);font-size:calc(1em*var(--tu-ok,0))}
+.tu-num>b{font:inherit;font-size:calc(1em*(1 - var(--tu-ok,0)))}
+.tu-anillo{animation:tu-llenar calc(1.6s*var(--tu-ok,0)) var(--tu-e-suave) .2s backwards;transition:--tu-p 1s var(--tu-e-suave),transform .35s var(--tu-e-rebote)}
+.tu-anillo-tarjeta:hover .tu-anillo{transform:scale(1.07)}
+[data-testid="stProgressBarTrack"]>div{position:relative;overflow:hidden;animation:tu-barra 1.3s var(--tu-e-suave) .15s backwards}
+[data-testid="stProgressBarTrack"]>div::after{content:"";position:absolute;top:0;bottom:0;right:0;width:90px;pointer-events:none;
+background:linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent);animation:tu-brillo-barra 2.8s ease-in-out 1.5s infinite}
+
+/* Botones: se elevan, rebotan al soltar, onda al hacer clic y destello en los principales */
+[data-testid^="stBaseButton-primary"],[data-testid^="stBaseButton-secondary"]{position:relative;overflow:hidden}
+[data-testid^="stBaseButton-primary"]{transition:transform .3s var(--tu-e-rebote),box-shadow .25s ease,filter .2s ease}
+[data-testid^="stBaseButton-primary"]:hover:not(:disabled){transform:translateY(-3px) scale(1.03);filter:brightness(1.1) saturate(1.1);
+box-shadow:0 16px 30px -12px rgba(11,61,145,.85)}
+[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]{transition:transform .3s var(--tu-e-rebote),border-color .2s ease,
+color .2s ease,background .2s ease,box-shadow .25s ease}
+[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]:hover:not(:disabled){transform:translateY(-3px) scale(1.02);
+background:var(--tu-suave);box-shadow:0 12px 24px -14px rgba(11,61,145,.55)}
+[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]{transition:transform .3s var(--tu-e-rebote),background .2s ease,border-color .2s ease,color .2s ease}
+[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]:hover:not(:disabled){transform:translateX(4px)}
+[data-testid^="stBaseButton-primary"]:active:not(:disabled),[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]:active:not(:disabled),
+[data-testid="stSidebar"] [data-testid^="stBaseButton-secondary"]:active:not(:disabled){transform:scale(.94);transition-duration:.08s}
+[data-testid^="stBaseButton-primary"]::before,[data-testid^="stBaseButton-secondary"]::before{content:"";position:absolute;left:50%;top:50%;
+width:140%;aspect-ratio:1;border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(255,255,255,.6) 0%,rgba(255,255,255,0) 62%);
+transform:translate(-50%,-50%) scale(1.5);opacity:0;transition:transform .65s ease-out,opacity .8s ease-out}
+[data-testid="stMainBlockContainer"] [data-testid^="stBaseButton-secondary"]::before{background:radial-gradient(circle,rgba(31,99,201,.32) 0%,rgba(31,99,201,0) 62%)}
+[data-testid^="stBaseButton-primary"]:active::before,[data-testid^="stBaseButton-secondary"]:active::before{transform:translate(-50%,-50%) scale(0);opacity:1;transition:0s}
+[data-testid^="stBaseButton-primary"]:not(:disabled)::after{content:"";position:absolute;top:0;bottom:0;left:0;width:38%;pointer-events:none;
+background:linear-gradient(100deg,rgba(255,255,255,0),rgba(255,255,255,.5),rgba(255,255,255,0));transform:translateX(-140%) skewX(-22deg);
+animation:tu-destello 4.6s ease-in-out 1s infinite}
+[data-testid^="stBaseButton"]:hover:not(:disabled) [data-testid="stIconMaterial"]{animation:tu-menear .6s ease}
+[class*="st-key-cta_"] [data-testid^="stBaseButton-primary"]:not(:disabled),.st-key-btn_iniciar [data-testid^="stBaseButton-primary"]:not(:disabled){animation:tu-pulso 2.2s ease-out infinite}
+
+/* Avisos: rebote al aparecer, el error se sacude y el acierto late en verde */
+[data-testid="stAlertContainer"]{animation:tu-rebote .6s var(--tu-e-suave) backwards}
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"]){animation:tu-sacudir .65s ease-in-out}
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentSuccess"]){animation:tu-rebote .6s var(--tu-e-suave) backwards,tu-pulso-verde 1.1s ease-out .25s}
+[data-testid="stAlertDynamicIcon"]{animation:tu-pop .6s var(--tu-e-rebote) .3s backwards}
+
+/* Campos de texto, listas y pestañas: halo al enfocar y pequeño salto al pasar el mouse */
+[data-testid="stTextInputRootElement"],[data-testid="stTextAreaRootElement"],[data-testid="stNumberInputContainer"],
+[data-testid="stSelectbox"] [role="group"]{transition:box-shadow .25s ease,border-color .25s ease}
+[data-testid="stTextInputRootElement"]:focus-within,[data-testid="stTextAreaRootElement"]:focus-within,[data-testid="stNumberInputContainer"]:focus-within,
+[data-testid="stSelectbox"] [role="group"]:focus-within{box-shadow:0 0 0 4px rgba(31,99,201,.22)}
+[data-testid="stTab"]{transition:color .2s ease,transform .25s var(--tu-e-rebote)}
+[data-testid="stTab"]:hover{transform:translateY(-2px)}
+
+/* Menú lateral */
+[data-testid="stSidebarNavLink"]{position:relative;animation:tu-izq .5s var(--tu-e-suave) backwards;transition:background .2s ease,transform .3s var(--tu-e-rebote)}
+[data-testid="stSidebarNavLink"]:hover{transform:translateX(6px)}
+[data-testid="stSidebarNavLink"]:hover [data-testid="stIconMaterial"]{animation:tu-menear .6s ease}
+[data-testid="stSidebarNavLink"]::before{content:"";position:absolute;left:-2px;top:22%;bottom:22%;width:3px;border-radius:3px;
+background:linear-gradient(#5B9BEF,#0EA5E9);transform:scaleY(0);transition:transform .35s var(--tu-e-rebote)}
+[data-testid="stSidebarNavLink"][aria-current="page"]::before{transform:scaleY(1)}
+[data-testid="stSidebarUserContent"] [data-testid="stElementContainer"]{animation:tu-izq .5s var(--tu-e-suave) backwards}
+[data-testid="stSidebarHeader"] img{transition:transform .5s var(--tu-e-rebote)}
+[data-testid="stSidebarHeader"]:hover img{transform:scale(1.07) rotate(-2deg)}
+.tu-usuario{transition:transform .3s var(--tu-e-rebote),background .25s ease,border-color .25s ease}
+.tu-usuario:hover{transform:translateY(-3px);background:rgba(255,255,255,.1);border-color:rgba(157,187,240,.4)}
+.tu-avatar{transition:transform .35s var(--tu-e-rebote)}
+.tu-usuario:hover .tu-avatar{transform:rotate(-8deg) scale(1.12)}
+
+/* Chat: el tutor entra por la izquierda y el alumno por la derecha */
+[data-testid="stChatMessage"]{animation:tu-izq .55s var(--tu-e-suave) backwards;transition:transform .3s var(--tu-e-rebote),box-shadow .3s ease}
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]){animation-name:tu-der}
+[data-testid="stChatMessage"]:hover{transform:translateY(-2px);box-shadow:var(--tu-sombra-alta)}
+[data-testid="stChatMessageAvatarAssistant"],[data-testid="stChatMessageAvatarUser"]{animation:tu-pop .6s var(--tu-e-rebote) .2s backwards}
+[data-testid="stChatMessage"]:hover [data-testid^="stChatMessageAvatar"] [data-testid="stIconMaterial"]{animation:tu-menear .7s ease}
+[data-testid="stSpinner"]{animation:tu-respirar 1.3s ease-in-out infinite}
+[data-testid="stChatInput"]{transition:box-shadow .3s ease,transform .3s var(--tu-e-rebote)}
+[data-testid="stChatInput"]:focus-within{transform:translateY(-3px);box-shadow:0 0 0 4px rgba(31,99,201,.22),var(--tu-sombra-alta)}
+[data-testid="stChatInputSubmitButton"] svg{transition:transform .3s var(--tu-e-rebote)}
+[data-testid="stChatInputSubmitButton"]:hover:not(:disabled) svg{transform:translateY(-3px) scale(1.2)}
+
+/* Píldoras de modo y opciones del examen */
+[class*="st-key-modo_"] [data-testid="stRadioOption"]{transition:background .25s ease,box-shadow .25s ease,transform .3s var(--tu-e-rebote)}
+[class*="st-key-modo_"] [data-testid="stRadioOption"]:hover{transform:translateY(-2px)}
+[class*="st-key-modo_"] [data-testid="stRadioOption"]:active{transform:scale(.94)}
+[class*="st-key-modo_"] [data-testid="stRadioOption"][data-selected="true"]>div,[class*="st-key-quiz_"] [data-testid="stRadioOption"][data-selected="true"]>div{animation:tu-seleccion .45s var(--tu-e-rebote)}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"]{animation:tu-der .5s var(--tu-e-suave) backwards;transition:border-color .2s ease,box-shadow .25s ease,
+transform .3s var(--tu-e-rebote),background .2s ease}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"]:nth-of-type(2){animation-delay:.08s}[class*="st-key-quiz_"] [data-testid="stRadioOption"]:nth-of-type(3){animation-delay:.16s}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"]:nth-of-type(4){animation-delay:.24s}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"]:hover{transform:translateX(8px);box-shadow:var(--tu-sombra)}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"]:active{transform:scale(.98)}
+[class*="st-key-quiz_"] [data-testid="stRadioOption"][data-selected="true"]{background:var(--tu-suave);box-shadow:0 0 0 4px rgba(31,99,201,.2),var(--tu-sombra)}
+.tu-marca{animation:tu-pop .55s var(--tu-e-rebote) .15s backwards}
+
+/* Confeti (no ocupa lugar en la página ni recibe la animación de entrada) */
+[data-testid="stElementContainer"]:has(.tu-confeti){position:absolute;width:0;height:0}
+.tu-confeti{position:fixed;inset:0;z-index:1000001;pointer-events:none;overflow:hidden}
+.tu-confeti b{position:absolute;left:50%;top:62%;animation:tu-conf-x var(--t) cubic-bezier(.1,.75,.3,1) var(--d) both}
+.tu-confeti i{display:block;width:var(--w);height:var(--h);background:var(--c);border-radius:var(--br);opacity:0;animation:tu-conf-y var(--t) linear var(--d) both}
+
+/* Inicio de sesión */
+.tu-acceso-hero{animation:tu-degradado 18s ease infinite,tu-izq .8s var(--tu-e-suave) backwards}
+.tu-acceso-burbuja{position:absolute!important;z-index:0!important;left:var(--x);bottom:-40px;width:var(--s);height:var(--s);border-radius:50%;
+background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.24);opacity:0;animation:tu-burbuja var(--t) linear var(--d) infinite}
+.tu-acceso-logo{animation:tu-pop .7s var(--tu-e-rebote) .25s backwards,tu-flotar-y 4s ease-in-out 1.2s infinite}
+.tu-acceso-titulo{animation:tu-subir .7s var(--tu-e-suave) .3s backwards}
+.tu-acceso-texto{animation:tu-subir .7s var(--tu-e-suave) .4s backwards}
+.tu-rasgo{animation:tu-izq .6s var(--tu-e-suave) .5s backwards;transition:transform .35s var(--tu-e-rebote),background .25s ease,border-color .25s ease}
+.tu-rasgo:nth-child(2){animation-delay:.62s}.tu-rasgo:nth-child(3){animation-delay:.74s}
+.tu-rasgo:hover{transform:translateX(8px) scale(1.02);background:rgba(255,255,255,.17);border-color:rgba(255,255,255,.32)}
+.tu-rasgo-icono{transition:transform .35s var(--tu-e-rebote)}
+.tu-rasgo:hover .tu-rasgo-icono{transform:scale(1.15) rotate(-8deg)}
+.tu-rasgo:hover .tu-rasgo-icono svg{animation:tu-menear .7s ease}
+.st-key-tarjeta_acceso{animation:tu-rebote .85s var(--tu-e-suave) .2s backwards}
+""".replace("%B", _BLOQUE)
+    # cascada: cada elemento de la pantalla entra un poco después que el anterior
+    + "".join(f"{_BLOQUE}>*:nth-child({i}){{animation-delay:{(i - 1) * 0.055:.3f}s}}" for i in range(2, 13))
+    + f"{_BLOQUE}>*:nth-child(n+13){{animation-delay:.66s}}"
+)
 
 
 def es_oscuro() -> bool:
@@ -507,4 +752,66 @@ def es_oscuro() -> bool:
 
 def aplicar_estilo() -> None:
     """Inserta la hoja de estilos de la app (se llama una vez por ejecución desde app.py)."""
-    st.html(f"<style>{CSS}{CSS_OSCURO if es_oscuro() else ''}</style>")
+    st.html(f"<style>{CSS}{CSS_OSCURO if es_oscuro() else ''}{CSS_ANIMACIONES if ANIMACIONES else ''}</style>")
+
+
+def _ficha(token) -> str:
+    """Texto seguro para usarlo dentro del nombre de una animación CSS."""
+    return re.sub(r"[^a-z0-9]+", "-", str(token).lower()).strip("-") or "x"
+
+
+def transicion(token) -> None:
+    """Hace que las animaciones de entrada se repitan cuando cambia `token` (app.py lo llama con la página actual).
+
+    Al navegar, Streamlit reutiliza los elementos que ya están en pantalla, y una animación CSS solo vuelve a
+    correr si cambia su nombre. Por eso cada página usa los mismos fotogramas con un nombre propio.
+    """
+    if not ANIMACIONES:
+        return
+    k = _ficha(token)
+    nombres = ("subir", "rebote", "pop", "izq", "der", "contar", "llenar", "barra")
+    reglas = "".join(f"@keyframes tu-{n}-{k}{{{_FOTOGRAMAS[n]}}}" for n in nombres) + (
+        f"{_APP} {_BLOQUE}>*:not(:has(.tu-confeti)){{animation-name:tu-subir-{k}}}"
+        f"{_APP} .tu-dato,{_APP} .tu-anillo-tarjeta{{animation-name:tu-rebote-{k}}}"
+        f"{_APP} .tu-item{{animation-name:tu-der-{k}}}"
+        f"{_APP} .tu-hero-icono{{animation-name:tu-pop-{k},tu-flotar-y}}"
+        f"{_APP} .tu-hero-titulo,{_APP} .tu-hero-sub{{animation-name:tu-izq-{k}}}"
+        f"{_APP} .tu-chip{{animation-name:tu-pop-{k}}}"
+        f"{_APP} .tu-num{{animation-name:tu-contar-{k}}}"
+        f"{_APP} .tu-anillo{{animation-name:tu-llenar-{k}}}"
+        f'{_APP} [data-testid="stMain"] [data-testid="stProgressBarTrack"]>div{{animation-name:tu-barra-{k}}}')
+    st.html(f"<style>{reglas}</style>")
+
+
+def reanimar(clave: str, token, efecto: str = "subir", duracion: float = 0.6) -> None:
+    """Repite la entrada del contenedor creado con key=`clave` cada vez que cambia `token` (p. ej. otra pregunta)."""
+    if not ANIMACIONES:
+        return
+    nombre = f"tu-{efecto}-{_ficha(clave)}-{_ficha(token)}"
+    st.html(f"<style>@keyframes {nombre}{{{_FOTOGRAMAS[efecto]}}}"
+            f"{_APP} .st-key-{clave}{{animation:{nombre} {duracion}s var(--tu-e-suave) backwards}}</style>")
+
+
+def reanimar_siguientes(clave: str, token) -> None:
+    """Repite la entrada de todo lo que está debajo del widget con key=`clave` cuando cambia `token` (otra pestaña)."""
+    if not ANIMACIONES:
+        return
+    nombre = f"tu-subir-{_ficha(clave)}-{_ficha(token)}"
+    st.html(f"<style>@keyframes {nombre}{{{_FOTOGRAMAS['subir']}}}"
+            f"{_APP} {_BLOQUE}>.st-key-{clave}~*:not(:has(.tu-confeti)){{animation-name:{nombre}}}</style>")
+
+
+def confeti(piezas: int = 80) -> None:
+    """Estallido de confeti hecho solo con CSS; se dibuja en la ejecución en que se llama y dura unos 2 segundos."""
+    if not ANIMACIONES:
+        return
+    colores = ("#0B3D91", "#1F63C9", "#5B9BEF", "#0EA5E9", "#F59E0B", "#FBBF24", "#22C55E", "#F43F5E", "#FFFFFF")
+    azar = random.Random()
+    trozos = []
+    for _ in range(piezas):
+        trozos.append(
+            f'<b style="--dx:{azar.uniform(-46, 46):.1f}vw;--d:{azar.uniform(0, 0.22):.2f}s;--t:{azar.uniform(1.5, 2.5):.2f}s">'
+            f'<i style="--c:{azar.choice(colores)};--up:-{azar.uniform(16, 60):.0f}vh;'
+            f'--r:{azar.choice((-1, 1)) * azar.randint(380, 1100)}deg;--w:{azar.randint(7, 12)}px;'
+            f'--h:{azar.randint(10, 18)}px;--br:{azar.choice(("2px", "2px", "50%"))}"></i></b>')
+    _html(f'<div class="tu-confeti" aria-hidden="true">{"".join(trozos)}</div>')

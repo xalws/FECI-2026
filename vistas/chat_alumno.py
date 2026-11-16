@@ -2,7 +2,8 @@ import streamlit as st
 
 from core import chat, examen, llm, material, niveles, perfil, progreso, quiz, rag, tutoria
 from core.auth import require_login
-from core.estilo import datos, encabezado, fecha_local, saludo, svg, titulo
+from core.estilo import (confeti, datos, encabezado, fecha_local, reanimar, reanimar_siguientes, saludo, svg,
+                         titulo)
 from core.llm import DIFICULTADES
 from core.ui import nombre_tema, selector_cascada
 
@@ -22,16 +23,20 @@ def opcion_md(i: int, texto: str, estado: str) -> None:
     """Opción de quiz con ícono: estado = 'ok' | 'mal' | 'neutro'."""
     color = {"ok": COLOR_OK, "mal": COLOR_MAL}.get(estado, COLOR_NEUTRO)
     icono = {"ok": "check", "mal": "x"}.get(estado, "circle")
-    marca = f'<span style="display:inline-flex;vertical-align:-3px;margin-right:6px">{svg(icono, 18, color, 2.2)}</span>'
+    clase = ' class="tu-marca"' if estado in ("ok", "mal") else ""  # la palomita y el tache aparecen con un «pop»
+    marca = (f'<span{clase} style="display:inline-flex;vertical-align:-3px;margin-right:6px">'
+             f'{svg(icono, 18, color, 2.2)}</span>')
     st.markdown(f"{marca}**{LETRAS[i]})** {texto}", unsafe_allow_html=True)
 
 
-# Avisos pendientes de la acción anterior (se muestran después del st.rerun que la cierra)
+# Avisos y festejos pendientes de la acción anterior (se muestran después del st.rerun que la cierra)
 aviso = ss.pop("aviso", None)
 if aviso:
     st.toast(aviso[0], icon=aviso[1])
 if ss.pop("celebrar", False):
     st.balloons()
+if ss.pop("confeti", False):
+    confeti()
 
 
 def nombre_dificultad(d) -> str:
@@ -48,11 +53,13 @@ def ocultar_barra_lateral() -> None:
 en_examen = ss.get("examen") is not None
 if en_examen:
     ocultar_barra_lateral()
-cabecera = st.empty()  # el encabezado se llena cuando ya se sabe el tema y el nivel
+# El encabezado se llena más abajo, cuando ya se sabe el tema y el nivel. Es un contenedor y no st.empty():
+# así se actualiza en su lugar y no vuelve a entrar animado con cada clic.
+cabecera = st.container()
 
 cuat_id = perfil.cuatrimestre_de(user["id"])
 if cuat_id is None:
-    with cabecera.container():
+    with cabecera:
         encabezado("Completa tu perfil", "Elige tu universidad, carrera y cuatrimestre/semestre para ver tus materias.",
                    "user")
     with st.container(border=True):
@@ -81,7 +88,7 @@ with st.sidebar:
         sel = selector_cascada(hasta="tema", prefix="chat_todas")
 tema_id = sel.get("tema")
 if tema_id is None:
-    with cabecera.container():
+    with cabecera:
         encabezado(saludo(user["nombre"]), "Elige una materia y un tema en el menú de la izquierda para empezar.", "book")
     st.info("Elige materia, unidad y tema en el menú de la izquierda para empezar.", icon=":material/arrow_back:")
     st.stop()
@@ -92,7 +99,7 @@ estado = niveles.estado_tema(user["id"], tema_id)
 
 xp_texto = (f"{estado['xp_efectivo']}/{estado['siguiente_xp']} XP para subir" if estado["siguiente_xp"]
             else f"{estado['xp_efectivo']} XP · nivel máximo")
-with cabecera.container():
+with cabecera:
     if en_examen:
         repaso_activo = ss.examen.get("tipo") == "repaso"
         encabezado("Repaso de errores" if repaso_activo else "Examen", tema_nombre,
@@ -270,7 +277,7 @@ def vista_ejercicio() -> None:
             titulo("bulb", "Ejercicio práctico", nivel=4)
             st.write(f"Un ejercicio práctico sobre **{tema_nombre}**. "
                      "Lo resuelves a tu ritmo y la IA lo califica de 0 a 10.")
-            if st.button("Plantéame un ejercicio", type="primary", icon=":material/edit_note:"):
+            if st.button("Plantéame un ejercicio", type="primary", icon=":material/edit_note:", key="cta_ejercicio"):
                 try:
                     with st.spinner("Preparando el ejercicio…"):
                         fragmentos = rag.chunks_aleatorios(tema_id, 3)
@@ -319,7 +326,9 @@ def vista_ejercicio() -> None:
             ej["resultado"] = r
             ss["aviso"] = (f"Calificación: {r['puntaje']}/10", ":material/grading:")
             if r["puntaje"] >= 9:
-                ss["celebrar"] = True
+                ss["celebrar"] = True  # globos: calificación sobresaliente
+            elif r["puntaje"] >= 6:
+                ss["confeti"] = True   # confeti: ejercicio aprobado
             st.rerun()
         except Exception as e:
             st.error(str(e))
@@ -344,7 +353,7 @@ def vista_examen_inicio() -> None:
     with st.container(border=True):
         total = st.number_input("Número de preguntas", min_value=3, max_value=10,
                                 value=examen.PREGUNTAS_POR_DEFECTO, step=1)
-        if st.button("Comenzar examen", type="primary", icon=":material/play_arrow:"):
+        if st.button("Comenzar examen", type="primary", icon=":material/play_arrow:", key="cta_examen"):
             nueva_conversacion("conv_examen", "Examen")
             ss.examen = examen.nuevo_examen(int(total), prog["nivel"])
             ss.examen["xp_inicial"], ss.examen["nivel_inicial"] = estado["xp_efectivo"], estado["nivel"]
@@ -372,6 +381,7 @@ def responder_examen(q: dict, eleccion: int) -> None:
     puntos = (q.get("dificultad") or 2) if r["es_correcta"] else 0
     ss["aviso"] = ((f"¡Correcto! +{puntos} XP", ":material/celebration:") if r["es_correcta"]
                    else ("Casi: revisa la explicación y sigue", ":material/lightbulb:"))
+    ss["confeti"] = bool(r["es_correcta"])  # cada acierto se festeja con confeti
     if examen.terminado(ex):
         despues = niveles.estado_tema(user["id"], tema_id)
         base = examen.resumen_repaso(ex) if repaso else examen.resumen_texto(ex)
@@ -379,9 +389,12 @@ def responder_examen(q: dict, eleccion: int) -> None:
         chat.guardar_mensaje(ss.conv_examen, "assistant", resumen)
         ss["repaso_resumen" if repaso else "examen_resumen"] = resumen
         ex["fase"] = "final"
-        if despues["nivel"] > ex["nivel_inicial"]:  # subió de nivel: confeti
+        aciertos = sum(1 for res in ex["resultados"] if res["acerto"])
+        if despues["nivel"] > ex["nivel_inicial"]:  # subió de nivel: globos
             ss["celebrar"] = True
             ss["aviso"] = (f"¡Subiste a nivel {despues['nivel']} · {despues['nombre_nivel']}!", ":material/military_tech:")
+        elif aciertos / len(ex["resultados"]) >= 0.8:  # terminó con 80% o más: globos
+            ss["celebrar"] = True
     st.rerun()
 
 
@@ -393,7 +406,8 @@ def vista_examen_en_curso() -> None:
     rev = ex.get("revision")
     if rev:  # retroalimentación de la pregunta que acabas de contestar
         d = nombre_dificultad(rev["dificultad"])
-        with st.container(border=True):
+        reanimar("tarjeta_revision", rev["numero"], "voltear", 0.7)  # la tarjeta «se voltea» para mostrar la respuesta
+        with st.container(border=True, key="tarjeta_revision"):
             st.caption(f"Pregunta {rev['numero']}" + (f" · dificultad {d}" if d and ex.get("tipo") != "repaso" else ""))
             st.markdown(f"**{rev['pregunta']}**")
             for i, o in enumerate(rev["opciones"]):
@@ -435,11 +449,12 @@ def vista_examen_en_curso() -> None:
             return
     q = ex["quiz"]
     d = nombre_dificultad(q.get("dificultad"))
-    with st.container(border=True):
+    reanimar("tarjeta_pregunta", q["id"], "der")  # cada pregunta nueva entra deslizándose
+    with st.container(border=True, key="tarjeta_pregunta"):
         st.caption(f"Pregunta {ex['numero']} de {ex['total']}"
                    + (f" · dificultad {d}" if d and ex.get("tipo") != "repaso" else ""))
         st.markdown(f"### {q['pregunta']}")
-        eleccion = st.radio("Elige una opción", range(4), index=None, key=f"quiz_{q['id']}",
+        eleccion = st.radio("Elige una opción", range(4), index=None, key=f"quiz_{q['id']}", width="stretch",
                             format_func=lambda i: f"{LETRAS[i]}) {q['opciones'][i]}", label_visibility="collapsed")
     b1, b2 = st.columns([1, 3])
     if b2.button("Abandonar examen", key=f"abandonar_{q['id']}", icon=":material/close:"):
@@ -470,9 +485,11 @@ def vista_repaso() -> None:
         st.caption("Aquí aparecen las preguntas que fallaste y que todavía no has contestado bien.")
         return
     titulo("refresh", "Tus errores por corregir")
+    a_practicar = min(len(pendientes), 5)
     datos([{"icono": "target", "etiqueta": "Preguntas por corregir", "valor": len(pendientes),
             "detalle": f"en {tema_nombre}", "tono": "ambar"},
-           {"icono": "zap", "etiqueta": "Práctica de hoy", "valor": f"{min(len(pendientes), 5)} preguntas",
+           {"icono": "zap", "etiqueta": "Práctica de hoy",
+            "valor": f"{a_practicar} {'pregunta' if a_practicar == 1 else 'preguntas'}",
             "detalle": "una por una, sin distracciones", "tono": "indigo"}])
     st.caption("Abre cada pregunta para ver la respuesta correcta, o practícalas de nuevo con el botón de abajo.")
     for i, q in enumerate(pendientes, 1):
@@ -480,7 +497,7 @@ def vista_repaso() -> None:
             for j, o in enumerate(q["opciones"]):
                 opcion_md(j, o, "ok" if j == q["indice_correcto"] else "neutro")
             st.markdown(q["explicacion"])
-    if st.button(f"Practicar mis errores ({min(len(pendientes), 5)})", type="primary", icon=":material/replay:"):
+    if st.button(f"Practicar mis errores ({a_practicar})", type="primary", icon=":material/replay:", key="cta_repaso"):
         nueva_conversacion("conv_examen", "Repaso de errores")
         ss.examen = examen.nuevo_repaso(pendientes[:5], prog["nivel"])
         ss.examen["xp_inicial"], ss.examen["nivel_inicial"] = estado["xp_efectivo"], estado["nivel"]
@@ -494,6 +511,7 @@ if ss.examen is not None:
     vista_examen_en_curso()
 else:
     modo = st.radio("Modo", MODOS, horizontal=True, key="modo_chat", label_visibility="collapsed")
+    reanimar_siguientes("modo_chat", MODOS.index(modo))  # al cambiar de pestaña, su contenido entra animado
     st.write("")
     if modo == MODOS[0]:
         vista_conversacion()

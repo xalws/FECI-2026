@@ -5,7 +5,7 @@ import streamlit as st
 
 from core import tema
 from core.auth import iniciar_db
-from core.estilo import aplicar_estilo
+from core.estilo import aplicar_estilo, transicion
 
 st.set_page_config(page_title="Tutor Universitario", page_icon="🎓", layout="wide")
 iniciar_db()
@@ -44,4 +44,5 @@ else:
     st.session_state.pop("user", None)
     nav = st.navigation([st.Page("vistas/login.py", title="Iniciar sesión", icon=":material/login:", url_path="login")],
                         position="hidden")
+transicion(nav.url_path or nav.title)  # al cambiar de pantalla, el contenido vuelve a entrar animado
 nav.run()
