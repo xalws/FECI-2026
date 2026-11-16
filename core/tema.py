@@ -40,6 +40,7 @@ def restaurar_sesion() -> None:
     item = _pendientes().pop(codigo, None)
     if item and item[1] >= time.time() and item[0] and "user" not in st.session_state:
         st.session_state["user"] = item[0]
+        st.session_state["_cargando"] = True
 
 
 # JavaScript que se ejecuta en la página (no en un iframe, que no puede navegar): guarda la preferencia y recarga

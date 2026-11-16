@@ -46,6 +46,7 @@ def cerrar_sesion() -> None:
     sesion.revocar(st.session_state.get("_token_sesion"))  # el código recordado deja de servir
     for k in list(st.session_state.keys()):
         del st.session_state[k]
+    st.session_state["_inicio_hecho"] = True  # no volver a mostrar la pantalla de carga de arranque
     sesion.cerrar()  # borra la cookie del navegador
 
 
@@ -53,7 +54,10 @@ def barra_lateral(user: dict) -> None:
     # Tarjeta del usuario, modo claro/oscuro y cerrar sesión: el CSS (core/estilo.py) manda este bloque al
     # final del menú lateral, debajo del selector de tema de cada pantalla
     with st.sidebar.container(key="bloque_usuario"):
-        estilo.tarjeta_usuario(user)
+        # La tarjeta del usuario es el acceso a «Mi cuenta»: un enlace invisible la cubre (el CSS oculta la página del menú)
+        with st.container(key="tarjeta_usuario_link"):
+            estilo.tarjeta_usuario(user)
+            st.page_link("vistas/cuenta.py", label="Mi cuenta", icon=":material/manage_accounts:")
         tema.boton()
         if st.button("Cerrar sesión", icon=":material/logout:", width="stretch", key="btn_cerrar_sesion"):
             cerrar_sesion()

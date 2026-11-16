@@ -89,7 +89,8 @@ if cuat_id is None:
             st.rerun()
     st.stop()
 
-with st.sidebar:
+def bloque_academico() -> None:
+    """Universidad, carrera y cuatrimestre del alumno, con la opción de cambiarlos (va debajo de la barra de XP)."""
     st.divider()
     datos_acad = perfil.datos_academicos(cuat_id)
     if datos_acad:
@@ -99,6 +100,10 @@ with st.sidebar:
         if sel_nuevo.get("cuatrimestre") and st.button("Guardar cambio", icon=":material/save:"):
             perfil.asignar_cuatrimestre(user["id"], sel_nuevo["cuatrimestre"])
             st.rerun()
+
+
+with st.sidebar:
+    st.divider()
     titulo("layers", "Elige tu tema")
     materias_clase = clases.materias_del_alumno(user["id"])
     opciones_ver = ["Mi cuatrimestre"] + (["Mis clases"] if materias_clase else []) + ["Todas las materias"]
@@ -118,6 +123,8 @@ if tema_id is None:
     with cabecera:
         encabezado(saludo(user["nombre"]), "Elige una materia y un tema en el menú de la izquierda para empezar.", "book")
     st.info("Elige materia, unidad y tema en el menú de la izquierda para empezar.", icon=":material/arrow_back:")
+    with st.sidebar:
+        bloque_academico()
     st.stop()
 tema_nombre = nombre_tema(tema_id)
 prog = progreso.progreso_tema(user["id"], tema_id)
@@ -148,6 +155,7 @@ with st.sidebar:
     siguiente = f"{estado['xp_efectivo']}/{estado['siguiente_xp']} XP" if estado["siguiente_xp"] else "nivel máximo"
     st.progress(estado["porcentaje"] / 100,
                 text=f"Nivel del tema: {estado['nivel']} · {estado['nombre_nivel']} ({siguiente})")
+    bloque_academico()
 
 # si cambia el tema se empieza de cero
 for clave in ("conv_id", "conv_ejercicio", "conv_examen", "examen", "examen_resumen", "repaso_resumen", "ejercicio"):

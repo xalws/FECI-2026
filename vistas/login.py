@@ -15,6 +15,7 @@ with col_acceso:
                     '<div class="tu-acceso-ayuda">Entra con tu cuenta o regístrate como alumno.</div>',
                     unsafe_allow_html=True)
         tab_login, tab_registro = st.tabs([":material/login: Iniciar sesión", ":material/person_add: Registrarme (alumno)"])
+        carga = st.empty()  # aquí se dibuja la pantalla de carga al pulsar «Entrar»
 
         with tab_login:
             with st.form("form_login", border=False):
@@ -24,14 +25,17 @@ with col_acceso:
                                        help="Así no tienes que escribir tu contraseña si recargas la página. "
                                             "Dura 14 días; desmárcala en computadoras compartidas.")
                 if st.form_submit_button("Entrar", type="primary", icon=":material/arrow_forward:", width="stretch"):
+                    estilo.mostrar_carga(carga)  # de inmediato: comprobar la contraseña y abrir la sesión puede tardar
                     u = login(email, password)
                     if u:
                         st.session_state["user"] = u
                         st.session_state.pop("_sesion_cerrada", None)
+                        st.session_state["_cargando"] = True  # app.py la mantiene hasta que cargue la primera pantalla
                         if recordar:
                             sesion.recordar(u["id"])
                         st.rerun()
                     else:
+                        carga.empty()
                         st.error("Correo o contraseña incorrectos.", icon=":material/error:")
             st.caption(":material/help: ¿Olvidaste tu contraseña? Pídele al administrador que la restablezca; "
                        "después puedes cambiarla en «Mi cuenta».")

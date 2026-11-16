@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 
 ZONA_POR_DEFECTO = "America/Ciudad_Juarez"
+NOMBRE_APP = "PRACTIC_APP"
 
 # Interruptor de las animaciones «llamativas» (entradas, rebotes, conteos, confeti). Con False la app queda
 # con las transiciones básicas. El navegador también las apaga solo si el usuario pidió «reducir movimiento».
@@ -37,6 +38,7 @@ ICONOS = {
     "calendar": '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
     "cap": '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
     "chart": '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+    "chevron": '<path d="m9 18 6-6-6-6"/>',
     "check": '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
     "circle": '<circle cx="12" cy="12" r="10"/>',
     "clipboard": '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
@@ -340,7 +342,8 @@ def tarjeta_usuario(user: dict) -> None:
     st.markdown(
         f'<div class="tu-usuario"><div class="tu-avatar">{_e(iniciales(user.get("nombre", "")))}</div>'
         f'<div class="tu-usuario-datos"><div class="tu-usuario-nombre">{_e(user.get("nombre", ""))}</div>'
-        f'<span class="tu-rol tu-rol-{_e(rol)}">{_e(roles.get(rol, rol))}</span></div></div>',
+        f'<span class="tu-rol tu-rol-{_e(rol)}">{_e(roles.get(rol, rol))}</span></div>'
+        f'<span class="tu-usuario-ir" title="Mi cuenta">{svg("chevron", 18)}</span></div>',
         unsafe_allow_html=True)
 
 
@@ -375,6 +378,25 @@ def insignias(*items: tuple) -> None:
     _html(f'<div class="tu-insignias">{"".join(insignia(*it) for it in items)}</div>')
 
 
+def carga_html(mensaje: str = "Preparando tu espacio de estudio…") -> str:
+    """Pantalla de carga a pantalla completa: el ícono y el nombre de la app en una ola, y una barra que avanza.
+
+    La ola recorre el ícono y cada letra de izquierda a derecha, en bucle. La barra no mide el avance real (Streamlit
+    no lo sabe): sube rápido al principio y se frena cerca del final, y la pantalla se quita sola cuando la página
+    termina de dibujarse. Si todo carga en menos de ~0,3 s ni siquiera aparece.
+    """
+    letras = "".join(f'<span style="--i:{n}" aria-hidden="true">{_e(c)}</span>' for n, c in enumerate(NOMBRE_APP, 1))
+    return (f'<div class="tu-carga" role="status" aria-live="polite"><div class="tu-carga-centro">'
+            f'<div class="tu-carga-marca"><span class="tu-carga-logo" style="--i:0">{svg("cap", 36)}</span>'
+            f'<div class="tu-carga-nombre" aria-label="{_e(NOMBRE_APP)}">{letras}</div></div>'
+            f'<div class="tu-carga-texto">{_e(mensaje)}</div><div class="tu-carga-barra"><i></i></div></div></div>')
+
+
+def mostrar_carga(lugar) -> None:
+    """Dibuja la pantalla de carga en un `st.empty()`; se quita con `lugar.empty()`."""
+    lugar.markdown(carga_html(), unsafe_allow_html=True)
+
+
 def marca_acceso() -> None:
     """Panel de presentación de la pantalla de inicio de sesión."""
     rasgos = [("message", "Un tutor siempre disponible",
@@ -386,7 +408,7 @@ def marca_acceso() -> None:
     filas = "".join(f'<div class="tu-rasgo"><span class="tu-rasgo-icono">{svg(i, 20)}</span>'
                     f'<div><b>{_e(t)}</b><span>{_e(d)}</span></div></div>' for i, t, d in rasgos)
     _html(f'<div class="tu-acceso-hero"><div class="tu-acceso-marca"><span class="tu-acceso-logo">'
-          f'{svg("cap", 30)}</span><div><div class="tu-acceso-nombre">Tutor Universitario</div>'
+          f'{svg("cap", 30)}</span><div><div class="tu-acceso-nombre">{NOMBRE_APP}</div>'
           f'<div class="tu-acceso-lema">Estudia a tu ritmo, con tu propio material</div></div></div>'
           f'<div class="tu-acceso-titulo">Aprende con un tutor que conoce tu clase</div>'
           f'<div class="tu-acceso-texto">Pregunta, practica y mide tu avance con el contenido que sube tu '
@@ -565,6 +587,34 @@ background:linear-gradient(135deg,#2F6FD8,#5B9BEF);color:#fff;font-weight:800;fo
 .tu-rol-alumno{background:rgba(14,165,233,.2);color:#7DD3FC}.tu-rol-maestro{background:rgba(16,185,129,.2);color:#6EE7B7}
 .tu-rol-admin{background:rgba(245,158,11,.2);color:#FCD34D}
 
+/* Pantalla de carga: ola de izquierda a derecha (ícono y letras), ondas alrededor del ícono y barra de avance */
+.tu-carga{position:fixed;inset:0;z-index:1000002;display:flex;align-items:center;justify-content:center;background:#0B3D91;color:#fff;
+opacity:0;animation:tu-carga-entra .3s ease .3s forwards}
+.tu-carga-centro{display:flex;flex-direction:column;align-items:center;gap:18px;padding:0 24px;text-align:center}
+.tu-carga-marca{display:flex;align-items:center;justify-content:center;gap:16px}
+.tu-carga-logo{position:relative;flex-shrink:0;width:68px;height:68px;border-radius:21px;display:flex;align-items:center;justify-content:center;
+background:linear-gradient(135deg,#2F6FD8,#5B9BEF);box-shadow:0 14px 34px -14px rgba(0,0,0,.6);
+animation:tu-carga-ola 1.6s ease-in-out calc(var(--i)*.09s + .3s) infinite}
+.tu-carga-logo::before{content:"";position:absolute;inset:0;border-radius:inherit;border:2px solid rgba(255,255,255,.6);
+animation:tu-carga-onda 1.8s ease-out .3s infinite}
+.tu-carga-logo::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.55) 50%,transparent 65%);background-size:260% 100%;background-position:160% 0;
+animation:tu-carga-brillo 2.2s ease-in-out .5s infinite}
+.tu-carga-logo svg{animation:tu-carga-birrete 1.6s ease-in-out .3s infinite;transform-origin:50% 60%}
+.tu-carga-nombre{display:flex;font-family:"Plus Jakarta Sans",sans-serif;font-weight:800;font-size:clamp(1.55rem,6vw,2.7rem);letter-spacing:.03em;line-height:1}
+.tu-carga-nombre span{display:inline-block;animation:tu-carga-ola 1.6s ease-in-out calc(var(--i)*.09s + .3s) infinite}
+.tu-carga-texto{font-size:.95rem;color:rgba(255,255,255,.78)}
+.tu-carga-barra{width:min(340px,74vw);height:8px;border-radius:999px;background:rgba(255,255,255,.2);overflow:hidden;margin-top:4px}
+.tu-carga-barra i{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,#9DBBF0,#fff);animation:tu-carga-barra 7s cubic-bezier(.08,.75,.2,1) .3s forwards}
+@keyframes tu-carga-entra{to{opacity:1}}
+@keyframes tu-carga-barra{to{width:93%}}
+@keyframes tu-carga-ola{0%,55%,100%{transform:translateY(0) scale(1)}28%{transform:translateY(-14px) scale(1.08)}}
+@keyframes tu-carga-onda{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.7);opacity:0}}
+@keyframes tu-carga-brillo{0%,40%{background-position:160% 0}80%,100%{background-position:-60% 0}}
+@keyframes tu-carga-birrete{0%,55%,100%{transform:rotate(0)}28%{transform:rotate(-12deg) scale(1.12)}42%{transform:rotate(7deg)}}
+@media (prefers-reduced-motion:reduce){.tu-carga{display:none}}
+[data-testid="stElementContainer"]:has(.tu-carga){position:absolute;width:0;height:0;opacity:1!important}
+
 /* Medallas de logros: bronce, plata, élite (color de la categoría) y oro (con brillo) */
 .tu-med{position:relative;display:inline-block;width:var(--tam,64px);height:var(--tam,64px);flex-shrink:0;border-radius:50%}
 .tu-med-aro{position:absolute;inset:0;border-radius:50%;padding:calc(var(--tam,64px)*.085);background:var(--aro);box-shadow:var(--halo,none)}
@@ -641,6 +691,18 @@ box-shadow:var(--tu-sombra)}
 .tu-logro.logrado{border-color:color-mix(in srgb,var(--color) 40%,var(--tu-borde))}
 .tu-logro.pendiente .tu-logro-icono{background:var(--tu-pista);color:var(--tu-gris)}
 .tu-logro.pendiente .tu-logro-titulo{color:var(--tu-gris)}
+
+/* Sin la línea que Streamlit dibuja bajo el menú: ya hay una línea sobre el bloque del usuario y quita espacio */
+[data-testid="stSidebarNavSeparator"]{display:none}
+/* «Mi cuenta» ya no está en el menú: se entra desde la tarjeta del usuario */
+[data-testid="stSidebarNavItems"]>div:has(a[href$="/cuenta"]){display:none}
+.st-key-tarjeta_usuario_link{position:relative;margin-bottom:.45rem}
+.st-key-tarjeta_usuario_link [data-testid="stElementContainer"]:has(a[data-testid="stPageLink-NavLink"]){position:absolute;inset:0;z-index:2;margin:0}
+.st-key-tarjeta_usuario_link [data-testid="stPageLink"],.st-key-tarjeta_usuario_link a[data-testid="stPageLink-NavLink"]{display:block;width:100%;height:100%;opacity:0;cursor:pointer}
+.st-key-tarjeta_usuario_link .tu-usuario{margin:0;transition:transform var(--tu-normal,.22s) ease,background .2s ease,border-color .2s ease}
+.st-key-tarjeta_usuario_link:hover .tu-usuario{transform:scale(1.02);background:rgba(255,255,255,.1);border-color:rgba(157,187,240,.4)}
+.tu-usuario-ir{margin-left:auto;display:flex;color:rgba(157,187,240,.75);transition:transform .22s ease}
+.st-key-tarjeta_usuario_link:hover .tu-usuario-ir{transform:translateX(3px);color:#fff}
 
 /* Bloque del usuario (tarjeta, modo claro/oscuro y cerrar sesión): siempre al final del menú lateral */
 [data-testid="stSidebarContent"]{display:flex;flex-direction:column}
@@ -734,7 +796,7 @@ CSS_ANIMACIONES = (
 @keyframes tu-conf-y{0%{opacity:1;transform:translateY(0) rotate(0);animation-timing-function:cubic-bezier(.12,.8,.3,1)}40%{opacity:1;transform:translateY(var(--up)) rotate(calc(var(--r)*.45));animation-timing-function:cubic-bezier(.6,0,.95,.55)}100%{opacity:0;transform:translateY(55vh) rotate(var(--r))}}
 
 /* Cambio de pantalla: el contenido entra en cascada corta (los retrasos por posición se agregan abajo) */
-%B>*:not(:has(.tu-confeti)){animation:tu-subir var(--tu-lento) var(--tu-e) backwards}
+%B>*:not(:has(.tu-confeti,.tu-carga)){animation:tu-subir var(--tu-lento) var(--tu-e) backwards}
 [data-testid="stBottomBlockContainer"]{animation:tu-subir var(--tu-lento) var(--tu-e) .15s backwards}
 [data-testid="stTabPanel"]{animation:tu-subir .3s var(--tu-e) backwards}
 [data-testid="stExpander"] details[open]>[data-testid="stExpanderDetails"]{animation:tu-desplegar .25s var(--tu-e)}
@@ -920,7 +982,7 @@ def transicion(token) -> None:
     k = _ficha(token)
     nombres = ("subir", "rebote", "pop", "izq", "der", "contar", "llenar", "barra")
     reglas = "".join(f"@keyframes tu-{n}-{k}{{{_FOTOGRAMAS[n]}}}" for n in nombres) + (
-        f"{_APP} {_BLOQUE}>*:not(:has(.tu-confeti)){{animation-name:tu-subir-{k}}}"
+        f"{_APP} {_BLOQUE}>*:not(:has(.tu-confeti,.tu-carga)){{animation-name:tu-subir-{k}}}"
         f"{_APP} .tu-dato,{_APP} .tu-anillo-tarjeta{{animation-name:tu-rebote-{k}}}"
         f"{_APP} .tu-item{{animation-name:tu-der-{k}}}"
         f"{_APP} .tu-hero-icono{{animation-name:tu-pop-{k},tu-flotar-y}}"
@@ -947,7 +1009,7 @@ def reanimar_siguientes(clave: str, token) -> None:
         return
     nombre = f"tu-subir-{_ficha(clave)}-{_ficha(token)}"
     st.html(f"<style>@keyframes {nombre}{{{_FOTOGRAMAS['subir']}}}"
-            f"{_APP} {_BLOQUE}>.st-key-{clave}~*:not(:has(.tu-confeti)){{animation-name:{nombre}}}</style>")
+            f"{_APP} {_BLOQUE}>.st-key-{clave}~*:not(:has(.tu-confeti,.tu-carga)){{animation-name:{nombre}}}</style>")
 
 
 def confeti(piezas: int = 80) -> None:

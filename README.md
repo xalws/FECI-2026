@@ -1,4 +1,4 @@
-# Tutor Universitario con IA (FECI-2026)
+# PRACTIC_APP: tutor universitario con IA (FECI-2026)
 
 Aplicación web hecha con Streamlit que funciona como tutor universitario. Los maestros suben su material de
 clase en PDF y los alumnos conversan con una IA que **responde solo con ese material**, practica con ellos

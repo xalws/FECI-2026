@@ -124,6 +124,7 @@ def restaurar() -> None:
     if usuario:
         ss["user"] = usuario
         ss["_token_sesion"] = token
+        ss["_cargando"] = True  # al recargar con la sesión recordada también puede tardar: se muestra la pantalla de carga
     elif token:  # vencida, revocada o de una cuenta dada de baja: se borra para no volver a probarla
         ss["_cookie_pendiente"] = ("borrar", "")
 

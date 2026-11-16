@@ -5,9 +5,9 @@ import streamlit as st
 
 from core import sesion, tema
 from core.auth import iniciar_db
-from core.estilo import aplicar_estilo, transicion
+from core.estilo import aplicar_estilo, mostrar_carga, transicion
 
-st.set_page_config(page_title="Tutor Universitario", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="PRACTIC_APP", page_icon="🎓", layout="wide")
 iniciar_db()
 tema.restaurar_sesion()  # tras cambiar de modo claro/oscuro la página se recarga: vuelve a su sesión
 sesion.restaurar()       # «Recordarme»: si el navegador trae un código vigente, se recupera la sesión
@@ -50,4 +50,16 @@ else:
     nav = st.navigation([st.Page("vistas/login.py", title="Iniciar sesión", icon=":material/login:", url_path="login")],
                         position="hidden")
 transicion(nav.url_path or nav.title)  # al cambiar de pantalla, el contenido vuelve a entrar animado
-nav.run()
+# Tras iniciar sesión (o recuperarla) la primera pantalla puede tardar: se muestra la pantalla de carga hasta que termine
+# Cada recarga del navegador abre una sesión nueva: su primera ejecución también muestra la pantalla de carga
+if not st.session_state.get("_inicio_hecho"):
+    st.session_state["_inicio_hecho"] = True
+    st.session_state["_cargando"] = True
+carga = st.empty() if st.session_state.pop("_cargando", False) else None
+if carga is not None:
+    mostrar_carga(carga)
+try:
+    nav.run()
+finally:  # también cuando la página termina con st.stop() o st.rerun()
+    if carga is not None:
+        carga.empty()
