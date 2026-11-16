@@ -21,6 +21,31 @@ class TestIntencion(unittest.TestCase):
         for texto in ("retroalimentación", "dame retroalimentación", "¿qué vimos?", "cómo voy"):
             self.assertEqual(tutoria.detectar_intencion(texto), "retro", texto)
 
+    def test_siguiente_leccion_es_continuar(self):
+        for texto in ("siguiente leccion", "Siguiente lección", "siguiente", "la siguiente", "¿Qué sigue?", "y que sigue",
+                      "pasemos a la siguiente lección", "próximo tema", "avancemos", "adelante"):
+            self.assertEqual(tutoria.detectar_intencion(texto), "continuar", texto)
+
+    def test_siguiente_dentro_de_una_pregunta_de_contenido_no_se_confunde(self):
+        for texto in ("cuál es el siguiente paso para calcular la resistencia equivalente",
+                      "¿qué sigue después de aplicar la ley de ohm en un circuito?"):
+            self.assertIsNone(tutoria.detectar_intencion(texto), texto)
+
+    def test_consulta_de_busqueda(self):
+        hist = [{"rol": "user", "contenido": "qué es la resistividad"}, {"rol": "assistant", "contenido": "La resistividad ρ mide…"}]
+        corta = tutoria.consulta_de_busqueda(hist, "como?")
+        self.assertIn("como?", corta)
+        self.assertIn("La resistividad ρ mide", corta)  # lo último que explicó el tutor
+        self.assertIn("qué es la resistividad", corta)
+        larga = "explícame cómo se calcula la resistencia equivalente en paralelo"
+        self.assertEqual(tutoria.consulta_de_busqueda(hist, larga), larga)
+        self.assertEqual(tutoria.consulta_de_busqueda([], "como?"), "como?")
+
+    def test_es_seguimiento(self):
+        self.assertTrue(tutoria.es_seguimiento([{"rol": "user", "contenido": "x"}], "como?"))
+        self.assertFalse(tutoria.es_seguimiento([], "como?"))
+        self.assertFalse(tutoria.es_seguimiento([{"rol": "user", "contenido": "x"}], "explícame la ley de ohm completa por favor"))
+
     def test_saludos(self):
         for texto in ("hola", "Hola!", "buenas tardes", "buenos días", "hey"):
             self.assertEqual(tutoria.detectar_intencion(texto), "saludo", texto)

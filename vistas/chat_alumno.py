@@ -2,6 +2,7 @@ import streamlit as st
 
 from core import chat, clases, examen, llm, logros, material, niveles, perfil, progreso, quiz, rag, tutoria
 from core.auth import require_login
+from core.estudiante import cargando
 from core.estilo import (confeti, datos, encabezado, fecha_local, reanimar, reanimar_siguientes, saludo, svg,
                          titulo, zona_horaria)
 from core.llm import DIFICULTADES
@@ -175,14 +176,6 @@ def nueva_conversacion(clave: str, titulo_conv: str) -> int:
     return ss[clave]
 
 
-def construir_consulta(historial: list[dict], pregunta: str) -> str:
-    if len(pregunta.split()) < 6:
-        previas = [m["contenido"] for m in historial if m["rol"] == "user"]
-        if previas:
-            return previas[-1] + " " + pregunta
-    return pregunta
-
-
 def texto_fuentes(fragmentos: list[dict]) -> str:
     # Lista única de "archivo, pág. N" de los 3 fragmentos más parecidos a la pregunta.
     vistas = []
@@ -216,7 +209,7 @@ def fragmentos_para(historial: list[dict]) -> list[dict]:
 def accion_tutor(intencion: str, texto_alumno: str | None = None) -> None:
     # El tutor guía la conversación
     try:
-        with st.spinner("Pensando…"):
+        with cargando("Pensando…"):
             conv = ss.conv_id or nueva_conversacion(
                 "conv_id", f"Lección: {tema_nombre}" if intencion == "iniciar" else (texto_alumno or "Conversación"))
             historial = chat.listar_mensajes(conv)
@@ -313,7 +306,9 @@ def vista_conversacion() -> None:
         lugar.markdown("Pensando…")
         escrito = ""
         try:
-            fragmentos = rag.buscar(tema_id, construir_consulta(historial, pregunta))
+            fragmentos = rag.buscar(tema_id, tutoria.consulta_de_busqueda(historial, pregunta))
+            if not fragmentos and tutoria.es_seguimiento(historial, pregunta):
+                fragmentos = rag.chunks_aleatorios(tema_id, 3)  # «como?»: que el tutor decida con la conversación
             # la respuesta se muestra conforme el modelo la va escribiendo
             for trozo in llm.responder_en_vivo(tema_nombre, pregunta, fragmentos, historial, prog["nivel"]):
                 escrito += trozo
@@ -341,7 +336,7 @@ def vista_ejercicio() -> None:
                      "Lo resuelves a tu ritmo y la IA lo califica de 0 a 10.")
             if st.button("Plantéame un ejercicio", type="primary", icon=":material/edit_note:", key="cta_ejercicio"):
                 try:
-                    with st.spinner("Preparando el ejercicio…"):
+                    with cargando("Preparando el ejercicio…"):
                         fragmentos = rag.chunks_aleatorios(tema_id, 3)
                         enunciado = llm.responder(tema_nombre, "Plantéame un ejercicio práctico sobre este tema.",
                                                   fragmentos, [], prog["nivel"])
@@ -379,7 +374,7 @@ def vista_ejercicio() -> None:
             st.warning("Escribe tu respuesta primero.")
             return
         try:
-            with st.spinner("Calificando…"):
+            with cargando("Calificando…"):
                 r = llm.calificar_ejercicio(ej["enunciado"], resp_ej, ej["fragmentos"])
             progreso.guardar_intento(user["id"], tema_id, ej["enunciado"], resp_ej, r["puntaje"], r["retroalimentacion"])
             chat.guardar_mensaje(ss.conv_ejercicio, "user", f"**Mi respuesta al ejercicio:**\n\n{resp_ej}")
@@ -494,7 +489,7 @@ def vista_examen_en_curso() -> None:
     if ex["quiz"] is None:
         error = None
         try:
-            with st.spinner("Preparando la pregunta…"):
+            with cargando("Preparando la pregunta…"):
                 ex["quiz"] = quiz.crear_quiz(tema_id, ss.conv_examen, ex["dificultad"], user["id"])
         except Exception as e:
             error = e

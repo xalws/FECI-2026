@@ -91,6 +91,11 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
   no se muestran calificaciones ni errores. Solo lo ven los compañeros de clase, su maestro y el administrador.
 
 **Todos los roles**
+- **Animación de carga:** mientras la IA prepara una pregunta, un ejercicio, una calificación o una explicación, debajo
+  del indicador aparece una animación distinta cada vez (11 en total, sin repetir la anterior): un libro que pasa sus páginas, un lápiz que
+  escribe, un birrete que se lanza, una pila de libros, una lupa, una bombilla, engranes, barras, una lista de tareas,
+  un cohete y un átomo (`core/estudiante.py` y `core/cargas.py`). Es un SVG con
+  CSS (`core/estudiante.py`), funciona en tema claro y oscuro, y con «reducir movimiento» queda quieta.
 - **Sesión recordada:** al marcar «Mantener mi sesión iniciada» (14 días) no hay que volver a entrar al recargar
   la página. En el navegador solo queda un código aleatorio; la base guarda su huella SHA-256 (tabla `sesiones`).
   Cerrar sesión, cambiar la contraseña o desactivar la cuenta lo invalidan. No usarla en equipos compartidos.

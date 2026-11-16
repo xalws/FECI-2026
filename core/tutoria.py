@@ -36,6 +36,34 @@ estas tres partes breves: **Lo que ya vimos**, **Dónde tuviste dudas o fallos**
 _SALUDOS = {"hola", "holaa", "buenas", "buenos", "dias", "tardes", "noches", "hey", "que", "tal", "saludos", "buen", "dia"}
 
 
+_SIGUIENTE = re.compile(r"^(y )?que sigue( ahora)?$|^(la |el |lo )?(siguiente|proxim[oa])( leccion| tema| punto| paso| parte)?$"
+                        r"|^(pasemos a |pasar a |vamos a |ir a )?(la |el )?(siguiente|proxim[oa]) (leccion|tema|punto|paso|parte)$"
+                        r"|^avancemos$|^avanza$|^adelante$")
+
+
+def consulta_de_busqueda(historial: list[dict], pregunta: str) -> str:
+    """Texto con el que se busca en el material.
+
+    Un mensaje corto («como?», «y eso?») no dice nada por sí solo: se le suma lo último que explicó el tutor y lo
+    último que preguntó el alumno, para que la búsqueda encuentre el pasaje del que se está hablando.
+    """
+    if len(pregunta.split()) >= 6:
+        return pregunta
+    tutor = [m["contenido"] for m in historial if m["rol"] != "user"]
+    alumno = [m["contenido"] for m in historial if m["rol"] == "user"]
+    partes = [pregunta]
+    if tutor:
+        partes.append(tutor[-1][:400])
+    if alumno:
+        partes.append(alumno[-1])
+    return " ".join(partes)
+
+
+def es_seguimiento(historial: list[dict], pregunta: str) -> bool:
+    """True si es un mensaje corto que depende de lo ya conversado (aunque la búsqueda no halle nada por sí sola)."""
+    return bool(historial) and len(pregunta.split()) < 6
+
+
 def _normalizar(texto: str) -> str:
     sin = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode().lower()
     return " ".join(re.sub(r"[^a-z0-9 ]", " ", sin).split())
@@ -49,6 +77,8 @@ def detectar_intencion(texto: str) -> str | None:
         return None
     if len(palabras) <= 8 and re.search(r"retroaliment|que vimos|que hemos visto|lo visto|como voy|como me fue", t):
         return "retro"
+    if len(palabras) <= 6 and _SIGUIENTE.search(t):
+        return "continuar"  # «siguiente lección», «¿qué sigue?», «avancemos»
     if len(palabras) > 6 or "?" in texto:
         return None
     if any(p.startswith(("comenc", "comenz", "empec", "empez", "inici", "arranc")) for p in palabras):

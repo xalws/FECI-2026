@@ -12,6 +12,8 @@ from zoneinfo import ZoneInfo
 
 import streamlit as st
 
+from core.estudiante import CSS_ESTUDIANTE
+
 ZONA_POR_DEFECTO = "America/Ciudad_Juarez"
 NOMBRE_APP = "PRACTIC_APP"
 
@@ -419,7 +421,7 @@ def marca_acceso() -> None:
 # Hoja de estilos
 # ---------------------------------------------------------------------------------------------------------------
 CSS = """
-:root{--tu-indigo:#0B3D91;--tu-violeta:#1F63C9;--tu-cielo:#0EA5E9;--tu-tinta:#0B1F44;--tu-gris:#64748B;
+:root{--est-mochila:#1F63C9;--est-papel:#FFFFFF;--tu-indigo:#0B3D91;--tu-violeta:#1F63C9;--tu-cielo:#0EA5E9;--tu-tinta:#0B1F44;--tu-gris:#64748B;
 --tu-borde:#DCE5F3;--tu-suave:#EAF1FC;--tu-degradado:linear-gradient(135deg,#0B3D91 0%,#1F63C9 100%);
 --tu-sombra:0 1px 2px rgba(11,31,68,.05),0 6px 20px rgba(11,31,68,.06);
 --tu-sombra-alta:0 2px 6px rgba(11,31,68,.07),0 16px 34px rgba(11,31,68,.11);
@@ -748,7 +750,7 @@ background:rgba(255,255,255,.16);color:#fff}
 
 
 CSS_OSCURO = """
-:root{--tu-tinta:#E6EEFC;--tu-gris:#9FB1D3;--tu-borde:#1D3566;--tu-suave:#12295A;--tu-pista:#1D3566;
+:root{--est-mochila:#3B82F6;--est-papel:#1B3263;--tu-tinta:#E6EEFC;--tu-gris:#9FB1D3;--tu-borde:#1D3566;--tu-suave:#12295A;--tu-pista:#1D3566;
 --tu-sombra:0 1px 2px rgba(0,0,0,.35),0 6px 20px rgba(0,0,0,.28);--tu-sombra-alta:0 2px 6px rgba(0,0,0,.4),0 16px 34px rgba(0,0,0,.4);
 --tu-lateral:#060E1E;--tu-texto:#C3D1EA;--tu-sup:#12203F;--tu-burbuja:linear-gradient(135deg,#17315F,#1E3A70)}
 [data-testid="stHeader"]{background:rgba(10,20,38,.72)!important}
@@ -963,7 +965,8 @@ def es_oscuro() -> bool:
 
 def aplicar_estilo() -> None:
     """Inserta la hoja de estilos de la app (se llama una vez por ejecución desde app.py)."""
-    st.html(f"<style>{CSS}{CSS_OSCURO if es_oscuro() else ''}{CSS_ANIMACIONES if ANIMACIONES else ''}</style>")
+    st.html(f"<style>{CSS}{CSS_OSCURO if es_oscuro() else ''}{CSS_ANIMACIONES if ANIMACIONES else ''}"
+            f"{CSS_ESTUDIANTE}</style>")
 
 
 def _ficha(token) -> str:
