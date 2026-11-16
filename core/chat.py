@@ -1,5 +1,6 @@
 from sqlalchemy import func, or_, select
 
+from core.cache import memo
 from core.db import get_session
 from models.schema import Conversacion, Materia, Mensaje, PreguntaSinRespuesta, Tema, Unidad
 
@@ -36,6 +37,7 @@ def listar_mensajes(conversacion_id: int) -> list[dict]:
         return [{"rol": m.rol, "contenido": m.contenido} for m in filas]
 
 
+@memo
 def conversaciones_del_tema(alumno_id: int, tema_id: int, limite: int = 20) -> list[dict]:
     # Conversaciones de chat (no ejercicios ni exámenes) del alumno en un tema que ya tienen mensajes.
     with get_session() as s:

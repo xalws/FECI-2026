@@ -115,6 +115,20 @@ class Aviso(Base):
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
+class Tarea(Base):
+    """Algo que el maestro pide a su clase en un tema, con fecha límite."""
+    __tablename__ = "tareas"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    clase_id: Mapped[int] = mapped_column(ForeignKey("clases.id"), index=True)
+    tema_id: Mapped[int] = mapped_column(ForeignKey("temas.id"))
+    autor_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    tipo: Mapped[str] = mapped_column(String(12))  # preguntas | ejercicios | nivel
+    meta: Mapped[int] = mapped_column()  # cuántas preguntas o ejercicios, o el nivel (1 a 4) que debe alcanzar
+    instrucciones: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fecha_limite: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    creada: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
 # Sesiones recordadas («Recordarme»): solo se guarda la huella SHA-256 del código que lleva el navegador
 class Sesion(Base):
     __tablename__ = "sesiones"

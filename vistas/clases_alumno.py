@@ -1,10 +1,11 @@
 """Mis clases: el alumno se une con un código, ve sus clases y los avisos de sus maestros."""
 import streamlit as st
 
-from core import clases, competencia
+from core import clases, competencia, tareas
 from core.auth import require_login
 from core.estilo import datos, encabezado, fecha_local, fila_ranking, insignias, posicion_html, titulo, zona_horaria
 from core.perfil_ui import dialogo_perfil
+from core.tareas_ui import tarjeta as tarjeta_tarea
 
 user = require_login(["alumno"])
 ss = st.session_state
@@ -54,6 +55,27 @@ datos([{"icono": "users", "etiqueta": "Mis clases", "valor": len(activas), "deta
        {"icono": "clock", "etiqueta": "Por aprobar", "valor": len(pendientes), "detalle": "esperando a tu maestro",
         "tono": "ambar" if pendientes else "verde"}])
 
+# ---------------------------------------------------------------------------------------------------------------
+# Tareas de mis maestros
+# ---------------------------------------------------------------------------------------------------------------
+if activas:
+    todas = tareas.tareas_del_alumno(user["id"])
+    por_hacer = [t for t in todas if t["estado"] in ("pendiente", "pronto")]
+    cerradas = [t for t in todas if t["estado"] in ("vencida", "hecha")]
+    titulo("clipboard", f"Mis tareas ({len(por_hacer)} por hacer)")
+    if not todas:
+        st.caption("Tus maestros todavía no han asignado tareas.")
+    elif not por_hacer:
+        st.success("No tienes tareas pendientes. ¡Bien hecho!", icon=":material/check_circle:")
+    for t in por_hacer:
+        tarjeta_tarea(t)
+    if cerradas:
+        with st.expander(f"Hechas y vencidas ({len(cerradas)})"):
+            for t in cerradas:
+                tarjeta_tarea(t)
+    st.caption("Las tareas se cumplen solas con lo que haces en «Estudio»: no hay nada que entregar.")
+
+titulo("users", "Mis grupos")
 for c in mis:
     with st.container(border=True):
         f1, f2 = st.columns([4, 1], vertical_alignment="center")

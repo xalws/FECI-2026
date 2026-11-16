@@ -2,6 +2,7 @@
 from sqlalchemy import func, select
 
 from core import pdf_loader, rag, reticula
+from core.cache import memo
 from core.db import get_session
 from models.schema import Documento, Fragmento
 
@@ -15,6 +16,7 @@ def ya_subido(materia_id: int, nombre_archivo: str) -> bool:
                                                    Documento.nombre_archivo == nombre_archivo)) is not None
 
 
+@memo
 def estado_tema(tema_id: int) -> str:
     # «ok» (hay fragmentos), «sin_indice» (hay un PDF registrado pero su contenido no está en la base) o
     # «sin_material» (nunca se subió nada).
@@ -37,6 +39,7 @@ def mensaje_sin_material(tema_id: int) -> str:
     return MENSAJES_SIN_MATERIAL.get(estado_tema(tema_id), MENSAJES_SIN_MATERIAL["sin_material"])
 
 
+@memo
 def cobertura(materia_id: int) -> list[dict]:
     # Por cada tema de la retícula: cuántos fragmentos reales tiene y qué documentos hay registrados.
     # estado: «ok» (con material), «sin_material» (nada) o «sin_indice» (hay un documento registrado pero sus

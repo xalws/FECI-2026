@@ -11,8 +11,9 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select
 
+from core.cache import memo
 from core.db import get_session
-from models.schema import Asignacion, Aviso, Clase, Inscripcion, Materia, Usuario
+from models.schema import Asignacion, Aviso, Clase, Inscripcion, Materia, Tarea, Usuario
 
 ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sin 0/O ni 1/I, para que el código no se confunda al copiarlo
 LARGO_CODIGO = 6
@@ -132,6 +133,7 @@ def eliminar_clase(usuario_id: int, clase_id: int) -> tuple[bool, str]:
         c = s.get(Clase, clase_id)
         if not _puede_gestionar(s, usuario_id, c):
             return False, "No puedes eliminar esta clase."
+        s.execute(delete(Tarea).where(Tarea.clase_id == clase_id))
         s.execute(delete(Aviso).where(Aviso.clase_id == clase_id))
         s.execute(delete(Inscripcion).where(Inscripcion.clase_id == clase_id))
         s.delete(c)
@@ -208,6 +210,7 @@ def salir(alumno_id: int, clase_id: int) -> tuple[bool, str]:
     return (True, "Saliste de la clase.") if r.rowcount else (False, "No estabas en esa clase.")
 
 
+@memo
 def clases_del_alumno(alumno_id: int) -> list[dict]:
     """Clases del alumno (activas y pendientes) con su materia, su maestro y el estado de su inscripción."""
     with get_session() as s:
@@ -219,6 +222,7 @@ def clases_del_alumno(alumno_id: int) -> list[dict]:
                  "estado": estado, "activa": c.activa} for c, estado, materia, maestro in s.execute(q)]
 
 
+@memo
 def materias_del_alumno(alumno_id: int) -> list[int]:
     """Materias de las clases (activas) en las que el alumno ya está aceptado."""
     return sorted({c["materia_id"] for c in clases_del_alumno(alumno_id) if c["estado"] == ACTIVO and c["activa"]})

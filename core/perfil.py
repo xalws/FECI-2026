@@ -1,5 +1,6 @@
 from sqlalchemy import select
 
+from core.cache import memo
 from core.db import get_session
 from models.schema import Carrera, Cuatrimestre, Universidad, Usuario
 
@@ -11,6 +12,7 @@ def _consulta_rutas():
             .join(Universidad, Universidad.id == Carrera.universidad_id))
 
 
+@memo
 def cuatrimestre_de(usuario_id: int) -> int | None:
     with get_session() as s:
         return s.scalar(select(Usuario.cuatrimestre_id).where(Usuario.id == usuario_id))
@@ -21,6 +23,7 @@ def mapa_academico() -> dict[int, tuple[str, str, str]]:
         return {i: (u, c, q) for i, u, c, q in s.execute(_consulta_rutas()).all()}
 
 
+@memo
 def datos_academicos(cuatrimestre_id: int | None) -> tuple[str, str, str] | None:
     if cuatrimestre_id is None:
         return None

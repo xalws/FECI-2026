@@ -1,10 +1,14 @@
 """Clases del maestro: crear grupos, compartir el código, aprobar solicitudes y publicar avisos."""
+from datetime import datetime, time, timedelta, timezone
+
 import streamlit as st
 
-from core import clases
+from core import clases, tareas
 from core.auth import require_login
-from core.estilo import datos, encabezado, fecha_local, insignias, titulo
+from core.estilo import datos, encabezado, fecha_local, insignias, titulo, zona_horaria
+from core.niveles import NOMBRES as NOMBRES_NIVEL
 from core.perfil_ui import dialogo_perfil
+from core.ui import selector_cascada
 
 user = require_login(["maestro", "admin"])
 ss = st.session_state
@@ -84,9 +88,9 @@ with st.container(border=True, key="tarjeta_clase"):
             st.caption(f"Maestro: {c['maestro']}")
         st.caption("Los alumnos lo escriben en «Mis clases» > «Unirme con un código».")
 
-t_alumnos, t_solicitudes, t_avisos, t_ajustes = st.tabs([
+t_alumnos, t_solicitudes, t_tareas, t_avisos, t_ajustes = st.tabs([
     f":material/group: Alumnos ({c['alumnos']})", f":material/hourglass_top: Solicitudes ({c['pendientes']})",
-    ":material/campaign: Avisos", ":material/settings: Ajustes"])
+    ":material/assignment: Tareas", ":material/campaign: Avisos", ":material/settings: Ajustes"])
 
 # ----- Alumnos -----
 with t_alumnos:
@@ -121,6 +125,52 @@ with t_solicitudes:
                 listo(clases.resolver_solicitud(user["id"], s_["inscripcion_id"], True))
             if f4.button("Rechazar", key=f"no_{s_['inscripcion_id']}", icon=":material/close:", width="stretch"):
                 listo(clases.resolver_solicitud(user["id"], s_["inscripcion_id"], False))
+
+# ----- Tareas -----
+with t_tareas:
+    zona = zona_horaria()
+    with st.container(border=True, key=f"nueva_tarea_{clase_id}"):
+        titulo("clipboard", "Asignar una tarea", nivel=4)
+        st.caption("Elige un tema de la materia y qué debe lograr cada alumno. Se cumple sola con lo que hacen en «Estudio».")
+        sel = selector_cascada(hasta="tema", materias_permitidas=[c["materia_id"]], prefix=f"tarea_{clase_id}", buscar=False)
+        tema_id = sel.get("tema")
+        k1, k2 = st.columns(2)
+        tipo = k1.selectbox("Qué debe hacer", list(tareas.TIPOS), format_func=tareas.TIPOS.get, key=f"tarea_tipo_{clase_id}")
+        minimo, maximo, sugerido = tareas.LIMITES[tipo]
+        if tipo == "nivel":
+            meta = k2.selectbox("Nivel que debe alcanzar", list(range(minimo, maximo + 1)), index=sugerido - minimo,
+                                format_func=NOMBRES_NIVEL.get, key=f"tarea_nivel_{clase_id}")
+        else:
+            meta = k2.number_input("Cuántas" + (" preguntas" if tipo == "preguntas" else " ejercicios"), min_value=minimo,
+                                   max_value=maximo, value=sugerido, step=1, key=f"tarea_meta_{tipo}_{clase_id}")
+        hoy = datetime.now(zona).date()
+        limite = st.date_input("Fecha límite (hasta el final de ese día)", value=hoy + timedelta(days=7), min_value=hoy,
+                               format="DD/MM/YYYY", key=f"tarea_fecha_{clase_id}")
+        nota = st.text_area("Indicaciones (opcional)", max_chars=tareas.MAX_INSTRUCCIONES, height=80,
+                            placeholder="Ej. Repasen sus apuntes antes de empezar.", key=f"tarea_nota_{clase_id}")
+        if st.button("Asignar tarea", type="primary", icon=":material/add_task:", disabled=tema_id is None,
+                     key=f"tarea_asignar_{clase_id}"):
+            fin = datetime.combine(limite, time(23, 59), tzinfo=zona)
+            listo(tareas.crear(user["id"], clase_id, tema_id, tipo, int(meta), fin, nota))
+
+    lista_tareas = tareas.tareas_de_clase(user["id"], clase_id)
+    if not lista_tareas:
+        st.caption("Todavía no has asignado tareas en esta clase.")
+    ahora = datetime.now(timezone.utc)
+    for t in lista_tareas:
+        with st.container(border=True):
+            f1, f2 = st.columns([6, 1], vertical_alignment="top")
+            f1.markdown(f"**{t['descripcion']}** · {t['tema']}")
+            f1.caption(f"{tareas.texto_plazo(t['fecha_limite'], ahora, zona).capitalize()} "
+                       f"({fecha_local(t['fecha_limite']):%d/%m/%Y})" + (f" · {t['instrucciones']}" if t["instrucciones"] else ""))
+            f1.progress(t["hechas"] / t["alumnos"] if t["alumnos"] else 0.0,
+                        text=f"{t['hechas']} de {t['alumnos']} alumnos la cumplieron")
+            if f2.button("Borrar", key=f"borrar_tarea_{t['id']}", icon=":material/delete:", width="stretch"):
+                listo(tareas.eliminar(user["id"], t["id"]))
+            with st.expander("Ver avance por alumno"):
+                for d in tareas.detalle(user["id"], t["id"]):
+                    marca = ":material/check_circle:" if d["hecha"] else ":material/radio_button_unchecked:"
+                    st.markdown(f"{marca} **{d['nombre']}** · {d['avance']} de {d['meta']}")
 
 # ----- Avisos -----
 with t_avisos:
@@ -160,7 +210,7 @@ with t_ajustes:
 
     st.divider()
     titulo("x", "Eliminar la clase", nivel=4)
-    st.caption("Se borran la clase, sus avisos y la lista de alumnos. El progreso de los alumnos no se toca. "
+    st.caption("Se borran la clase, sus tareas, sus avisos y la lista de alumnos. El progreso de los alumnos no se toca. "
                "No se puede deshacer.")
     seguro = st.checkbox("Entiendo que se eliminará esta clase", key=f"seguro_{clase_id}")
     if st.button("Eliminar clase", key=f"eliminar_{clase_id}", icon=":material/delete_forever:", disabled=not seguro):

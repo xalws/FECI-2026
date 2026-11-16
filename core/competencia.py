@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta, timezone, tzinfo
 from sqlalchemy import select
 
 from core import actividad, clases, logros, niveles
+from core.cache import memo
 from core.db import get_session
 from models.schema import Inscripcion, IntentoEjercicio, Materia, Quiz, RespuestaQuiz, Tema, Unidad, Usuario
 
@@ -79,6 +80,7 @@ def ordenar_ranking(filas: list[dict]) -> list[dict]:
     return filas
 
 
+@memo
 def ranking(clase_id: int, zona: tzinfo, periodo: str = "total", hoy: date | None = None) -> list[dict]:
     """Todos los alumnos activos de la clase ordenados por XP (`periodo`: «total» o «semana» = la semana actual)."""
     hoy = hoy or datetime.now(zona).date()

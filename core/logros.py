@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta, timezone, tzinfo
 from sqlalchemy import case, func, select
 
 from core import actividad, niveles
+from core.cache import memo
 from core.db import get_session
 from models.schema import (Clase, Conversacion, IntentoEjercicio, Inscripcion, Mensaje, Quiz, RespuestaQuiz, Tema,
                            Unidad, Usuario)
@@ -135,6 +136,7 @@ def minutos_por_dia(marcas: list[datetime], zona: tzinfo) -> dict[date, float]:
     return {d: actividad.segundos_de_uso(ms) / 60 for d, ms in por_dia.items()}
 
 
+@memo
 def meta_de(usuario_id: int) -> int:
     with get_session() as s:
         meta = s.scalar(select(Usuario.meta_diaria_min).where(Usuario.id == usuario_id))
@@ -264,6 +266,7 @@ def _local(fecha: datetime, zona: tzinfo) -> datetime:
     return (fecha if fecha.tzinfo else fecha.replace(tzinfo=timezone.utc)).astimezone(zona)
 
 
+@memo
 def datos_alumno(usuario_id: int, zona: tzinfo, hoy: date | None = None) -> dict:
     """Todo lo necesario para la meta, el calendario y los logros (unas cuantas consultas por tabla)."""
     from core.competencia import nivel_global  # import tardío: competencia usa este módulo
@@ -427,6 +430,7 @@ def revisar_nuevos(usuario_id: int, zona: tzinfo, datos: dict | None = None) -> 
 # ----------------------------------------------------------------------------------------------------------------
 # Vitrina: los logros que el alumno muestra en su perfil
 # ----------------------------------------------------------------------------------------------------------------
+@memo
 def vitrina_de(usuario_id: int) -> list[str]:
     with get_session() as s:
         crudo = s.scalar(select(Usuario.vitrina).where(Usuario.id == usuario_id)) or ""

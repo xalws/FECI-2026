@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta, timezone, tzinfo
 import streamlit as st
 from sqlalchemy import select
 
+from core.cache import memo
 from core.db import get_session
 from models.schema import Actividad
 
@@ -35,6 +36,7 @@ def segundos_de_uso(marcas: list) -> float:
     return total
 
 
+@memo(ttl=30)
 def tiempo_por_alumno(alumno_ids: list[int]) -> dict[int, float]:
     # Segundos de uso de cada alumno (id -> segundos).
     if not alumno_ids:
@@ -85,6 +87,7 @@ def racha_maxima(dias: set[date]) -> int:
     return mejor
 
 
+@memo(ttl=30)
 def racha_dias(usuario_id: int, zona: tzinfo) -> int:
     # Racha de días seguidos usando la app, contados en la zona horaria del alumno.
     dias = dias_con_marcas(marcas_recientes(usuario_id), zona)

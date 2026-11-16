@@ -3,6 +3,7 @@ import streamlit as st
 from core import chat, clases, examen, llm, logros, material, niveles, perfil, progreso, quiz, rag, tutoria
 from core.auth import require_login
 from core.estudiante import cargando
+from core.tareas_ui import resumen_estudio as resumen_tareas
 from core.estilo import (confeti, datos, encabezado, fecha_local, reanimar, reanimar_siguientes, saludo, svg,
                          titulo, zona_horaria)
 from core.llm import DIFICULTADES
@@ -147,6 +148,7 @@ with cabecera:
                           ("sparkles", f"Modo {NIVELES[prog['nivel']]}")])
 if not en_examen:
     mostrar_avisos()
+    resumen_tareas(user["id"])
 with st.sidebar:
     if prog["total"]:
         st.caption(f"Tu progreso en este tema: {prog['aciertos']}/{prog['total']} aciertos "

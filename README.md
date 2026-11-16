@@ -76,6 +76,18 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
   de las clases donde ya fue aceptado, y los últimos avisos aparecen arriba.
 - **Estadísticas por clase:** filtro «Clase» en Estadísticas (también afecta al reporte de Excel y al aviso de
   material faltante). Tablas `clases`, `inscripciones` y `avisos`.
+- **Tareas con fecha límite:** en la pestaña «Tareas» de cada clase, el maestro elige un tema de la materia, qué debe
+  lograr cada alumno (responder N preguntas de examen, resolver N ejercicios o llegar a un nivel del tema), la fecha y
+  unas indicaciones. No hay nada que entregar: se cumplen solas con lo que el alumno hace en Estudio (cuentan las
+  preguntas y ejercicios hechos desde que se asignó). El maestro ve cuántos la cumplieron y el avance de cada alumno;
+  el alumno las ve en «Mis clases» y un resumen arriba de Estudio, con su estado (pendiente, por vencer, vencida o
+  hecha). Tabla `tareas`.
+
+**Rendimiento**
+- Con una base remota cada consulta cuesta ~70 ms, así que las pantallas guardan en caché sus lecturas (`core/cache.py`,
+  decorador `@memo`): se vacía sola cuando algo se escribe en la base y, a lo más, a los 60 s. Esas lecturas usan una
+  conexión sin transacción (1 viaje a la base en lugar de 3) y la conexión solo se comprueba si estuvo sin usarse
+  30 s. Con la variable de entorno `PRACTIC_SIN_CACHE=1` la caché se apaga.
 
 **Alumno: metas y logros**
 - **Respuestas en vivo:** el tutor escribe la respuesta mientras el modelo la genera. Si la IA falla (límite del
@@ -140,6 +152,8 @@ core/               Lógica
   cuenta.py           cambio y restablecimiento de contraseñas
   logros.py           meta diaria, calendario y logros del alumno
   clases.py           clases: códigos, inscripciones, aprobación y avisos
+  tareas.py           tareas con fecha límite: asignar, medir el avance y estados
+  cache.py            caché de lecturas de la base (se vacía al escribir)
   competencia.py      XP, ranking de la clase y perfil público de un alumno
   perfil_ui.py        pantalla de perfil (propio y de compañeros)
   sesion.py           sesión recordada (cookie con código aleatorio; la base guarda solo su huella)

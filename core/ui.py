@@ -1,6 +1,7 @@
 import streamlit as st
 from sqlalchemy import or_, select
 
+from core.cache import memo
 from core.db import get_session
 from models.schema import Carrera, Cuatrimestre, Materia, Tema, Unidad, Universidad
 
@@ -22,6 +23,23 @@ def _permitidos(s, materias_ids: list[int]) -> dict[str, set[int]]:
     cars = {c.carrera_id for c in s.scalars(select(Cuatrimestre).where(Cuatrimestre.id.in_(cuats)))}
     unis = {c.universidad_id for c in s.scalars(select(Carrera).where(Carrera.id.in_(cars)))}
     return {"universidad": unis, "carrera": cars, "cuatrimestre": cuats, "materia": set(materias_ids)}
+
+
+@memo
+def _catalogo(nombre: str, padre_id: int | None) -> list[tuple[int, str]]:
+    """(id, nombre) de los elementos de un nivel de la jerarquía, bajo `padre_id`."""
+    modelo, fk = next((m, f) for n, m, f in NIVELES if n == nombre)
+    q = select(modelo.id, modelo.nombre).order_by(modelo.nombre)
+    if fk:
+        q = q.where(getattr(modelo, fk) == padre_id)
+    with get_session() as s:
+        return [(i, n) for i, n in s.execute(q)]
+
+
+@memo
+def _permitidos_de(materias_ids: list[int]) -> dict[str, set[int]]:
+    with get_session() as s:
+        return _permitidos(s, materias_ids)
 
 
 def _buscar(s, texto: str, hasta: str, materias_permitidas: list[int] | None,
@@ -52,44 +70,42 @@ def selector_cascada(hasta: str = "tema", materias_permitidas: list[int] | None 
         buscar = hasta in ("materia", "unidad", "tema")
     resultado: dict[str, int] = {}
     padre_id = cuatrimestre_id
-    with get_session() as s:
-        if buscar:
-            texto = st.text_input("Buscar", key=f"{prefix}_buscar", placeholder=
-                                  "Materia / Unidad / Tema / Carrera").strip()
-            if texto:
+    if buscar:
+        texto = st.text_input("Buscar", key=f"{prefix}_buscar", placeholder=
+                              "Materia / Unidad / Tema / Carrera").strip()
+        if texto:
+            with get_session() as s:
                 rutas = _buscar(s, texto, hasta, materias_permitidas, cuatrimestre_id)
-                if not rutas:
-                    st.info("Sin resultados.")
-                    return {}
-                etiquetas = {i: " › ".join(r[n][1] for n in r) for i, r in enumerate(rutas)}
-                elegido = st.selectbox(f"{len(rutas)} resultado(s)", list(etiquetas), format_func=etiquetas.get,
-                                       key=f"{prefix}_res_{hasta}_{texto}")
-                return {n: v[0] for n, v in rutas[elegido].items()}
-            st.caption("o elige paso a paso:")
+            if not rutas:
+                st.info("Sin resultados.")
+                return {}
+            etiquetas = {i: " › ".join(r[n][1] for n in r) for i, r in enumerate(rutas)}
+            elegido = st.selectbox(f"{len(rutas)} resultado(s)", list(etiquetas), format_func=etiquetas.get,
+                                   key=f"{prefix}_res_{hasta}_{texto}")
+            return {n: v[0] for n, v in rutas[elegido].items()}
+        st.caption("o elige paso a paso:")
 
-        permitidos = _permitidos(s, materias_permitidas) if materias_permitidas is not None else None
-        for nombre, modelo, fk in NIVELES:
-            if cuatrimestre_id is not None and nombre in ("universidad", "carrera", "cuatrimestre"):
-                continue
-            q = select(modelo).order_by(modelo.nombre)
-            if fk:
-                q = q.where(getattr(modelo, fk) == padre_id)
-            items = s.scalars(q).all()
-            if permitidos is not None and nombre in permitidos:
-                items = [i for i in items if i.id in permitidos[nombre]]
-            if not items:
-                st.info(f"Todavía no hay {ETIQUETAS[nombre].lower()}s disponibles aquí.")
-                break
-            nombres = {i.id: i.nombre for i in items}
-            elegido = st.selectbox(ETIQUETAS[nombre], list(nombres), format_func=nombres.get,
-                                   key=f"{prefix}_{nombre}_{padre_id}")
-            resultado[nombre] = elegido
-            padre_id = elegido
-            if nombre == hasta:
-                break
+    permitidos = _permitidos_de(materias_permitidas) if materias_permitidas is not None else None
+    for nombre, _modelo, _fk in NIVELES:
+        if cuatrimestre_id is not None and nombre in ("universidad", "carrera", "cuatrimestre"):
+            continue
+        items = _catalogo(nombre, padre_id)
+        if permitidos is not None and nombre in permitidos:
+            items = [i for i in items if i[0] in permitidos[nombre]]
+        if not items:
+            st.info(f"Todavía no hay {ETIQUETAS[nombre].lower()}s disponibles aquí.")
+            break
+        nombres = dict(items)
+        elegido = st.selectbox(ETIQUETAS[nombre], list(nombres), format_func=nombres.get,
+                               key=f"{prefix}_{nombre}_{padre_id}")
+        resultado[nombre] = elegido
+        padre_id = elegido
+        if nombre == hasta:
+            break
     return resultado
 
 
+@memo
 def nombre_tema(tema_id: int) -> str:
     with get_session() as s:
         t = s.get(Tema, tema_id)

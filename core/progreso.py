@@ -1,5 +1,6 @@
 from sqlalchemy import select
 
+from core.cache import memo
 from core.db import get_session
 from models.schema import IntentoEjercicio, Materia, Quiz, RespuestaQuiz, Tema, Unidad
 
@@ -17,6 +18,7 @@ def guardar_intento(alumno_id: int, tema_id: int, enunciado: str, respuesta: str
                                puntaje=puntaje, retroalimentacion=retroalimentacion))
 
 
+@memo
 def resumen_ejercicios(alumno_id: int) -> dict:
     # Cantidad de ejercicios calificados y promedio (0 a 10) del alumno.
     with get_session() as s:
@@ -32,6 +34,7 @@ def _nivel(total: int, pct: float | None) -> str:
     return "avanzado" if pct >= UMBRAL_AVANZADO else "normal"
 
 
+@memo
 def resumen_alumno(alumno_id: int) -> list[dict]:
     # Aciertos del alumno en cada tema donde ha respondido quizzes (últimos VENTANA por tema).
     with get_session() as s:
@@ -58,6 +61,7 @@ def resumen_alumno(alumno_id: int) -> list[dict]:
     return sorted(salida, key=lambda r: r["porcentaje"])
 
 
+@memo
 def progreso_tema(alumno_id: int, tema_id: int) -> dict:
     # Aciertos del alumno en los últimos quizzes de un tema y el nivel que le corresponde.
     with get_session() as s:

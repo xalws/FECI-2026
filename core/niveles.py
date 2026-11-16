@@ -7,6 +7,7 @@ poca precisión (menos de 50% de aciertos en 4 o más intentos) no pasa de Princ
 import pandas as pd
 from sqlalchemy import select
 
+from core.cache import memo
 from core.db import get_session
 from models.schema import Carrera, Cuatrimestre, IntentoEjercicio, Materia, Quiz, RespuestaQuiz, Tema, Unidad
 
@@ -59,6 +60,7 @@ def _por_tema(s, alumno_id: int, tema_ids: list[int]) -> tuple[dict, dict]:
     return resp, ejer
 
 
+@memo
 def estado_tema(alumno_id: int, tema_id: int) -> dict:
     with get_session() as s:
         resp, ejer = _por_tema(s, alumno_id, [tema_id])
@@ -69,6 +71,7 @@ def _promedio_nivel(niveles: list[int]) -> int:
     return int(sum(niveles) / len(niveles)) if niveles else 0
 
 
+@memo
 def avance_materia(alumno_id: int, materia_id: int) -> dict:
     # Estado de cada tema agrupado por unidad, en el orden de la retícula.
     with get_session() as s:
@@ -118,6 +121,7 @@ def siguiente_recomendado(av: dict, con_material: set[int] | None = None, limite
     return salida
 
 
+@memo
 def materias_disponibles() -> dict[int, str]:
     # Materias que ya tienen temas (id -> «Materia · Carrera · Cuatrimestre»).
     with get_session() as s:
@@ -130,6 +134,7 @@ def materias_disponibles() -> dict[int, str]:
     return {i: f"{m} · {c} · {q}" for i, m, c, q in filas}
 
 
+@memo
 def materias_con_actividad(alumno_id: int) -> set[int]:
     # Materias donde el alumno ya respondió preguntas o ejercicios.
     with get_session() as s:
