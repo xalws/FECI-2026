@@ -65,6 +65,18 @@ mediante quizzes y ejercicios, y se adapta a su nivel en cada tema.
 - Crea usuarios, asigna materias a maestros y ve lo mismo que el maestro.
 - **Restablece la contraseña** de cualquier usuario que la olvidó (en «Mi cuenta»).
 
+**Clases**
+- **Clases del maestro** (menú «Clases»): cada clase es un grupo de UNA materia que el maestro tiene asignada (el
+  administrador puede crearlas de cualquiera). Tiene un código de 6 letras y números que se comparte; se puede
+  cambiar si se filtra. La clase puede pedir que el maestro apruebe a cada alumno o dejar entrar al instante.
+  Desde ahí el maestro ve la lista de alumnos, acepta o rechaza solicitudes, quita alumnos, publica avisos,
+  desactiva o elimina la clase (el progreso de los alumnos no se borra).
+- **Mis clases** (alumno): se une escribiendo el código (5 intentos fallidos por sesión), ve sus clases, su estado
+  (aceptado o esperando aprobación), puede salirse y lee los avisos. En Estudio, «Mis clases» muestra las materias
+  de las clases donde ya fue aceptado, y los últimos avisos aparecen arriba.
+- **Estadísticas por clase:** filtro «Clase» en Estadísticas (también afecta al reporte de Excel y al aviso de
+  material faltante). Tablas `clases`, `inscripciones` y `avisos`.
+
 **Alumno: metas y logros**
 - **Respuestas en vivo:** el tutor escribe la respuesta mientras el modelo la genera. Si la IA falla (límite del
   plan gratuito, sin conexión) se muestra un mensaje claro con botón «Reintentar».
@@ -116,6 +128,7 @@ core/               Lógica
   stats.py            consultas de estadísticas para el maestro
   cuenta.py           cambio y restablecimiento de contraseñas
   logros.py           meta diaria, calendario y logros del alumno
+  clases.py           clases: códigos, inscripciones, aprobación y avisos
   sesion.py           sesión recordada (cookie con código aleatorio; la base guarda solo su huella)
   tema.py             botón de modo claro/oscuro que conserva la sesión
   chat.py, perfil.py, pdf_loader.py, db.py, config.py, passwords.py, ui.py

@@ -33,7 +33,7 @@ JOIN materias ma ON ma.id = un.materia_id
 
 
 SQL_SIN_RESPUESTA = """
-SELECT p.pregunta, p.fecha, u.nombre AS alumno, t.nombre AS tema,
+SELECT p.pregunta, p.fecha, p.alumno_id, u.nombre AS alumno, t.nombre AS tema,
        ma.id AS materia_id, ma.nombre AS materia
 FROM preguntas_sin_respuesta p
 JOIN usuarios u ON u.id = p.alumno_id
@@ -44,13 +44,15 @@ ORDER BY p.id DESC
 """
 
 
-def preguntas_sin_respuesta(materias_ids: list[int] | None = None) -> pd.DataFrame:
+def preguntas_sin_respuesta(materias_ids: list[int] | None = None, alumnos_ids=None) -> pd.DataFrame:
     # Preguntas que el tutor no pudo contestar: señal de material que falta subir.
     with engine.connect() as conn:
         df = pd.read_sql(text(SQL_SIN_RESPUESTA), conn)
     if materias_ids is not None:
         df = df[df["materia_id"].isin(materias_ids)]
-    return df.drop(columns="materia_id").reset_index(drop=True)
+    if alumnos_ids is not None:  # solo los alumnos de una clase
+        df = df[df["alumno_id"].isin(list(alumnos_ids))]
+    return df.drop(columns=["materia_id", "alumno_id"]).reset_index(drop=True)
 
 
 def material_faltante(sin_resp: pd.DataFrame, minimo_alumnos: int = 2) -> pd.DataFrame:

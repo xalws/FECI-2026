@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import select
 
-from core import actividad, niveles, sospechas, stats
+from core import actividad, clases, niveles, sospechas, stats
 from core.auth import require_login
 from core.db import get_session
 from core.estilo import datos, encabezado, grafica_barras, grafica_fechas, lista, titulo, zona_horaria
@@ -36,13 +36,23 @@ if msgs.empty and resp.empty:
 
 # Filtros
 materias = sorted(set(msgs["materia"]) | set(resp["materia"]))
+mis_clases = clases.clases_del_maestro(user["id"])
 with st.container(border=True):
-    f1, f2 = st.columns([3, 2])
+    f1, f2, f3 = st.columns([3, 2, 2])
     filtro = f1.multiselect("Materias", materias, default=materias)
     buscar = f2.text_input("Buscar alumno o tema", placeholder="Nombre del alumno o del tema…",
                            icon=":material/search:").strip()
+    opciones_clase = {0: "Todos los alumnos", **{c["id"]: f"{c['nombre']} · {c['materia']}" for c in mis_clases}}
+    clase_id = f3.selectbox("Clase", list(opciones_clase), format_func=opciones_clase.get, key="filtro_clase",
+                            help="Muestra solo a los alumnos de esa clase y su materia.")
 msgs = msgs[msgs["materia"].isin(filtro)]
 resp = resp[resp["materia"].isin(filtro)]
+clase = next((c for c in mis_clases if c["id"] == clase_id), None)
+ids_clase = None
+if clase:
+    ids_clase = set(clases.alumnos_ids(clase["id"]))
+    msgs = msgs[msgs["alumno_id"].isin(ids_clase) & (msgs["materia_id"] == clase["materia_id"])]
+    resp = resp[resp["alumno_id"].isin(ids_clase) & (resp["materia_id"] == clase["materia_id"])]
 
 if buscar:
     def _coincide(df):
@@ -50,7 +60,7 @@ if buscar:
                 | df["tema"].astype(str).str.contains(buscar, case=False, regex=False))
     msgs, resp = msgs[_coincide(msgs)], resp[_coincide(resp)]
 if msgs.empty and resp.empty:
-    st.info("Sin resultados con esos filtros.")
+    st.info("Esta clase todavía no tiene actividad." if clase else "Sin resultados con esos filtros.")
     st.stop()
 
 # Resumen
@@ -65,8 +75,10 @@ datos([{"icono": "message", "etiqueta": "Preguntas de alumnos", "valor": r["preg
         "detalle": "promedio de los quizzes", "tono": "verde"}])
 
 # Preguntas que el tutor no pudo responder: si varios alumnos coinciden en un tema, falta material ahí
-sin_resp = stats.preguntas_sin_respuesta(materias_ids)
+sin_resp = stats.preguntas_sin_respuesta(materias_ids, alumnos_ids=ids_clase)
 sin_resp = sin_resp[sin_resp["materia"].isin(filtro)].reset_index(drop=True)
+if clase:
+    sin_resp = sin_resp[sin_resp["materia"] == clase["materia"]].reset_index(drop=True)
 if buscar:
     sin_resp = sin_resp[sin_resp["alumno"].astype(str).str.contains(buscar, case=False, regex=False)
                         | sin_resp["tema"].astype(str).str.contains(buscar, case=False, regex=False)]
@@ -181,6 +193,8 @@ with f:
     with st.container(border=True):
         titulo("search", "Actividad a revisar")
         alertas = sospechas.cargar_y_evaluar(materias_ids)
+        if clase:
+            alertas = alertas[alertas["alumno"].isin(set(msgs["alumno"]) | set(resp["alumno"]))]
         if buscar:
             alertas = alertas[alertas["alumno"].astype(str).str.contains(buscar, case=False, regex=False)]
         if alertas.empty:

@@ -81,6 +81,38 @@ class Asignacion(Base):
     materia_id: Mapped[int] = mapped_column(ForeignKey("materias.id"))
 
 
+# Clases: grupos de alumnos de una materia que crea un maestro (ver core/clases.py)
+class Clase(Base):
+    __tablename__ = "clases"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(120))
+    materia_id: Mapped[int] = mapped_column(ForeignKey("materias.id"), index=True)
+    maestro_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    codigo: Mapped[str] = mapped_column(String(8), unique=True, index=True)  # el que el alumno escribe para unirse
+    activa: Mapped[bool] = mapped_column(Boolean, default=True)
+    aprobacion: Mapped[bool] = mapped_column(Boolean, default=True)  # el maestro debe aprobar a quien entra con el código
+    creada: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class Inscripcion(Base):
+    __tablename__ = "inscripciones"
+    __table_args__ = (UniqueConstraint("clase_id", "alumno_id"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    clase_id: Mapped[int] = mapped_column(ForeignKey("clases.id"), index=True)
+    alumno_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    estado: Mapped[str] = mapped_column(String(12), default="activo")  # activo | pendiente
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
+class Aviso(Base):
+    __tablename__ = "avisos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    clase_id: Mapped[int] = mapped_column(ForeignKey("clases.id"), index=True)
+    autor_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    texto: Mapped[str] = mapped_column(Text)
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
 # Sesiones recordadas («Recordarme»): solo se guarda la huella SHA-256 del código que lleva el navegador
 class Sesion(Base):
     __tablename__ = "sesiones"

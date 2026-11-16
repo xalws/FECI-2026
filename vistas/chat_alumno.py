@@ -1,6 +1,6 @@
 import streamlit as st
 
-from core import chat, examen, llm, logros, material, niveles, perfil, progreso, quiz, rag, tutoria
+from core import chat, clases, examen, llm, logros, material, niveles, perfil, progreso, quiz, rag, tutoria
 from core.auth import require_login
 from core.estilo import (confeti, datos, encabezado, fecha_local, reanimar, reanimar_siguientes, saludo, svg,
                          titulo, zona_horaria)
@@ -39,6 +39,24 @@ if ss.pop("confeti", False):
     confeti()
 if ss.pop("revisar_logros", False) or "logros_vistos" not in ss:  # la primera vez solo toma nota
     logros.revisar_nuevos(user["id"], zona_horaria())
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def _avisos_recientes(alumno_id: int) -> list[dict]:
+    return clases.avisos_para_alumno(alumno_id, dias=14, limite=3)
+
+
+def mostrar_avisos() -> None:
+    """Últimos avisos de las clases del alumno, arriba de Estudio."""
+    avisos = _avisos_recientes(user["id"])
+    if not avisos:
+        return
+    with st.container(border=True, key="avisos_clase"):
+        titulo("bulb", "Avisos de tus clases", nivel=4)
+        for a in avisos:
+            st.markdown(f"**{a['clase']}** · {a['texto']}")
+            st.caption(f"{a['autor']} · {fecha_local(a['fecha']):%d/%m/%Y %H:%M}")
+        st.page_link("vistas/clases_alumno.py", label="Ver mis clases", icon=":material/groups:")
 
 
 def nombre_dificultad(d) -> str:
@@ -82,10 +100,17 @@ with st.sidebar:
             perfil.asignar_cuatrimestre(user["id"], sel_nuevo["cuatrimestre"])
             st.rerun()
     titulo("layers", "Elige tu tema")
-    ver = st.radio("Materias a mostrar", ["Mi cuatrimestre", "Todas las materias"], key="ver_materias",
-                   help="Con «Todas las materias» puedes estudiar una materia que no sea de tu cuatrimestre.")
+    materias_clase = clases.materias_del_alumno(user["id"])
+    opciones_ver = ["Mi cuatrimestre"] + (["Mis clases"] if materias_clase else []) + ["Todas las materias"]
+    if ss.get("ver_materias") not in opciones_ver:  # primera vez, o ya no está en ninguna clase
+        ss["ver_materias"] = "Mis clases" if materias_clase else "Mi cuatrimestre"
+    ver = st.radio("Materias a mostrar", opciones_ver, key="ver_materias",
+                   help="«Mis clases» muestra las materias de las clases donde tu maestro ya te aceptó. Con «Todas las "
+                        "materias» puedes estudiar una que no sea de tu cuatrimestre.")
     if ver == "Mi cuatrimestre":
         sel = selector_cascada(hasta="tema", prefix="chat", cuatrimestre_id=cuat_id)
+    elif ver == "Mis clases":
+        sel = selector_cascada(hasta="tema", prefix="chat_clases", materias_permitidas=materias_clase)
     else:
         sel = selector_cascada(hasta="tema", prefix="chat_todas")
 tema_id = sel.get("tema")
@@ -112,6 +137,8 @@ with cabecera:
         encabezado(saludo(user["nombre"]), f"Estás estudiando: {tema_nombre}", "book",
                    chips=[("award", f"Nivel {estado['nivel']} · {estado['nombre_nivel']}"), ("zap", xp_texto),
                           ("sparkles", f"Modo {NIVELES[prog['nivel']]}")])
+if not en_examen:
+    mostrar_avisos()
 with st.sidebar:
     if prog["total"]:
         st.caption(f"Tu progreso en este tema: {prog['aciertos']}/{prog['total']} aciertos "
