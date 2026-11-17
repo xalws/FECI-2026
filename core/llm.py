@@ -1,6 +1,7 @@
 import json
 import re
 import time
+import unicodedata
 
 from groq import AuthenticationError, Groq, NotFoundError, PermissionDeniedError, RateLimitError
 
@@ -54,6 +55,12 @@ REGLA_PREGUNTAS = """CÓMO PLANTEAR PREGUNTAS Y EJERCICIOS (muy importante):
   conteste. Una pista breve sí está bien.
 - Si la pregunta lleva un cálculo, que sea de UN solo paso, con todos los datos a la vista y la misma fórmula o
   procedimiento que usaste en el ejemplo.
+- La respuesta debe poder sacarse de lo que ya mostraste: si preguntas una palabra, un número o una regla, ese dato o la
+  manera de obtenerlo tiene que haber aparecido en tus ejemplos (no preguntes «cinco» si solo mostraste «two» y «three»).
+- La pista orienta, pero no dice la respuesta ni la deja obvia, y nunca inventa una regla o un dato que no esté en el
+  contexto.
+- La pregunta tampoco debe contener su respuesta: si preguntas qué palabra va, deja el hueco ___ en lugar de escribirla
+  («The concert starts ___ 8 p.m.», no «starts at 8 p.m.»), y no copies tal cual un ejemplo ya resuelto.
 - Antes de enviar, revisa que el ejemplo, la pista y la pregunta traten del MISMO punto (no mezcles dos temas distintos
   del contexto en un mismo mensaje) y que los datos y la pista sean correctos y no contradigan el ejemplo.
 - Sube la dificultad poco a poco: primero reconocer (elegir o completar), luego aplicar en un caso nuevo y sencillo y, hasta
@@ -252,19 +259,74 @@ def _formatear_contexto(fragmentos: list[dict]) -> str:
 MAX_PALABRAS_RESPUESTA = 25  # un mensaje más largo que esto casi siempre es una pregunta o un comentario nuevo
 
 
+# Lo que el alumno PIDE (los atajos del chat, «explícame otra vez», «otra pregunta»…) no es una respuesta que calificar
+_PETICION = re.compile(r"^(explica|explicame|explicalo|explicamelo|dame|damelo|hazme|haz|muestrame|repite|repiteme|ponme|"
+                       r"planteame|quiero|puedes|podrias|ayudame|ensename|dime|otra|otro|mas|no entiendo|no entendi|"
+                       r"resumen|resume|resumeme)\b")
+_ENCABEZADO_PREGUNTA = re.compile(r"(?i)^pregunta( de comprobaci[oó]n| pr[aá]ctica)?\s*:?\s*")
+
+
+def _sin_acentos(texto: str) -> str:
+    sin = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode().lower()
+    return " ".join(re.sub(r"[^a-z0-9 ]", " ", sin).split())
+
+
+def es_peticion(mensaje: str) -> bool:
+    """True si el alumno pide algo al tutor («Hazme una pregunta», «Dame un ejemplo», «no entiendo»)."""
+    return bool(_PETICION.match(_sin_acentos(mensaje)))
+
+
+def _limpia(linea: str) -> str:
+    return re.sub(r"[*_`#>\-\s]+$|^[*_`#>\-\s]+", "", linea).strip() if "__" not in linea else linea.strip(" *>-#")
+
+
 def pregunta_abierta(historial: list[dict], mensaje: str) -> str | None:
     """La pregunta que dejó abierta el tutor, si `mensaje` parece ser la respuesta del alumno.
 
-    Es la última línea con «?» del último mensaje del tutor. El alumno responde cuando escribe algo corto y sin «?»
-    justo después de esa pregunta («at», «porque el voltaje es el mismo»); si él pregunta algo, es otra cosa.
+    Es la última pregunta del último mensaje del tutor: una línea que termina en «?», una de completar («I get up ___
+    7:00») o la que sigue a un encabezado «Pregunta de comprobación». El alumno responde cuando escribe algo corto y sin
+    «?» justo después («at», «porque el voltaje es el mismo»); si él pregunta o pide algo, es otra cosa.
     """
-    if not historial or historial[-1]["rol"] == "user" or "?" in mensaje:
+    if not historial or historial[-1]["rol"] == "user" or "?" in mensaje or es_peticion(mensaje):
         return None
     if not mensaje.strip() or len(mensaje.split()) > MAX_PALABRAS_RESPUESTA:
         return None
-    lineas = [re.sub(r"[*_`#>\-\s]+$|^[*_`#>\-\s]+", "", l) for l in historial[-1]["contenido"].splitlines()]
-    preguntas = [l for l in lineas if l.endswith("?")]
-    return preguntas[-1] if preguntas else None
+    lineas = [_limpia(l) for l in historial[-1]["contenido"].splitlines()]
+    candidatas = []
+    for i, linea in enumerate(lineas):
+        if not linea:
+            continue
+        if _ENCABEZADO_PREGUNTA.fullmatch(linea.strip("*: ")):
+            siguiente = next((l for l in lineas[i + 1:] if l), "")
+            if siguiente:
+                candidatas.append(siguiente)
+        elif linea.endswith("?") or "__" in linea:
+            candidatas.append(linea)
+    return candidatas[-1] if candidatas else None
+
+
+def quitar_respuesta_revelada(texto: str) -> str:
+    """Quita «(Respuesta: …)» o «Respuesta esperada: …» de la pregunta final del tutor (no de sus ejemplos resueltos).
+
+    Solo toca lo que va desde el último encabezado «Pregunta…» (o la última línea con «?») hasta el final. De paso,
+    los títulos grandes de Markdown (#) se vuelven negritas: en el chat se ven enormes.
+    """
+    texto = re.sub(r"(?m)^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", r"**\1**", texto)
+    lineas = texto.splitlines()
+    inicio = None
+    for i, linea in enumerate(lineas):
+        limpia = linea.strip(" *_#>-")
+        if re.match(r"(?i)pregunta\b", limpia) or limpia.endswith("?") or "__" in limpia:
+            inicio = i
+    if inicio is None:
+        return texto
+    cola = []
+    for linea in lineas[inicio:]:
+        linea = re.sub(r"\s*\(\s*[*_]*\s*respuesta( esperada| correcta)?\s*[*_]*\s*:[^)]*\)\.?", "", linea, flags=re.I)
+        if re.match(r"(?i)^\W*respuesta( esperada| correcta)?\W*:", linea):
+            continue
+        cola.append(linea)
+    return "\n".join(lineas[:inicio] + cola).rstrip()
 
 
 def _mensajes_tutor(tema: str, pregunta: str, fragmentos: list[dict], historial: list[dict], nivel: str) -> list[dict]:
@@ -292,8 +354,9 @@ def responder(tema: str, pregunta: str, fragmentos: list[dict], historial: list[
               nivel: str = "normal") -> str:
     if not fragmentos:
         return SIN_INFO
-    return _formato_latex(_llamar(_mensajes_tutor(tema, pregunta, fragmentos, historial, nivel),
-                                  temperature=0.1).strip())
+    texto = _formato_latex(_llamar(_mensajes_tutor(tema, pregunta, fragmentos, historial, nivel), temperature=0.1).strip())
+    # al calificar una respuesta sí se da la correcta; al preguntar o plantear un ejercicio, no
+    return texto if pregunta_abierta(historial, pregunta) else quitar_respuesta_revelada(texto)
 
 
 def responder_en_vivo(tema: str, pregunta: str, fragmentos: list[dict], historial: list[dict], nivel: str = "normal"):

@@ -359,6 +359,8 @@ def vista_conversacion() -> None:
                 escrito += trozo
                 lugar.markdown(llm._formato_latex(escrito) + " ▍")
             respuesta = llm._formato_latex(escrito.strip())
+            if not llm.pregunta_abierta(historial, pregunta):  # al calificar sí va la respuesta correcta; al preguntar, no
+                respuesta = llm.quitar_respuesta_revelada(respuesta)
             if respuesta != llm.SIN_INFO:
                 respuesta += texto_fuentes(fragmentos)
             else:

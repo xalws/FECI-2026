@@ -167,7 +167,7 @@ def iniciar_leccion(tema: str, objetivos: str, fragmentos: list[dict], nivel: st
     usuario = (f"OBJETIVOS DEL TEMA:\n{objetivos or '(no hay)'}\n\nCONTEXTO:\n{llm._formatear_contexto(fragmentos)}")
     mensajes = [{"role": "system", "content": _sistema(SYSTEM_INICIAR, tema, nivel)},
                 {"role": "user", "content": usuario}]
-    return llm._formato_latex(llm._llamar(mensajes, temperature=0.3).strip())
+    return llm.quitar_respuesta_revelada(llm._formato_latex(llm._llamar(mensajes, temperature=0.3).strip()))
 
 
 def continuar_leccion(tema: str, historial: list[dict], fragmentos: list[dict], nivel: str = "normal") -> str:
@@ -177,7 +177,7 @@ def continuar_leccion(tema: str, historial: list[dict], fragmentos: list[dict], 
                f"CONTEXTO:\n{llm._formatear_contexto(fragmentos) if fragmentos else '(sin material)'}")
     mensajes = [{"role": "system", "content": _sistema(SYSTEM_CONTINUAR, tema, nivel)},
                 {"role": "user", "content": usuario}]
-    return llm._formato_latex(llm._llamar(mensajes, temperature=0.3).strip())
+    return llm.quitar_respuesta_revelada(llm._formato_latex(llm._llamar(mensajes, temperature=0.3).strip()))
 
 
 def retroalimentar(tema: str, historial: list[dict], fragmentos: list[dict]) -> str:

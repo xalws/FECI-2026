@@ -204,10 +204,12 @@ class TestConBase(unittest.TestCase):
             for texto in ("hola", "otra pregunta", "una más"):
                 s.add(Mensaje(conversacion_id=conv.id, rol="user", contenido=texto))
             s.add(Mensaje(conversacion_id=conv.id, rol="assistant", contenido="respuesta"))
-            ahora = datetime.now(UTC)
+            # media hora de actividad al inicio de cada uno de los últimos 3 días (en UTC): así ningún día se parte en
+            # dos aunque la prueba corra justo después de medianoche
+            inicio_hoy = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
             for dias in (0, 1, 2):
                 for minuto in range(0, 30, 2):
-                    s.add(Actividad(usuario_id=u.id, fecha=ahora - timedelta(days=dias, minutes=minuto)))
+                    s.add(Actividad(usuario_id=u.id, fecha=inicio_hoy - timedelta(days=dias) + timedelta(minutes=1 + minuto)))
             clase = Clase(nombre="G", materia_id=mat.id, maestro_id=maestro.id, codigo="LOGRO1", aprobacion=False)
             s.add(clase)
             s.flush()

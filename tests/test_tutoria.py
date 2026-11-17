@@ -156,6 +156,61 @@ class TestRespuestaAUnaPreguntaDelTutor(unittest.TestCase):
     def test_la_regla_del_tutor_lo_menciona(self):
         self.assertIn("EVALÚALA", llm.SYSTEM_TUTOR)
 
+    def test_los_atajos_y_las_peticiones_no_se_califican(self):
+        for pedido in ("Hazme una pregunta", "Dame un ejemplo", "Explícamelo más simple", "Resumen del tema",
+                       "explícame otra vez", "otra pregunta", "no entiendo", "Plantéame un ejercicio práctico sobre este tema."):
+            self.assertTrue(llm.es_peticion(pedido), pedido)
+            self.assertIsNone(llm.pregunta_abierta([self.TUTOR], pedido), pedido)
+        for respuesta in ("at", "no sé", "8 V", "la estética", "Dignidad"):  # «no sé» sí es una respuesta: se corrige
+            self.assertFalse(llm.es_peticion(respuesta), respuesta)
+
+    def test_detecta_preguntas_de_completar_y_las_que_siguen_al_encabezado(self):
+        completar = {"rol": "assistant", "contenido": "Ejemplo: *I get up at 7:00.*\n\n**Pregunta de comprobación**\n"
+                                                     "*I start work ___ 9:00 a.m.* (elige la preposición correcta)."}
+        self.assertIn("___", llm.pregunta_abierta([completar], "at"))
+        encabezado = {"rol": "assistant", "contenido": "**Pregunta de comprobación**\nResuelve: $5z-2=13$.\n*(Pista: suma 2.)*"}
+        self.assertEqual(llm.pregunta_abierta([encabezado], "z = 3"), "Resuelve: $5z-2=13$.")
+
+
+class TestNoRevelarLaRespuesta(unittest.TestCase):
+    def test_quita_la_respuesta_de_la_pregunta_final(self):
+        texto = ("**Ejemplo**: Estudiante tiene Legajo.\n\n**Pregunta de comprobación**\n"
+                 "¿Qué atributo de *Profesor* sería la clave primaria?\n(Respuesta: LegajoProf)")
+        limpio = llm.quitar_respuesta_revelada(texto)
+        self.assertNotIn("LegajoProf", limpio)
+        self.assertIn("¿Qué atributo de *Profesor* sería la clave primaria?", limpio)
+
+    def test_quita_variantes(self):
+        for cola in ("(Respuesta esperada: tabla Préstamo con ID_Socio)", "(**Respuesta**: escrita)",
+                     "Respuesta esperada: 6.75 V", "**Respuesta correcta:** at"):
+            texto = f"Explicación.\n\n**Pregunta**\n¿Cuál es el valor?\n{cola}"
+            self.assertNotIn(cola.split(":")[-1].strip(" *)"), llm.quitar_respuesta_revelada(texto), cola)
+
+    def test_respeta_los_ejemplos_resueltos_de_antes_de_la_pregunta(self):
+        texto = ("**Ejemplo resuelto**\nV = 2 A × 4 Ω. Respuesta: 8 V.\n\n**Pregunta de comprobación**\n"
+                 "Con I = 3 A y R = 2 Ω, ¿cuál es el voltaje?\n*(Pista: usa V = I × R.)*")
+        self.assertEqual(llm.quitar_respuesta_revelada(texto), texto)  # el ejemplo conserva su resultado y la pista sigue
+
+    def test_los_titulos_grandes_se_vuelven_negritas(self):
+        texto = "### 1. Expresiones de hora\nUsa **at**.\n\n# Pregunta\n¿Qué va en *I wake up ___ 7*?"
+        limpio = llm.quitar_respuesta_revelada(texto)
+        self.assertNotIn("#", limpio)
+        self.assertIn("**1. Expresiones de hora**", limpio)
+        self.assertIn("**Pregunta**", limpio)
+
+    def test_la_regla_pide_que_la_pregunta_no_traiga_su_respuesta(self):
+        self.assertIn("deja el hueco ___", llm.REGLA_PREGUNTAS)
+        self.assertIn("no copies tal cual un ejemplo ya resuelto", llm.REGLA_PREGUNTAS)
+
+    def test_sin_pregunta_no_cambia_nada(self):
+        texto = "Resumen: la respuesta: es así.\n(Respuesta: nada)"
+        self.assertEqual(llm.quitar_respuesta_revelada("Solo una explicación."), "Solo una explicación.")
+        self.assertTrue(llm.quitar_respuesta_revelada(texto))
+
+    def test_la_regla_de_preguntas_pide_no_preguntar_lo_no_visto_ni_pistas_que_revelen(self):
+        self.assertIn("La respuesta debe poder sacarse de lo que ya mostraste", llm.REGLA_PREGUNTAS)
+        self.assertIn("no dice la respuesta ni la deja obvia", llm.REGLA_PREGUNTAS)
+
 
 class TestRespuestasDelTutor(unittest.TestCase):
     FRAG = [{"texto": "La metrología es la ciencia de la medición.", "score": 1.0, "archivo": "", "pagina": ""}]
