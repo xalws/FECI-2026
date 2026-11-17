@@ -177,6 +177,11 @@ if ss.get("tema_activo") != tema_id:
     for clave in ("conv_id", "conv_ejercicio", "conv_examen", "examen", "examen_resumen", "repaso_resumen", "ejercicio"):
         ss[clave] = None
     ss.intro_hecha = set()
+    # tema ya empezado: se abre la última conversación para retomarla donde se quedó («¡Qué bueno verte de nuevo!»),
+    # no una nueva que vuelva a explicar el tema desde el principio
+    previas_del_tema = chat.conversaciones_del_tema(user["id"], tema_id)
+    if previas_del_tema:
+        ss.conv_id = previas_del_tema[0]["id"]
 
 TIPOS = {"conv_id": "chat", "conv_ejercicio": "ejercicio", "conv_examen": "examen"}
 
@@ -233,6 +238,14 @@ def ir_al_siguiente_tema(texto_alumno: str | None) -> None:
     st.rerun()
 
 
+def historial_previo(conv_actual: int | None) -> list[dict]:
+    """Mensajes de la conversación más reciente de este tema (sin contar la actual), para retomar la lección."""
+    for c in chat.conversaciones_del_tema(user["id"], tema_id):
+        if c["id"] != conv_actual:
+            return chat.listar_mensajes(c["id"])
+    return []
+
+
 def accion_tutor(intencion: str, texto_alumno: str | None = None) -> None:
     # El tutor guía la conversación
     if intencion == "siguiente_tema":
@@ -252,7 +265,8 @@ def accion_tutor(intencion: str, texto_alumno: str | None = None) -> None:
             elif intencion == "resumen":
                 respuesta = tutoria.resumir_tema(tema_nombre, tutoria.objetivos_del_tema(tema_id),
                                                  rag.chunks_aleatorios(tema_id, 8), prog["nivel"])
-            elif intencion == "continuar" and historial:
+            elif intencion == "continuar" and (historial or (historial := historial_previo(conv))):
+                # «continuemos» en una conversación nueva sigue la última lección de este tema, no empieza de cero
                 respuesta = tutoria.continuar_leccion(tema_nombre, historial, fragmentos_para(historial), prog["nivel"])
             else:  # iniciar (o continuar sin nada previo)
                 frags = rag.chunks_aleatorios(tema_id, 3)

@@ -172,6 +172,36 @@ class TestRespuestaAUnaPreguntaDelTutor(unittest.TestCase):
         self.assertEqual(llm.pregunta_abierta([encabezado], "z = 3"), "Resuelve: $5z-2=13$.")
 
 
+class TestPreguntasRepetidas(unittest.TestCase):
+    """Con poco material el modelo repetía casi la misma pregunta en un examen (lo vimos 4 veces seguidas)."""
+    YA = ["¿Cuál es la preposición correcta que se usa en inglés para expresar la hora de una actividad?"]
+
+    def test_detecta_la_misma_pregunta_aunque_cambie_alguna_palabra(self):
+        for nueva in ("¿Cuál es la preposición correcta que se usa en inglés para expresar la hora de una actividad?",
+                      "¿Cuál es la preposición que se usa en inglés para expresar la hora de una actividad?",
+                      "cual es la preposicion correcta que se usa en ingles para expresar la hora de las actividades"):
+            self.assertIsNotNone(llm.es_repetida(nueva, self.YA), nueva)
+
+    def test_una_pregunta_distinta_pasa(self):
+        for nueva in ("¿Qué preposición se usa con los días de la semana?", "Completa: She works ___ Monday.",
+                      "¿Cuál es la forma correcta del verbo en tercera persona: He ___ (play) the guitar?"):
+            self.assertIsNone(llm.es_repetida(nueva, self.YA), nueva)
+        self.assertIsNone(llm.es_repetida("¿Qué es la trazabilidad?", None))
+
+    def test_el_generador_rechaza_la_repetida_y_pide_otra(self):
+        import json as _json
+        from unittest import mock as _mock
+        repetida = {"pregunta": self.YA[0], "opciones": ["in", "on", "at", "by"], "indice_correcto": 2, "resultado": None,
+                    "explicacion": "at"}
+        nueva = {"pregunta": "Completa: She works ___ Monday.", "opciones": ["in", "on", "at", "by"], "indice_correcto": 1,
+                 "resultado": None, "explicacion": "on con días"}
+        respuestas = iter([_json.dumps(repetida), _json.dumps(nueva)])
+        with _mock.patch.object(llm, "_llamar", side_effect=lambda *a, **k: next(respuestas)), \
+             _mock.patch.object(llm, "verificar_pregunta", return_value=(True, "")):
+            d = llm.generar_quiz([{"texto": "at con horas, on con días"}], 1, self.YA)
+        self.assertEqual(d["pregunta"], "Completa: She works ___ Monday.")
+
+
 class TestMaterialFaltante(unittest.TestCase):
     def test_solo_las_preguntas_de_contenido_cuentan_como_material_faltante(self):
         for texto in ("¿Qué es la trazabilidad?", "como convierto psi a pascales", "¿Quién inventó el micrómetro?"):

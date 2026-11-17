@@ -440,6 +440,30 @@ def verificar_pregunta(d: dict, fragmentos: list[dict], esfuerzo: str = "low") -
     return True, ""
 
 
+PARECIDO_MAXIMO = 0.8  # dos preguntas más parecidas que esto se consideran la misma
+
+
+def _normalizar_pregunta(texto: str) -> str:
+    return _sin_acentos(re.sub(r"[$\\{}^_*]", " ", texto))
+
+
+def es_repetida(pregunta: str, evitar: list[str] | None) -> str | None:
+    """La pregunta anterior a la que se parece demasiado (aunque cambie alguna palabra), o None.
+
+    Pedirle al modelo que no repita no basta: con poco material vuelve a escribir casi la misma pregunta.
+    """
+    from difflib import SequenceMatcher
+    nueva = _normalizar_pregunta(pregunta)
+    palabras = set(nueva.split())
+    for vieja in evitar or []:
+        v = _normalizar_pregunta(vieja)
+        pv = set(v.split())
+        comunes = len(palabras & pv) / max(1, len(palabras | pv))
+        if SequenceMatcher(None, nueva, v).ratio() >= PARECIDO_MAXIMO or comunes >= PARECIDO_MAXIMO:
+            return vieja
+    return None
+
+
 def generar_quiz(fragmentos: list[dict], dificultad: int = 2, evitar: list[str] | None = None,
                  objetivos: str = "") -> dict:
     sistema = SYSTEM_QUIZ + "\n" + DIFICULTAD_QUIZ.get(dificultad, DIFICULTAD_QUIZ[2])
@@ -469,6 +493,10 @@ def generar_quiz(fragmentos: list[dict], dificultad: int = 2, evitar: list[str] 
             if re.search(r"seg[uú]n (el|la) (contexto|texto|material|documento)|en el (contexto|texto)",
                          str(d["pregunta"]).lower()):
                 problema = "la pregunta menciona «el contexto» o «el texto», que el alumno no ve"
+                continue
+            if (repetida := es_repetida(str(d["pregunta"]), evitar)):
+                problema = (f"repite una pregunta que el alumno ya contestó («{repetida[:160]}»); pregunta otra idea "
+                            "o habilidad distinta del contexto")
                 continue
         except (ValueError, KeyError, TypeError):
             problema = "la respuesta no tenía el formato JSON pedido"
