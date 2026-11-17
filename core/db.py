@@ -21,18 +21,21 @@ REVISAR_TRAS_SEGUNDOS = 30
 def _marcar_escritura(conn, _cursor, sentencia, _params, _ctx, _many) -> None:
     if cache.es_escritura(sentencia):
         conn.info["escribio"] = True
+        conn.info.setdefault("tablas", set()).add(cache.tabla_de(sentencia) or "*")
 
 
 @event.listens_for(engine, "commit")
 def _tras_confirmar(conn) -> None:
     # La caché de lecturas se vacía cuando la escritura ya es visible para los demás, no antes
+    tablas = conn.info.pop("tablas", set())
     if conn.info.pop("escribio", False):
-        cache.invalidar()
+        cache.invalidar(None if "*" in tablas else tablas)
 
 
 @event.listens_for(engine, "rollback")
 def _tras_deshacer(conn) -> None:
     conn.info.pop("escribio", None)
+    conn.info.pop("tablas", None)
 
 
 @event.listens_for(engine, "checkout")

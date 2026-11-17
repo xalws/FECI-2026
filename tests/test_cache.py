@@ -27,6 +27,28 @@ class TestCache(unittest.TestCase):
             s.execute(text("UPDATE usuarios SET nombre = nombre WHERE id = -1"))
         self.assertEqual(cache.version(), antes + 1)
 
+    def test_tabla_de_una_escritura(self):
+        self.assertEqual(cache.tabla_de("INSERT INTO mensajes (a) VALUES (1)"), "mensajes")
+        self.assertEqual(cache.tabla_de('  update "Temas" SET x=1'), "temas")
+        self.assertEqual(cache.tabla_de("DELETE FROM clases WHERE id=1"), "clases")
+        self.assertIsNone(cache.tabla_de("SELECT 1"))
+
+    def test_el_catalogo_no_se_vacia_con_escrituras_de_otras_tablas(self):
+        init_db()
+        catalogo = ("universidades", "temas")
+        antes = cache.version_de(catalogo)
+        with get_session() as s:  # un alumno escribe un mensaje: el catálogo sigue sirviendo
+            s.execute(text("UPDATE usuarios SET nombre = nombre WHERE id = -1"))
+        self.assertEqual(cache.version_de(catalogo), antes)
+        with get_session() as s:  # se cambia un tema: el catálogo se vuelve a leer
+            s.execute(text("UPDATE temas SET nombre = nombre WHERE id = -1"))
+        self.assertNotEqual(cache.version_de(catalogo), antes)
+
+    def test_invalidar_sin_saber_que_cambio_vacia_tambien_lo_que_declaro_tablas(self):
+        antes = cache.version_de(("temas",))
+        cache.invalidar()
+        self.assertNotEqual(cache.version_de(("temas",)), antes)
+
     def test_una_escritura_deshecha_no_sube_la_version(self):
         init_db()
         antes = cache.version()

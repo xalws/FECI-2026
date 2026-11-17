@@ -27,8 +27,11 @@ def main(n: int = 15) -> None:
     mediana = statistics.median(tiempos)
     print(f"Ida y vuelta a la base: mediana {mediana:.0f} ms (mínimo {min(tiempos):.0f}, máximo {max(tiempos):.0f}) en {n} consultas")
     if mediana > 40:
-        print("Es alta: la app y la base probablemente están lejos. Una región más cercana o el conector con pooler "
-              "de la base reducirían el tiempo de cada pantalla.")
+        con_pooler = "-pooler" in (engine.url.host or "")
+        print("Es alta: la app y la base probablemente están lejos. "
+              + ("Ya se usa el conector con pooler, así que solo una región más cercana (o poner la app en la misma "
+                 "región que la base) reduciría el tiempo de cada pantalla." if con_pooler else
+                 "Una región más cercana o el conector con pooler de la base reducirían el tiempo de cada pantalla."))
     else:
         print("Es baja: la distancia a la base no es el problema.")
 

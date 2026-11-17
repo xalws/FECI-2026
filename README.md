@@ -306,6 +306,20 @@ python scripts/preparar_demo.py            # crea o rehace la demostración (cue
 python scripts/preparar_demo.py --borrar   # elimina solo lo que creó
 ```
 
+Para los temas con poco material hay apuntes de apoyo generados con el modelo de lenguaje (5 secciones por tema:
+conceptos, procedimiento, dos ejemplos resueltos y errores comunes). Lo ideal es que el maestro suba sus PDFs; mientras
+tanto:
+
+```bash
+python scripts/ampliar_apuntes.py --lista                          # temas con poco material
+python scripts/ampliar_apuntes.py --temas 56-60,32-35              # completar esos temas
+python scripts/ampliar_apuntes.py --materia "Inglés I"             # o una materia entera
+python scripts/ampliar_apuntes.py --temas 62-78 --reemplazar-prueba  # y quitar sus apuntes de prueba viejos
+```
+
+Usa la misma clave de Groq que el tutor (cada tema gasta unos 5 000 tokens del límite diario de 200 000): se detiene solo
+si se agota la cuota del día, y se puede volver a correr porque salta los temas ya completados.
+
 Los usuarios usan el dominio `@demo.local` y la contraseña `demo1234`: `maestro@demo.local`,
 `ana@demo.local`, `beto@demo.local` y `carla@demo.local`. El script escribe en la base de `DATABASE_URL`,
 así que quien comparta esa base verá los datos de ejemplo.

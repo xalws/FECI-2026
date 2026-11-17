@@ -456,11 +456,25 @@ def vista_ejercicio() -> None:
 
 
 # Vista 3: examen 
+def _ir_a_modo(indice: int, pregunta: str | None = None) -> None:
+    # se usa como on_click: así el cambio de pestaña ocurre antes de dibujar el selector de modo
+    ss["modo_chat"] = MODOS[indice]
+    if pregunta:
+        ss["pregunta_rapida"] = pregunta
+
+
 def vista_examen_inicio() -> None:
     if ss.examen_resumen:
         with st.container(border=True):
             titulo("award", "Resultado de tu último examen", nivel=4)
             st.markdown(ss.examen_resumen)
+            a1, a2, a3 = st.columns(3)
+            a1.button("Repasar errores", icon=":material/replay:", width="stretch", key="tras_examen_repaso",
+                      on_click=_ir_a_modo, args=(3,))
+            a2.button("Resumen del tema", icon=":material/summarize:", width="stretch", key="tras_examen_resumen",
+                      on_click=_ir_a_modo, args=(0, "Resumen del tema"))
+            if a3.button("Siguiente tema", icon=":material/arrow_forward:", width="stretch", key="tras_examen_siguiente"):
+                ir_al_siguiente_tema(None)
     inicial = examen.dificultad_inicial(prog["nivel"])
     titulo("clipboard", f"Examen de {tema_nombre}")
     datos([{"icono": "target", "etiqueta": "Empiezas en dificultad", "valor": DIFICULTADES[inicial].capitalize(),
@@ -507,6 +521,8 @@ def responder_examen(q: dict, eleccion: int) -> None:
         despues = niveles.estado_tema(user["id"], tema_id)
         base = examen.resumen_repaso(ex) if repaso else examen.resumen_texto(ex)
         resumen = base + "\n\n" + examen.progreso_texto(ex["nivel_inicial"], ex["xp_inicial"], despues)
+        if not repaso:
+            resumen += "\n\n" + examen.recomendacion(ex)
         chat.guardar_mensaje(ss.conv_examen, "assistant", resumen)
         ss["repaso_resumen" if repaso else "examen_resumen"] = resumen
         ex["fase"] = "final"

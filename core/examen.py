@@ -64,6 +64,27 @@ def progreso_texto(nivel_antes: int, xp_antes: int, despues: dict) -> str:
     return texto
 
 
+def recomendacion(examen: dict) -> str:
+    """Qué hacer después del examen, según cuánto acertó (los botones de abajo llevan a cada opción)."""
+    res = examen["resultados"]
+    if not res:
+        return ""
+    aciertos = sum(1 for r in res if r["acerto"])
+    falladas = len(res) - aciertos
+    if aciertos / len(res) >= 0.8:
+        texto = ("**¿Qué sigue?** Dominas este tema: puedes pasar al siguiente o repetir el examen para llegar a una "
+                 "dificultad más alta.")
+    elif aciertos / len(res) >= 0.5:
+        texto = "**¿Qué sigue?** Vas bien. Repasa las preguntas que fallaste y vuelve a intentar el examen."
+    else:
+        texto = ("**¿Qué sigue?** Te conviene repasar el tema antes de otro examen: pídele al tutor el resumen del tema "
+                 "o una explicación más simple, y después practica las que fallaste.")
+    if falladas:
+        texto += (f" {'La que fallaste está' if falladas == 1 else f'Las {falladas} que fallaste están'} en "
+                  "«Repasar errores» y en tus tarjetas de Repaso.")
+    return texto
+
+
 def resumen_texto(examen: dict) -> str:
     res = examen["resultados"]
     aciertos = sum(1 for r in res if r["acerto"])

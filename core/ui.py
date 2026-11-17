@@ -25,7 +25,12 @@ def _permitidos(s, materias_ids: list[int]) -> dict[str, set[int]]:
     return {"universidad": unis, "carrera": cars, "cuatrimestre": cuats, "materia": set(materias_ids)}
 
 
-@memo
+# El catálogo casi nunca cambia: solo se vuelve a leer cuando cambian sus tablas (o a los 5 minutos, por si cambió
+# desde otra computadora), no con cada mensaje o respuesta de un alumno
+CATALOGO = ("universidades", "carreras", "cuatrimestres", "materias", "unidades", "temas")
+
+
+@memo(ttl=300, tablas=CATALOGO)
 def _catalogo(nombre: str, padre_id: int | None) -> list[tuple[int, str]]:
     """(id, nombre) de los elementos de un nivel de la jerarquía, bajo `padre_id`."""
     modelo, fk = next((m, f) for n, m, f in NIVELES if n == nombre)
@@ -36,7 +41,7 @@ def _catalogo(nombre: str, padre_id: int | None) -> list[tuple[int, str]]:
         return [(i, n) for i, n in s.execute(q)]
 
 
-@memo
+@memo(ttl=300, tablas=CATALOGO)
 def _permitidos_de(materias_ids: list[int]) -> dict[str, set[int]]:
     with get_session() as s:
         return _permitidos(s, materias_ids)
@@ -105,7 +110,7 @@ def selector_cascada(hasta: str = "tema", materias_permitidas: list[int] | None 
     return resultado
 
 
-@memo
+@memo(ttl=300, tablas=("temas",))
 def nombre_tema(tema_id: int) -> str:
     with get_session() as s:
         t = s.get(Tema, tema_id)
