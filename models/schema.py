@@ -113,6 +113,8 @@ class Aviso(Base):
     autor_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
     texto: Mapped[str] = mapped_column(Text)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+    # El aviso automático de una tarea («Nueva tarea: …»): se borra junto con la tarea
+    tarea_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
 
 
 class Tarea(Base):

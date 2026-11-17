@@ -200,6 +200,20 @@ class TestConBase(unittest.TestCase):
         self.assertTrue(tareas.eliminar(self.prof, tid)[0])
         self.assertEqual(tareas.tareas_de_clase(self.prof, self.clase), [])
 
+    def test_borrar_la_tarea_borra_su_aviso_pero_no_los_demas(self):
+        queda = self.asignar("preguntas", 3, dias=5)
+        borrada = self.asignar("ejercicios", 2, dias=6)
+        clases.publicar_aviso(self.prof, self.clase, "Mañana no hay clase.")
+        with get_session() as s:
+            self.assertEqual(s.scalar(select(Aviso.tarea_id).where(Aviso.tarea_id == borrada)), borrada)
+        self.assertTrue(tareas.eliminar(self.prof, borrada)[0])
+        with get_session() as s:
+            textos = [a.texto for a in s.scalars(select(Aviso).where(Aviso.clase_id == self.clase))]
+            restantes = list(s.scalars(select(Aviso.tarea_id).where(Aviso.clase_id == self.clase)))
+        self.assertNotIn(borrada, restantes)            # el aviso de la tarea borrada ya no se ve
+        self.assertIn(queda, restantes)                 # el de la otra tarea sigue
+        self.assertIn("Mañana no hay clase.", textos)   # y los avisos escritos por el maestro no se tocan
+
     # ---- alumno ----
     def test_el_alumno_ve_sus_tareas_ordenadas(self):
         lejana = self.asignar("preguntas", 3, dias=9)

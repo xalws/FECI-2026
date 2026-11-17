@@ -3,7 +3,7 @@ import re
 import time
 import unicodedata
 
-from groq import AuthenticationError, Groq, NotFoundError, PermissionDeniedError, RateLimitError
+from groq import AuthenticationError, BadRequestError, Groq, NotFoundError, PermissionDeniedError, RateLimitError
 
 from core.config import GROQ_API_KEY, GROQ_MODEL, GROQ_MODEL_RESPALDO
 
@@ -34,11 +34,18 @@ def _error_final(e: Exception) -> "ErrorIA | None":
     return None
 
 
+def _json_invalido(e: Exception) -> bool:
+    """Groq rechazó lo que el modelo escribió porque no era el JSON pedido (a veces el modelo devuelve algo vacío)."""
+    return isinstance(e, BadRequestError) and "json_validate_failed" in str(e)
+
+
 def _error_agotado(e: Exception | None) -> ErrorIA:
     # Se acabaron los reintentos
     if isinstance(e, RateLimitError):
         return ErrorIA("El tutor está atendiendo muchas consultas en este momento. Espera unos segundos y vuelve "
                        "a intentarlo.", "limite", str(e))
+    if e is not None and _json_invalido(e):  # no es un problema de conexión: no hay que culpar al internet del alumno
+        return ErrorIA("El tutor no logró armar una respuesta válida esta vez. Vuelve a intentarlo.", "red", str(e))
     return ErrorIA("No pude comunicarme con el tutor. Revisa tu conexión a internet e inténtalo de nuevo.",
                    "red", str(e) if e else "")
 
@@ -211,6 +218,10 @@ def _llamar(mensajes: list[dict], temperature: float = 0.1, json_mode: bool = Fa
             ultimo_error = e
             if isinstance(e, RateLimitError) and _pasar_a_respaldo():
                 continue  # otro modelo tiene su propia cuota: se reintenta de inmediato
+            if _json_invalido(e):
+                # con la misma temperatura el modelo repetiría la misma salida inválida: se varía y se reintenta ya
+                temperature = min(1.0, temperature + 0.3)
+                continue
             time.sleep((8 if isinstance(e, RateLimitError) else 2) * (intento + 1))
     raise _error_agotado(ultimo_error)
 
@@ -246,10 +257,21 @@ def _llamar_en_vivo(mensajes: list[dict], temperature: float = 0.1, reintentos: 
     raise _error_agotado(ultimo_error)
 
 
+# «El contexto» es como el modelo llama al material que recibe; el alumno no sabe qué es. Solo se cambian las frases con
+# que el modelo cita su fuente («según el contexto,», «en el contexto.»), no usos del tema como «el contexto comunicativo».
+_CONTEXTO = re.compile(r"\b(según el|segun el|en el|del|al|el) contexto( dado| proporcionado| entregado| anterior| del tema)?"
+                       r"(?=\s*(?:[.,;:)]|$))", re.I | re.M)
+
+
+def _como_lo_ve_el_alumno(texto: str) -> str:
+    return _CONTEXTO.sub(lambda m: f"{m.group(1)} material", texto)
+
+
 def _formato_latex(texto: str) -> str:
     # Streamlit solo dibuja fórmulas con $...$ y $$...$$, no con \[...\] ni \(...\).
     texto = re.sub(r"\\\[(.+?)\\\]", lambda m: "$$" + m.group(1).strip() + "$$", texto, flags=re.S)
-    return re.sub(r"\\\((.+?)\\\)", lambda m: "$" + m.group(1).strip() + "$", texto, flags=re.S)
+    texto = re.sub(r"\\\((.+?)\\\)", lambda m: "$" + m.group(1).strip() + "$", texto, flags=re.S)
+    return _como_lo_ve_el_alumno(texto)
 
 
 def _formatear_contexto(fragmentos: list[dict]) -> str:
@@ -451,7 +473,12 @@ def generar_quiz(fragmentos: list[dict], dificultad: int = 2, evitar: list[str] 
         except (ValueError, KeyError, TypeError):
             problema = "la respuesta no tenía el formato JSON pedido"
             continue
-        ok, problema = verificar_pregunta(d, fragmentos, esfuerzo)  # segunda opinión de la IA
+        try:
+            ok, problema = verificar_pregunta(d, fragmentos, esfuerzo)  # segunda opinión de la IA
+        except ErrorIA as e:
+            if e.tipo != "red":
+                raise  # sin cuota o mal configurado: no tiene caso seguir intentando
+            ok, problema = False, ""  # el revisor no contestó bien: se intenta con otra pregunta en vez de tirar el examen
         if ok:
             return {"pregunta": _formato_latex(str(d["pregunta"])),
                     "opciones": [_formato_latex(str(o)) for o in ops], "indice_correcto": idx,

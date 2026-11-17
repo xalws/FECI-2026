@@ -172,6 +172,31 @@ class TestRespuestaAUnaPreguntaDelTutor(unittest.TestCase):
         self.assertEqual(llm.pregunta_abierta([encabezado], "z = 3"), "Resuelve: $5z-2=13$.")
 
 
+class TestMaterialFaltante(unittest.TestCase):
+    def test_solo_las_preguntas_de_contenido_cuentan_como_material_faltante(self):
+        for texto in ("¿Qué es la trazabilidad?", "como convierto psi a pascales", "¿Quién inventó el micrómetro?"):
+            self.assertTrue(chat.señala_material_faltante(texto), texto)
+        for texto in ("como?", "ok", "y eso?", "Dame un ejemplo", "Hazme una pregunta", "Explícamelo más simple"):
+            self.assertFalse(chat.señala_material_faltante(texto), texto)
+
+
+class TestVocabularioDelAlumno(unittest.TestCase):
+    """El alumno no sabe qué es «el contexto» (así llama el modelo al material): se le dice «el material»."""
+
+    def test_las_citas_al_contexto_se_vuelven_material(self):
+        casos = {"tal como indica el ejemplo resuelto en el contexto.": "tal como indica el ejemplo resuelto en el material.",
+                 "Según el contexto, la preposición es at.": "Según el material, la preposición es at.",
+                 "como se indica en el contexto dado.": "como se indica en el material.",
+                 "Es correcto (ver el contexto).": "Es correcto (ver el material)."}
+        for antes, despues in casos.items():
+            self.assertEqual(llm._formato_latex(antes), despues)
+
+    def test_no_toca_usos_del_tema(self):
+        for texto in ("El contexto comunicativo influye en el mensaje.", "Analiza el contexto histórico de la norma.",
+                      "En el contexto de una fábrica, se mide la presión"):
+            self.assertEqual(llm._formato_latex(texto), texto)
+
+
 class TestNoRevelarLaRespuesta(unittest.TestCase):
     def test_quita_la_respuesta_de_la_pregunta_final(self):
         texto = ("**Ejemplo**: Estudiante tiene Legajo.\n\n**Pregunta de comprobación**\n"

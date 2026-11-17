@@ -222,9 +222,12 @@ def _frases(b: dict) -> list[str]:
         t = proximas[0]
         frases.append(f"Próxima tarea en vencer: «{t['tarea']}» el {t['límite']:%d/%m}; la llevan {t['hechas']} de {t['alumnos']}.")
     if b["sin_respuesta"]:
-        sr = b["sin_respuesta"][0]
-        frases.append(f"El tutor no pudo contestar {sum(d['preguntas'] for d in b['sin_respuesta'])} preguntas; "
-                      f"falta material sobre «{sr['tema']}».")
+        total = sum(d["preguntas"] for d in b["sin_respuesta"])
+        # cada tema con su número: «6 preguntas; falta material sobre X» hacía creer que las 6 eran de X
+        detalle = ", ".join(f"«{d['tema']}» ({d['preguntas']})" for d in b["sin_respuesta"][:3])
+        mas = "…" if len(b["sin_respuesta"]) > 3 else ""
+        frases.append(f"El tutor no pudo contestar {total} {'pregunta' if total == 1 else 'preguntas'} por falta de "
+                      f"material: {detalle}{mas}.")
     if b["destacados"]:
         frases.append("Destacaron: " + ", ".join(f["alumno"] for f in b["destacados"][:5]) + ".")
     return frases

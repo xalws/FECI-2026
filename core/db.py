@@ -75,6 +75,7 @@ COLUMNAS_NUEVAS = [
     ("conversaciones", "tipo", "VARCHAR(20)"),
     ("usuarios", "meta_diaria_min", "INTEGER"),
     ("usuarios", "vitrina", "TEXT"),
+    ("avisos", "tarea_id", "INTEGER"),
 ]
 
 

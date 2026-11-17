@@ -526,12 +526,17 @@ def vista_examen_en_curso() -> None:
                      icon=":material/cancel:")
         st.markdown(rev["explicacion"])
         ultimo = examen.terminado(ex)
-        if st.button("Ver resultados" if ultimo else "Siguiente pregunta", type="primary",
+        c1, c2 = st.columns([1, 3])
+        if c1.button("Ver resultados" if ultimo else "Siguiente pregunta", type="primary",
                      icon=":material/flag:" if ultimo else ":material/arrow_forward:"):
             if ultimo:
                 ss.examen = None
             else:
                 ex["revision"] = None
+            st.rerun()
+        # en modo concentración el menú está oculto: sin este botón no habría forma de salir sin pedir otra pregunta
+        if not ultimo and c2.button("Abandonar examen", key=f"abandonar_rev_{len(ex['resultados'])}", icon=":material/close:"):
+            ss.examen = None
             st.rerun()
         return
 

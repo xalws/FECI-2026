@@ -104,6 +104,8 @@ class TestResumen(unittest.TestCase):
         self.assertIn("Beto, Dani, Eli, Fer", texto)
         self.assertIn("la cumplieron 2 de 6", texto)
         self.assertIn("Destacaron: Ana", texto)
+        # cada tema con su número (antes decía «3 preguntas; falta material sobre Kirchhoff», como si fueran todas de ahí)
+        self.assertIn("El tutor no pudo contestar 3 preguntas por falta de material: «Leyes de Kirchhoff» (2), «Ley de Ohm» (1).", texto)
 
     def test_clase_sin_alumnos_o_sin_actividad(self):
         vacio = boletin.resumir(datos(alumnos={}, mensajes=[], quizzes=[], marcas=[], ultima={}, sin_respuesta=[], tareas=[]),

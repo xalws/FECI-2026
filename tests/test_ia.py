@@ -107,6 +107,46 @@ class TestRespuestaEnVivo(unittest.TestCase):
         self.assertTrue(issubclass(llm.ErrorIA, RuntimeError))  # el código anterior sigue capturándolo
 
 
+def json_invalido():
+    from groq import BadRequestError
+    return BadRequestError("Error code: 400 - {'error': {'code': 'json_validate_failed', 'failed_generation': ''}}",
+                           response=_respuesta(400), body=None)
+
+
+class TestJsonInvalido(unittest.TestCase):
+    """El modelo a veces devuelve un JSON vacío: se reintenta variando la temperatura y sin culpar a la conexión."""
+
+    def setUp(self):
+        p = mock.patch.object(llm.time, "sleep")
+        self.dormir = p.start()
+        self.addCleanup(p.stop)
+
+    def test_reintenta_con_otra_temperatura_y_sin_esperar(self):
+        temperaturas = []
+        ok = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"respuesta": 0}'))])
+        resultados = [json_invalido(), ok]
+
+        def create(**kw):
+            temperaturas.append(kw["temperature"])
+            r = resultados.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return r
+        falso = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        with mock.patch.object(llm, "_groq", return_value=falso):
+            self.assertEqual(llm._llamar([], temperature=0.0, json_mode=True), '{"respuesta": 0}')
+        self.assertEqual(len(temperaturas), 2)
+        self.assertGreater(temperaturas[1], temperaturas[0])
+        self.dormir.assert_not_called()
+
+    def test_si_sigue_fallando_el_mensaje_no_habla_de_la_conexion(self):
+        with mock.patch.object(llm, "_groq", return_value=cliente(json_invalido(), json_invalido(), json_invalido())):
+            with self.assertRaises(llm.ErrorIA) as e:
+                llm._llamar([], json_mode=True)
+        self.assertNotIn("conexión", str(e.exception))
+        self.assertIn("respuesta válida", str(e.exception))
+
+
 class TestModeloDeRespaldo(unittest.TestCase):
     """Si el modelo principal llega a su límite de Groq, el tutor sigue con el de respaldo (cada modelo tiene su cuota)."""
 

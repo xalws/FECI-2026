@@ -21,8 +21,16 @@ def guardar_mensaje(conversacion_id: int, rol: str, contenido: str) -> None:
         s.add(Mensaje(conversacion_id=conversacion_id, rol=rol, contenido=contenido))
 
 
+def señala_material_faltante(pregunta: str) -> bool:
+    """True si es una pregunta de contenido: «como?», «ok» o «Dame un ejemplo» no dicen qué material falta."""
+    from core.llm import es_peticion
+    return len(pregunta.split()) >= 3 and not es_peticion(pregunta)
+
+
 def registrar_sin_respuesta(alumno_id: int, tema_id: int, pregunta: str) -> None:
     # Guarda la pregunta para que el maestro vea qué material falta subir.
+    if not señala_material_faltante(pregunta):
+        return
     try:
         with get_session() as s:
             s.add(PreguntaSinRespuesta(alumno_id=alumno_id, tema_id=tema_id, pregunta=pregunta[:1000]))

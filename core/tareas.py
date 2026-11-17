@@ -9,7 +9,7 @@ El maestro solo puede asignar temas de la materia de la clase, y solo ve a los a
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from core import niveles
 from core.cache import memo
@@ -85,7 +85,7 @@ def crear(usuario_id: int, clase_id: int, tema_id: int, tipo: str, meta: int, fe
         s.add(t)
         s.flush()
         tema = s.scalar(select(Tema.nombre).where(Tema.id == tema_id))
-        s.add(Aviso(clase_id=clase_id, autor_id=usuario_id, texto=(
+        s.add(Aviso(clase_id=clase_id, autor_id=usuario_id, tarea_id=t.id, texto=(
             f"Nueva tarea: {descripcion(tipo, meta).lower()} en «{tema}». Fecha límite: "
             f"{_utc(fecha_limite).astimezone(zona):%d/%m/%Y}." + (f" {instrucciones}" if instrucciones else ""))[:500]))
         return True, "Tarea asignada y avisada a la clase.", t.id
@@ -96,6 +96,8 @@ def eliminar(usuario_id: int, tarea_id: int) -> tuple[bool, str]:
         t = s.get(Tarea, tarea_id)
         if t is None or not _puede_gestionar(s, usuario_id, s.get(Clase, t.clase_id)):
             return False, "No puedes borrar esta tarea."
+        # su aviso automático también: si no, los alumnos verían el anuncio de una tarea que ya no existe
+        s.execute(delete(Aviso).where(Aviso.tarea_id == tarea_id))
         s.delete(t)
     return True, "Tarea borrada."
 
