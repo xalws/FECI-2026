@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone, tzinfo
 import streamlit as st
 from sqlalchemy import select
 
-from core.cache import memo
+from core.cache import memo, sin_transaccion
 from core.db import get_session
 from models.schema import Actividad
 
@@ -19,7 +19,7 @@ def registrar(usuario_id: int) -> None:
         return
     st.session_state["_ult_actividad"] = ahora
     try:
-        with get_session() as s:
+        with sin_transaccion(), get_session() as s:  # una sola instrucción en cada pantalla: 1 viaje a la base, no 3
             s.add(Actividad(usuario_id=usuario_id))
     except Exception:
         pass  # el registro de tiempo nunca debe romper la app

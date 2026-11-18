@@ -8,7 +8,18 @@ from core import cache
 from core.config import ADMIN_EMAIL, ADMIN_PASSWORD, DATABASE_URL
 from models.schema import Base, Usuario
 
-engine = create_engine(DATABASE_URL, pool_recycle=300)
+# Con la red inestable, una conexión cortada sin aviso dejaba la consulta esperando minutos (la pantalla «se quedaba
+# cargando»). Estos límites hacen que se detecte en segundos: el error se ve y las lecturas se reintentan solas.
+LIMITES_DE_RED = {
+    "connect_timeout": 10,       # segundos para abrir la conexión
+    "keepalives": 1,             # sondas TCP para notar una conexión muerta aunque no se esté usando
+    "keepalives_idle": 20,
+    "keepalives_interval": 5,
+    "keepalives_count": 3,
+    "tcp_user_timeout": 20000,   # ms: si lo enviado no se confirma en este tiempo, la conexión se da por perdida
+}
+engine = create_engine(DATABASE_URL, pool_recycle=300,
+                       connect_args=LIMITES_DE_RED if DATABASE_URL.startswith("postgresql") else {})
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 # Con `pool_pre_ping` cada vez que se toma una conexión se hace un viaje extra a la base (con una base remota son
@@ -34,8 +45,12 @@ def _tras_confirmar(conn) -> None:
 
 @event.listens_for(engine, "rollback")
 def _tras_deshacer(conn) -> None:
-    conn.info.pop("escribio", None)
-    conn.info.pop("tablas", None)
+    # Si la conexión se cortó, leer `conn.info` lanza otro error que tapaba el original: se ignora (se descarta igual)
+    try:
+        conn.info.pop("escribio", None)
+        conn.info.pop("tablas", None)
+    except exc.SQLAlchemyError:
+        pass
 
 
 @event.listens_for(engine, "checkout")

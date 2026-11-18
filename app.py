@@ -3,12 +3,13 @@ from pathlib import Path
 
 import streamlit as st
 
-from core import errores, sesion, tema
+from core import errores, precarga, sesion, tema
 from core.auth import iniciar_db
 from core.estilo import aplicar_estilo, mostrar_carga, transicion
 from core.hoy import menu_pendientes
 
 st.set_page_config(page_title="PRACTIC_APP", page_icon="🎓", layout="wide")
+precarga.iniciar()  # importa en segundo plano lo pesado mientras se muestra el inicio de sesión (ver core/precarga.py)
 iniciar_db()
 tema.restaurar_sesion()  # tras cambiar de modo claro/oscuro la página se recarga: vuelve a su sesión
 sesion.restaurar()       # «Recordarme»: si el navegador trae un código vigente, se recupera la sesión

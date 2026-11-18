@@ -541,3 +541,25 @@ def extraer_reticula(texto_pdf: str) -> dict:
         except (ValueError, TypeError, AttributeError):
             pass
     raise RuntimeError("La IA no pudo leer la retícula. Revisa que el PDF sea el programa de la asignatura.")
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Voz del alumno: de audio a texto
+# ---------------------------------------------------------------------------------------------------------------
+MODELO_TRANSCRIPCION = "whisper-large-v3-turbo"
+MAX_BYTES_AUDIO = 4 * 1024 * 1024  # una pregunta hablada dura segundos; esto evita mandar archivos enormes
+
+
+def transcribir(audio: bytes, nombre: str = "pregunta.wav") -> str:
+    """Convierte la pregunta hablada del alumno en texto (español) con Whisper de Groq. Devuelve "" si no se entendió."""
+    if not audio or len(audio) > MAX_BYTES_AUDIO:
+        return ""
+    try:
+        r = _groq().audio.transcriptions.create(
+            file=(nombre, audio), model=MODELO_TRANSCRIPCION, language="es", temperature=0.0,
+            prompt="Pregunta de un estudiante universitario a su tutor.")
+    except ErrorIA:
+        raise
+    except Exception as e:
+        raise _error_final(e) or ErrorIA("No pude escuchar tu pregunta. Inténtalo de nuevo o escríbela.", "red", str(e))
+    return " ".join((getattr(r, "text", "") or "").split())

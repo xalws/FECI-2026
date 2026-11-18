@@ -12,7 +12,7 @@ import pandas as pd
 from sqlalchemy import delete, func, select
 
 from core import niveles
-from core.cache import memo
+from core.cache import memo, solo_lectura
 from core.clases import ACTIVO, _puede_gestionar
 from core.db import get_session
 from models.schema import Aviso, Clase, Inscripcion, IntentoEjercicio, Materia, Quiz, RespuestaQuiz, Tarea, Tema, Unidad, Usuario
@@ -129,6 +129,7 @@ def _tarjeta(t: Tarea, tema: str) -> dict:
             "fecha_limite": _utc(t.fecha_limite), "creada": _utc(t.creada)}
 
 
+@solo_lectura
 def tareas_de_clase(usuario_id: int, clase_id: int) -> list[dict]:
     """Tareas de la clase con cuántos alumnos ya la cumplieron; las que vencen antes, primero."""
     ahora = datetime.now(timezone.utc)
@@ -149,6 +150,7 @@ def tareas_de_clase(usuario_id: int, clase_id: int) -> list[dict]:
         return salida
 
 
+@solo_lectura
 def detalle(usuario_id: int, tarea_id: int) -> list[dict]:
     """Avance de cada alumno de la clase en una tarea (para el maestro)."""
     with get_session() as s:
@@ -163,6 +165,7 @@ def detalle(usuario_id: int, tarea_id: int) -> list[dict]:
                  "hecha": avances.get(a, 0) >= t.meta} for a, n in alumnos]
 
 
+@solo_lectura
 def matriz(usuario_id: int, clase_id: int, zona=timezone.utc) -> pd.DataFrame:
     """Cumplimiento de la clase: una fila por alumno y una columna por tarea («3/10» y una palomita si ya la cumplió)."""
     with get_session() as s:

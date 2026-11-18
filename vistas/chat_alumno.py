@@ -1,6 +1,6 @@
 import streamlit as st
 
-from core import chat, clases, errores, examen, llm, logros, material, niveles, perfil, progreso, quiz, rag, reticula, tutoria
+from core import chat, clases, errores, examen, llm, logros, material, niveles, perfil, progreso, quiz, rag, reticula, tutoria, voz
 from core.auth import require_login
 from core.estudiante import cargando
 from core.hoy import panel_estudio as panel_dia
@@ -188,6 +188,7 @@ TIPOS = {"conv_id": "chat", "conv_ejercicio": "ejercicio", "conv_examen": "exame
 
 def nueva_conversacion(clave: str, titulo_conv: str) -> int:
     ss[clave] = chat.crear_conversacion(user["id"], tema_id, titulo_conv, TIPOS[clave])
+    ss.setdefault("voz_vistos", {})[ss[clave]] = 0  # todo lo que llegue a esta conversación es nuevo (se puede leer solo)
     return ss[clave]
 
 
@@ -280,6 +281,32 @@ def accion_tutor(intencion: str, texto_alumno: str | None = None) -> None:
         error_ia(e)
 
 
+def _pregunta_hablada() -> str | None:
+    """Micrófono: el alumno graba su pregunta, se convierte en texto y entra al chat como si la hubiera escrito.
+
+    La respuesta del tutor se lee sola en voz alta (conversación de ida y vuelta por voz).
+    """
+    with st.expander("Preguntar con mi voz", icon=":material/mic:"):
+        st.caption("Pulsa el micrófono, di tu pregunta y vuelve a pulsarlo para terminar. El tutor te contestará y "
+                   "leerá su respuesta.")
+        audio = st.audio_input("Tu pregunta hablada", key=f"mic_{ss.get('mic_n', 0)}", label_visibility="collapsed")
+    if audio is None:
+        return None
+    ss["mic_n"] = ss.get("mic_n", 0) + 1  # el siguiente grabador empieza vacío
+    try:
+        with cargando("Escuchando tu pregunta…"):
+            texto = llm.transcribir(audio.getvalue())
+    except Exception as e:
+        errores.registrar("voz_entrada", e, user["id"])
+        error_ia(e)
+        return None
+    if not texto:
+        st.warning("No te alcancé a entender. Acércate al micrófono e inténtalo otra vez.", icon=":material/mic_off:")
+        return None
+    ss["leer_respuesta_siguiente"] = True  # preguntó hablando: se le contesta hablando
+    return texto
+
+
 def vista_conversacion() -> None:
     previas = chat.conversaciones_del_tema(user["id"], tema_id)
     etiquetas = {0: "+ Nueva conversación",
@@ -292,13 +319,25 @@ def vista_conversacion() -> None:
 
     pregunta = st.chat_input("Escribe tu pregunta o «comencemos»…")  # se lee antes para limpiar errores viejos
     pregunta = pregunta or ss.pop("pregunta_rapida", None)  # o la que eligió con un botón bajo la respuesta
+    pregunta = pregunta or _pregunta_hablada()  # o la que dijo por el micrófono
     if pregunta:
         ss.pop("fallo_ia", None)
 
     mensajes = chat.listar_mensajes(ss.conv_id) if ss.conv_id else []
-    for m in mensajes:
+    # Respuestas nuevas: las que llegaron después de la última vez que se dibujó esta conversación en esta sesión.
+    # Al abrir una conversación vieja no hay nuevas, así que la lectura automática no se pone a leer el historial.
+    vistos = ss.setdefault("voz_vistos", {})
+    antes = vistos.get(ss.conv_id, len(mensajes))
+    vistos[ss.conv_id] = len(mensajes)
+    nueva_por_voz = bool(ss.get("leer_respuesta_siguiente")) and len(mensajes) > antes
+    if nueva_por_voz:
+        ss.pop("leer_respuesta_siguiente", None)  # vale solo para esta respuesta
+    for i, m in enumerate(mensajes):
         with st.chat_message(m["rol"]):
             st.markdown(m["contenido"])
+            if m["rol"] == "assistant":  # el tutor habla: «Escuchar» con la voz del navegador (core/voz.py)
+                voz.lector(m["contenido"], f"{ss.conv_id}-{i}", auto=i >= antes and i == len(mensajes) - 1,
+                         forzar=nueva_por_voz and i >= antes and i == len(mensajes) - 1)
 
     # Error pendiente de la respuesta anterior: se muestra en cada ejecución para que «Reintentar» funcione
     fallo = ss.get("fallo_ia")

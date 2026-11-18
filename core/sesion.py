@@ -15,8 +15,9 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import streamlit as st
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 
+from core import cache
 from core.db import get_session
 from models.schema import Sesion, Usuario
 
@@ -40,13 +41,13 @@ def _utc(fecha: datetime) -> datetime:
 def crear(usuario_id: int, dias: int = DURACION_DIAS) -> str:
     """Crea una sesión recordada y devuelve su código (es la única vez que se conoce completo)."""
     token = secrets.token_urlsafe(32)
-    with get_session() as s:
-        ahora = _ahora()
-        s.execute(delete(Sesion).where(Sesion.expira < ahora))  # limpieza de las vencidas
-        viejas = s.scalars(select(Sesion.id).where(Sesion.usuario_id == usuario_id)
-                           .order_by(Sesion.creada.desc()).offset(MAX_SESIONES_POR_USUARIO - 1)).all()
-        if viejas:
-            s.execute(delete(Sesion).where(Sesion.id.in_(viejas)))
+    ahora = _ahora()
+    # Dos instrucciones sin transacción (2 viajes a la base en lugar de 6): con la red lenta, iniciar sesión tardaba
+    viejas = (select(Sesion.id).where(Sesion.usuario_id == usuario_id)
+              .order_by(Sesion.creada.desc()).offset(MAX_SESIONES_POR_USUARIO - 1))
+    with cache.sin_transaccion(), get_session() as s:
+        # las vencidas de todos y, de este usuario, las que pasan del máximo (deja lugar para la nueva)
+        s.execute(delete(Sesion).where(or_(Sesion.expira < ahora, Sesion.id.in_(viejas))))
         s.add(Sesion(usuario_id=usuario_id, token_hash=_huella(token), creada=ahora, expira=ahora + timedelta(days=dias)))
     return token
 
@@ -55,14 +56,14 @@ def validar(token: str | None) -> dict | None:
     """Datos del usuario si el código es vigente y su cuenta sigue activa; si no, None."""
     if not token or len(token) > 200:
         return None
-    with get_session() as s:
-        fila = s.scalar(select(Sesion).where(Sesion.token_hash == _huella(token)))
-        if fila is None or _utc(fila.expira) <= _ahora():
-            return None
-        u = s.get(Usuario, fila.usuario_id)
-        if u is None or not u.activo:
-            return None
-        return {"id": u.id, "nombre": u.nombre, "email": u.email, "rol": u.rol}
+    # Una sola consulta sin transacción: se hace en cada recarga de la página
+    with cache.sin_transaccion(), get_session() as s:
+        fila = s.execute(select(Sesion.expira, Usuario.id, Usuario.nombre, Usuario.email, Usuario.rol, Usuario.activo)
+                         .join(Usuario, Usuario.id == Sesion.usuario_id)
+                         .where(Sesion.token_hash == _huella(token))).first()
+    if fila is None or _utc(fila.expira) <= _ahora() or not fila.activo:
+        return None
+    return {"id": fila.id, "nombre": fila.nombre, "email": fila.email, "rol": fila.rol}
 
 
 def revocar(token: str | None) -> None:

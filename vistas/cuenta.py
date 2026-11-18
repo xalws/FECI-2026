@@ -2,7 +2,7 @@
 import streamlit as st
 from sqlalchemy import select
 
-from core import cuenta
+from core import cuenta, voz
 from core.auth import require_login
 from core.db import get_session
 from core.estilo import encabezado, lista, titulo
@@ -30,6 +30,13 @@ with col_propia:
                     st.success(mensaje, icon=":material/check_circle:")
                 else:
                     st.error(mensaje, icon=":material/error:")
+
+    if user["rol"] == "alumno":  # el tutor habla: voz, velocidad y lectura automática (se guardan en este navegador)
+        with st.container(border=True):
+            titulo("message", "Voz del tutor", nivel=4)
+            st.caption("Bajo cada respuesta del tutor aparece «Escuchar». Aquí eliges cómo suena y si lee solo las "
+                       "respuestas nuevas.")
+            voz.ajustes()
 
 with col_lado:
     if user["rol"] != "admin":

@@ -1,7 +1,7 @@
 import streamlit as st
 from sqlalchemy import select
 
-from core import actividad, cuenta, estilo, seguridad, sesion, tema
+from core import actividad, cache, cuenta, estilo, seguridad, sesion, tema
 from core.db import get_session, init_db
 from core.passwords import hash_password, verificar_password
 from models.schema import Cuatrimestre, Usuario
@@ -15,10 +15,12 @@ def iniciar_db() -> bool:
 
 
 def login(email: str, password: str) -> dict | None:
-    with get_session() as s:
-        u = s.scalar(select(Usuario).where(Usuario.email == email.strip().lower()))
-        if u and u.activo and verificar_password(password, u.password_hash):
-            return {"id": u.id, "nombre": u.nombre, "email": u.email, "rol": u.rol}
+    with cache.sin_transaccion(), get_session() as s:  # una lectura: 1 viaje a la base en lugar de 3
+        u = s.execute(select(Usuario.id, Usuario.nombre, Usuario.email, Usuario.rol, Usuario.activo, Usuario.password_hash)
+                      .where(Usuario.email == email.strip().lower())).first()
+    # La contraseña se comprueba ya sin la conexión ocupada (bcrypt tarda a propósito)
+    if u and u.activo and verificar_password(password, u.password_hash):
+        return {"id": u.id, "nombre": u.nombre, "email": u.email, "rol": u.rol}
     return None
 
 
@@ -28,12 +30,14 @@ def intentar_login(email: str, password: str) -> tuple[dict | None, str]:
     Tras `seguridad.MAX_FALLOS` fallos el correo se bloquea `seguridad.VENTANA_MIN` minutos; mientras tanto ni siquiera
     se revisa la contraseña (acertarla tampoco sirve), para que adivinar no avance.
     """
-    espera = seguridad.segundos_de_bloqueo(email)
+    fallos, ultimo = seguridad.fallos_recientes(email)
+    espera = seguridad.espera_por_fallos(fallos, ultimo)
     if espera:
         return None, f"Demasiados intentos fallidos. Vuelve a intentarlo en {seguridad.texto_de_espera(espera)}."
     u = login(email, password)
     if u:
-        seguridad.limpiar(email)
+        if fallos:  # sin fallos recientes no hay nada que borrar: una consulta menos al entrar
+            seguridad.limpiar(email)
         return u, ""
     seguridad.registrar_fallo(email)
     espera = seguridad.segundos_de_bloqueo(email)

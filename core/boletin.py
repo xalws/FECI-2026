@@ -9,6 +9,7 @@ import pandas as pd
 from sqlalchemy import func, select
 
 from core import actividad, stats, tareas
+from core.cache import solo_lectura
 from core.clases import ACTIVO, _puede_gestionar
 from core.db import get_session
 from models.schema import (Actividad, Clase, Conversacion, Inscripcion, IntentoEjercicio, Materia, Mensaje,
@@ -33,6 +34,7 @@ def _pct(correctas: int, total: int) -> float | None:
     return round(100 * correctas / total) if total else None
 
 
+@solo_lectura
 def cargar(usuario_id: int, clase_id: int, ahora: datetime | None = None) -> dict | None:
     """Datos crudos de las últimas dos semanas (la actual y la anterior, para comparar). None si no es su clase."""
     ahora = ahora or datetime.now(timezone.utc)

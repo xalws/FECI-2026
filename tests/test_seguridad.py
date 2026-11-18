@@ -81,6 +81,22 @@ class TestLimiteDeIntentos(unittest.TestCase):
         self.assertEqual(seguridad.segundos_de_bloqueo(CORREO), 0)
         self.assertIsNotNone(auth.intentar_login(CORREO, "buena1234")[0])
 
+    def test_entrar_sin_fallos_previos_no_borra_nada(self):
+        from unittest import mock
+        with mock.patch.object(seguridad, "limpiar") as limpiar:
+            self.assertIsNotNone(auth.intentar_login(CORREO, "buena1234")[0])
+        limpiar.assert_not_called()  # una consulta menos al entrar
+        auth.intentar_login(CORREO, "mala")
+        with mock.patch.object(seguridad, "limpiar") as limpiar:
+            auth.intentar_login(CORREO, "buena1234")
+        limpiar.assert_called_once()
+
+    def test_espera_por_fallos(self):
+        ahora = datetime.now(timezone.utc)
+        self.assertEqual(seguridad.espera_por_fallos(seguridad.MAX_FALLOS - 1, ahora, ahora), 0)
+        self.assertEqual(seguridad.espera_por_fallos(seguridad.MAX_FALLOS, None, ahora), 0)
+        self.assertEqual(seguridad.espera_por_fallos(seguridad.MAX_FALLOS, ahora, ahora), seguridad.VENTANA_MIN * 60)
+
     def test_texto_de_espera(self):
         self.assertEqual(seguridad.texto_de_espera(1), "1 minuto")
         self.assertEqual(seguridad.texto_de_espera(60), "1 minuto")

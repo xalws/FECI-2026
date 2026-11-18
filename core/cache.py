@@ -16,6 +16,7 @@ Fuera de Streamlit (pruebas, scripts) no se guarda nada: las funciones se ejecut
 import functools
 import os
 import re
+from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import tzinfo
 
@@ -25,6 +26,52 @@ TTL = 60
 # Mientras una lectura guardada se ejecuta, `get_session` usa una conexión sin transacción (AUTOCOMMIT): una consulta
 # cuesta 1 viaje a la base en lugar de 3 (abrir transacción, consultar, cerrar). Por eso `@memo` es solo para lecturas.
 modo_lectura: ContextVar[bool] = ContextVar("modo_lectura", default=False)
+
+
+@contextmanager
+def sin_transaccion():
+    """Las consultas de dentro usan la conexión sin transacción: 1 viaje a la base por consulta en lugar de 3.
+
+    Para lecturas sueltas y para escrituras de una sola instrucción que no cambian lo que se muestra (sesiones,
+    actividad), como las del inicio de sesión. No sirve para varias escrituras que deban guardarse juntas.
+    """
+    marca = modo_lectura.set(True)
+    try:
+        yield
+    finally:
+        modo_lectura.reset(marca)
+
+
+def _se_cayo_la_conexion(e: Exception) -> bool:
+    """True si el error es que la conexión con la base se cortó (red inestable, el servidor la cerró…)."""
+    from sqlalchemy import exc
+    return (isinstance(e, exc.DBAPIError) and e.connection_invalidated) or isinstance(e, (exc.OperationalError,
+                                                                                          exc.PendingRollbackError))
+
+
+def leer_con_reintento(funcion, *args, **kwargs):
+    """Ejecuta una lectura sin transacción; si la conexión se cortó a la mitad, la repite una vez con otra conexión.
+
+    Repetir es seguro porque solo lee. Con la red inestable, una conexión cortada mostraba un error al usuario o dejaba
+    la pantalla cargando.
+    """
+    for intento in (1, 2):
+        try:
+            with sin_transaccion():
+                return funcion(*args, **kwargs)
+        except Exception as e:
+            if intento == 2 or not _se_cayo_la_conexion(e):
+                raise
+
+
+def solo_lectura(funcion):
+    """Decorador para funciones que solo leen: sin transacción y con un reintento si se corta la conexión."""
+    @functools.wraps(funcion)
+    def envoltura(*args, **kwargs):
+        return leer_con_reintento(funcion, *args, **kwargs)
+    return envoltura
+
+
 # Escrituras que ocurren en cada recarga de pantalla y no cambian lo que se muestra
 _IGNORADAS = ("INSERT INTO actividad", "INSERT INTO sesiones", "UPDATE sesiones", "DELETE FROM sesiones")
 _version = 0
@@ -93,11 +140,7 @@ def memo(funcion=None, *, ttl: int = TTL, tablas: tuple[str, ...] | None = None)
         guardado = None  # se crea la primera vez que se usa dentro de Streamlit (fuera de él avisaría en cada importación)
 
         def leer(*args, **kwargs):
-            marca = modo_lectura.set(True)
-            try:
-                return f(*args, **kwargs)
-            finally:
-                modo_lectura.reset(marca)
+            return leer_con_reintento(f, *args, **kwargs)
 
         @functools.wraps(f)
         def envoltura(*args, **kwargs):

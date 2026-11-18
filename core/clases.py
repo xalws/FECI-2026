@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select
 
-from core.cache import memo
+from core.cache import memo, solo_lectura
 from core.db import get_session
 from models.schema import Asignacion, Aviso, Clase, Inscripcion, Materia, Tarea, Usuario
 
@@ -44,6 +44,7 @@ def _puede_gestionar(s, usuario_id: int, clase: Clase | None) -> bool:
 # ----------------------------------------------------------------------------------------------------------------
 # Maestro
 # ----------------------------------------------------------------------------------------------------------------
+@solo_lectura
 def materias_para_crear(usuario_id: int) -> dict[int, str]:
     """Materias en las que puede crear clases: las asignadas al maestro, o todas si es administrador."""
     with get_session() as s:
@@ -77,6 +78,7 @@ def crear_clase(usuario_id: int, materia_id: int, nombre: str, aprobacion: bool 
         return True, f"Clase creada. Comparte el código {c.codigo} con tus alumnos.", c.id
 
 
+@solo_lectura
 def clases_del_maestro(usuario_id: int) -> list[dict]:
     """Las clases del maestro (todas, si es administrador) con su número de alumnos y de solicitudes."""
     with get_session() as s:
@@ -140,6 +142,7 @@ def eliminar_clase(usuario_id: int, clase_id: int) -> tuple[bool, str]:
     return True, "Clase eliminada. Los alumnos conservan su progreso."
 
 
+@solo_lectura
 def alumnos_de_clase(usuario_id: int, clase_id: int, estado: str = ACTIVO) -> list[dict]:
     with get_session() as s:
         if not _puede_gestionar(s, usuario_id, s.get(Clase, clase_id)):
@@ -172,6 +175,7 @@ def quitar_alumno(usuario_id: int, clase_id: int, alumno_id: int) -> tuple[bool,
     return (True, "Alumno quitado de la clase.") if r.rowcount else (False, "El alumno ya no estaba en la clase.")
 
 
+@solo_lectura
 def alumnos_ids(clase_id: int) -> list[int]:
     """Ids de los alumnos activos de una clase (para filtrar estadísticas; el permiso se revisa en la pantalla)."""
     with get_session() as s:
@@ -253,6 +257,7 @@ def borrar_aviso(usuario_id: int, aviso_id: int) -> tuple[bool, str]:
     return True, "Aviso borrado."
 
 
+@solo_lectura
 def avisos_de_clase(usuario_id: int, clase_id: int, limite: int = 20) -> list[dict]:
     """Avisos de una clase para quien la administra."""
     with get_session() as s:

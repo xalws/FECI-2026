@@ -94,6 +94,43 @@ class TestCache(unittest.TestCase):
         self.assertEqual(vistos, ["AUTOCOMMIT"])
         self.assertFalse(cache.modo_lectura.get())
 
+    def test_una_lectura_se_repite_si_se_corta_la_conexion(self):
+        from sqlalchemy import exc
+        llamadas = []
+
+        @cache.solo_lectura
+        def leer():
+            llamadas.append(cache.modo_lectura.get())
+            if len(llamadas) == 1:
+                raise exc.OperationalError("SELECT 1", {}, Exception("server closed the connection unexpectedly"))
+            return "ok"
+
+        self.assertEqual(leer(), "ok")
+        self.assertEqual(llamadas, [True, True])  # dos intentos, los dos sin transacción
+        self.assertFalse(cache.modo_lectura.get())
+
+    def test_otros_errores_no_se_reintentan_y_tampoco_un_segundo_corte(self):
+        from sqlalchemy import exc
+        llamadas = []
+
+        @cache.solo_lectura
+        def falla():
+            llamadas.append(1)
+            raise ValueError("dato raro")
+
+        with self.assertRaises(ValueError):
+            falla()
+        self.assertEqual(len(llamadas), 1)
+
+        @cache.solo_lectura
+        def siempre_cortada():
+            llamadas.append(2)
+            raise exc.OperationalError("SELECT 1", {}, Exception("se cortó"))
+
+        with self.assertRaises(exc.OperationalError):
+            siempre_cortada()
+        self.assertEqual(llamadas.count(2), 2)  # un reintento, no un ciclo sin fin
+
     def test_claves_de_los_argumentos(self):
         self.assertEqual(cache._clave(ZoneInfo("America/Ciudad_Juarez")), "America/Ciudad_Juarez")
         self.assertEqual(cache._clave(timezone.utc), "UTC")

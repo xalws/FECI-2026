@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select
 
+from core import cache
 from core.db import get_session
 from models.schema import IntentoLogin
 
@@ -24,16 +25,27 @@ def _utc(fecha: datetime) -> datetime:
     return fecha if fecha.tzinfo else fecha.replace(tzinfo=timezone.utc)
 
 
-def segundos_de_bloqueo(email: str, ahora: datetime | None = None) -> int:
-    """Segundos que faltan para poder volver a intentar; 0 si el correo no está bloqueado."""
+def fallos_recientes(email: str, ahora: datetime | None = None) -> tuple[int, datetime | None]:
+    """(cuántos fallos tuvo el correo dentro de la ventana, fecha del último)."""
     ahora = ahora or datetime.now(timezone.utc)
     desde = ahora - timedelta(minutes=VENTANA_MIN)
-    with get_session() as s:
+    with cache.sin_transaccion(), get_session() as s:  # se consulta en cada inicio de sesión: 1 viaje, no 3
         n, ultimo = s.execute(select(func.count(), func.max(IntentoLogin.fecha))
                               .where(IntentoLogin.email == _clave(email), IntentoLogin.fecha >= desde)).one()
+    return n or 0, ultimo
+
+
+def espera_por_fallos(n: int, ultimo: datetime | None, ahora: datetime | None = None) -> int:
+    """Segundos de bloqueo que tocan con `n` fallos recientes, el último en `ultimo` (0 si no hay bloqueo)."""
     if n < MAX_FALLOS or ultimo is None:
         return 0
+    ahora = ahora or datetime.now(timezone.utc)
     return max(0, math.ceil((_utc(ultimo) + timedelta(minutes=VENTANA_MIN) - ahora).total_seconds()))
+
+
+def segundos_de_bloqueo(email: str, ahora: datetime | None = None) -> int:
+    """Segundos que faltan para poder volver a intentar; 0 si el correo no está bloqueado."""
+    return espera_por_fallos(*fallos_recientes(email, ahora), ahora)
 
 
 def intentos_restantes(email: str, ahora: datetime | None = None) -> int:
