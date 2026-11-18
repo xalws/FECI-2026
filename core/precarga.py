@@ -28,6 +28,11 @@ def _importar() -> None:
             importlib.import_module(nombre)
         except Exception as e:  # una precarga fallida no debe afectar a la app: la pantalla lo importará igual
             logging.getLogger(__name__).debug("precarga de %s: %s", nombre, e)
+    try:  # la voz local: carga el modelo y genera una frase corta para que la primera respuesta hablada no espere
+        from core import voz
+        voz.audio_natural("Hola.", voz.VOZ_NATURAL_DEFECTO, "1")
+    except Exception as e:
+        logging.getLogger(__name__).debug("precarga de la voz: %s", e)
 
 
 @st.cache_resource(show_spinner=False)

@@ -6,3 +6,4 @@ __pycache__/
 chroma_data/
 .streamlit/secrets.toml
 respaldos/
+modelos_voz/

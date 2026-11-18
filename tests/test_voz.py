@@ -110,16 +110,33 @@ class TestVozNatural(unittest.TestCase):
             fuera = voz._audio_para(texto, {"i": 999, "t": "y"})  # un índice fuera de rango se acota
         import base64
         self.assertEqual((r["i"], r["total"], r["token"]), (1, len(partes), "x"))
-        self.assertEqual(base64.b64decode(r["audio"]).decode("utf-8"), "".join(voz._trozos(partes[1])))
+        self.assertEqual(base64.b64decode(r["audio"].split(",", 1)[1]).decode("utf-8"), "".join(voz._trozos(partes[1])))
         self.assertEqual(fuera["i"], len(partes) - 1)
 
-    def test_una_voz_desconocida_usa_la_de_por_defecto(self):
+    def test_una_voz_desconocida_usa_la_de_por_defecto_y_la_local_se_respalda_en_linea(self):
         from unittest import mock
 
         from core import voz
-        with mock.patch.dict("sys.modules", {"edge_tts": mock.Mock(Communicate=_ComunicadorFalso)}):
-            voz.audio_natural("Hola.", "voz-inventada", "9")
-        self.assertEqual(_ComunicadorFalso.llamadas, [("Hola.", voz.VOZ_NATURAL_DEFECTO, "+0%")])
+        # la voz por defecto es la local; si no se puede generar, se usa la de respaldo en línea
+        with mock.patch.dict("sys.modules", {"edge_tts": mock.Mock(Communicate=_ComunicadorFalso)}),                 mock.patch.object(voz, "_audio_local", side_effect=OSError("sin modelo")):
+            audio = voz.audio_natural("Hola.", "voz-inventada", "9")
+        self.assertEqual(audio, b"Hola.")
+        self.assertEqual(_ComunicadorFalso.llamadas, [("Hola.", voz.VOZ_DE_RESPALDO, "+0%")])
+
+    def test_la_voz_local_entrega_un_wav(self):
+        from unittest import mock
+
+        import numpy as np
+
+        from core import voz
+        kokoro = mock.Mock()
+        kokoro.create.return_value = (np.zeros(2400, dtype="float32"), 24000)
+        with mock.patch.object(voz, "_kokoro", kokoro):
+            wav = voz._audio_local("Hola.", "em_alex", 1.0)
+        self.assertEqual(wav[:4], b"RIFF")
+        kokoro.create.assert_called_once()
+        self.assertEqual(kokoro.create.call_args.kwargs["voice"], "em_alex")
+        self.assertEqual(kokoro.create.call_args.kwargs["lang"], "es")
 
     def test_si_el_servicio_falla_se_avisa_para_usar_la_voz_del_navegador(self):
         from unittest import mock

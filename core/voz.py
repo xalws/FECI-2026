@@ -14,8 +14,12 @@ Si ese servicio no responde (sin internet, por ejemplo), habla la voz que traiga
 import asyncio
 import base64
 import functools
+import io
+import logging
 import re
+import threading
 import unicodedata
+from pathlib import Path
 
 import streamlit as st
 
@@ -86,9 +90,12 @@ def texto_para_leer(markdown: str) -> str:
 # ---------------------------------------------------------------------------------------------------------------
 # Voz natural generada en el servidor (voces neuronales de Microsoft, con el paquete edge-tts)
 # ---------------------------------------------------------------------------------------------------------------
-VOCES_NATURALES = {"es-MX-DaliaNeural": "Dalia · voz natural de mujer (México)",
-                   "es-MX-JorgeNeural": "Jorge · voz natural de hombre (México)"}
-VOZ_NATURAL_DEFECTO = "es-MX-JorgeNeural"
+VOCES_NATURALES = {"local:em_alex": "Álex · voz local, sin internet (México)",
+                   "es-MX-JorgeNeural": "Jorge · voz natural en línea (México)",
+                   "es-MX-DaliaNeural": "Dalia · voz natural en línea (México)"}
+VOZ_NATURAL_DEFECTO = "local:em_alex"
+VOZ_DE_RESPALDO = "es-MX-JorgeNeural"  # si la voz local no está disponible
+MODELO_LOCAL = Path(__file__).resolve().parent.parent / "modelos_voz"
 VELOCIDADES = {"0.8": "-20%", "1": "+0%", "1.2": "+20%"}  # la del navegador → la de edge-tts
 PRIMER_TROZO = 140    # caracteres del primer trozo: corto, para que la voz empiece a sonar en un par de segundos
 MAX_TROZO = 400       # los demás trozos se generan mientras suena el anterior
@@ -118,12 +125,39 @@ def trozos_de_voz(texto: str) -> list[str]:
     return [primeros[0], *_trozos(" ".join(primeros[1:]), MAX_TROZO)]
 
 
+_kokoro = None
+_cerrojo_kokoro = threading.Lock()
+
+
+def _audio_local(texto: str, voz: str, velocidad: float) -> bytes:
+    """WAV generado en esta computadora con Kokoro (no usa internet). Falla si no están los archivos del modelo."""
+    global _kokoro
+    import soundfile
+    with _cerrojo_kokoro:  # el modelo se carga una vez y se usa de uno en uno
+        if _kokoro is None:
+            from kokoro_onnx import Kokoro
+            _kokoro = Kokoro(str(MODELO_LOCAL / "kokoro-v1.0.onnx"), str(MODELO_LOCAL / "voices-v1.0.bin"))
+        muestras, tasa = _kokoro.create(texto, voice=voz, speed=velocidad, lang="es")
+    salida = io.BytesIO()
+    soundfile.write(salida, muestras, tasa, format="WAV")
+    return salida.getvalue()
+
+
 @functools.lru_cache(maxsize=256)
 def audio_natural(texto: str, voz: str = VOZ_NATURAL_DEFECTO, velocidad: str = "1") -> bytes:
-    """MP3 de un trozo de texto con una voz natural (se guarda: volver a escucharlo no lo genera otra vez)."""
+    """Audio de un trozo de texto con una voz natural (se guarda: volver a escucharlo no lo genera otra vez).
+
+    Con una voz local (`local:…`) se genera aquí mismo; si no se puede, se usa la voz en línea de respaldo.
+    """
+    voz = voz if voz in VOCES_NATURALES else VOZ_NATURAL_DEFECTO
+    if voz.startswith("local:"):
+        try:
+            return _audio_local(texto, voz.split(":", 1)[1], float(velocidad) if str(velocidad) in VELOCIDADES else 1.0)
+        except Exception as e:
+            logging.getLogger(__name__).warning("voz local no disponible (%s): se usa %s", e, VOZ_DE_RESPALDO)
+            voz = VOZ_DE_RESPALDO
     import edge_tts  # se importa aquí: solo hace falta cuando alguien pide escuchar
 
-    voz = voz if voz in VOCES_NATURALES else VOZ_NATURAL_DEFECTO
     rate = VELOCIDADES.get(str(velocidad), "+0%")
 
     async def uno(trozo: str) -> bytes:
@@ -150,7 +184,8 @@ def _audio_para(texto: str, pedido: dict) -> dict:
     respuesta = {"token": pedido.get("t"), "i": i, "total": len(partes)}
     try:
         mp3 = audio_natural(partes[i], voz, velocidad)
-        return {**respuesta, "audio": base64.b64encode(mp3).decode("ascii"), "error": None}
+        tipo = "audio/wav" if mp3[:4] == b"RIFF" else "audio/mpeg"
+        return {**respuesta, "audio": f"data:{tipo};base64," + base64.b64encode(mp3).decode("ascii"), "error": None}
     except Exception as e:  # sin internet, servicio caído…: el alumno escucha igual, con la voz del navegador
         from core import errores
         errores.registrar("voz", e, (st.session_state.get("user") or {}).get("id"))
@@ -241,7 +276,7 @@ const pedirSiguiente = () => {  // prepara el siguiente trozo que falte, de uno 
 const tocarParte = (i, clave) => {
   const c = ESTADO.cache[ESTADO.cola.id];
   ESTADO.cola.idx = i;
-  const audio = new Audio("data:audio/mpeg;base64," + c.partes[i]);
+  const audio = new Audio(c.partes[i]);
   ESTADO.audio = audio;
   audio.onended = () => {
     if (ESTADO.clave !== clave) return;
