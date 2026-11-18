@@ -281,18 +281,11 @@ def accion_tutor(intencion: str, texto_alumno: str | None = None) -> None:
         error_ia(e)
 
 
-def _pregunta_hablada() -> str | None:
-    """Micrófono: el alumno graba su pregunta, se convierte en texto y entra al chat como si la hubiera escrito.
+def _pregunta_hablada(audio) -> str | None:
+    """Micrófono de la barra del chat: la pregunta grabada se convierte en texto y entra al chat como si se hubiera escrito.
 
     La respuesta del tutor se lee sola en voz alta (conversación de ida y vuelta por voz).
     """
-    with st.expander("Preguntar con mi voz", icon=":material/mic:"):
-        st.caption("Pulsa el micrófono, di tu pregunta y vuelve a pulsarlo para terminar. El tutor te contestará y "
-                   "leerá su respuesta.")
-        audio = st.audio_input("Tu pregunta hablada", key=f"mic_{ss.get('mic_n', 0)}", label_visibility="collapsed")
-    if audio is None:
-        return None
-    ss["mic_n"] = ss.get("mic_n", 0) + 1  # el siguiente grabador empieza vacío
     try:
         with cargando("Escuchando tu pregunta…"):
             texto = llm.transcribir(audio.getvalue())
@@ -317,9 +310,12 @@ def vista_conversacion() -> None:
     st.selectbox("Conversación", list(etiquetas), format_func=etiquetas.get, key="conv_picker",
                  on_change=cambiar_conversacion, label_visibility="collapsed")
 
-    pregunta = st.chat_input("Escribe tu pregunta o «comencemos»…")  # se lee antes para limpiar errores viejos
+    # Barra de escritura con micrófono: se puede escribir o grabar la pregunta (se lee antes para limpiar errores viejos)
+    entrada = st.chat_input("Escribe o di tu pregunta, o «comencemos»…", accept_audio=True)
+    pregunta = getattr(entrada, "text", entrada) or None
+    if not pregunta and getattr(entrada, "audio", None) is not None:
+        pregunta = _pregunta_hablada(entrada.audio)
     pregunta = pregunta or ss.pop("pregunta_rapida", None)  # o la que eligió con un botón bajo la respuesta
-    pregunta = pregunta or _pregunta_hablada()  # o la que dijo por el micrófono
     if pregunta:
         ss.pop("fallo_ia", None)
 
