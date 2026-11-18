@@ -405,8 +405,9 @@ def carga_html(mensaje: str = "Preparando tu espacio de estudio…") -> str:
 
 
 def mostrar_carga(lugar) -> None:
-    """Dibuja la pantalla de carga en un `st.empty()`; se quita con `lugar.empty()`."""
-    lugar.markdown(carga_html(), unsafe_allow_html=True)
+    """Antes dibujaba la pantalla de carga (splash) en un `st.empty()`; ya no se muestra. Se conserva la función para
+    no tocar a quien la llama, y `carga_html` por si se quiere volver a usar."""
+    lugar.empty()
 
 
 def marca_acceso() -> None:
