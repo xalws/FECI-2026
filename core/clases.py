@@ -274,7 +274,8 @@ def avisos_para_alumno(alumno_id: int, dias: int = 30, limite: int = 5) -> list[
         q = (select(Aviso, Clase.nombre, Usuario.nombre).join(Clase, Clase.id == Aviso.clase_id)
              .join(Usuario, Usuario.id == Aviso.autor_id)
              .join(Inscripcion, Inscripcion.clase_id == Clase.id)
-             .where(Inscripcion.alumno_id == alumno_id, Inscripcion.estado == ACTIVO, Clase.activa.is_(True))
+             .where(Inscripcion.alumno_id == alumno_id, Inscripcion.estado == ACTIVO, Clase.activa.is_(True),
+                    Aviso.fecha <= datetime.now(timezone.utc))  # el aviso de una tarea programada espera su fecha
              .order_by(Aviso.fecha.desc(), Aviso.id.desc()))
         salida = []
         for a, clase, autor in s.execute(q):

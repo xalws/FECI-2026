@@ -26,6 +26,7 @@ MIS_CLASES = ("vistas/clases_alumno.py", "Mis clases", ":material/groups:", "mis
 MI_PERFIL = ("vistas/mi_perfil.py", "Mi perfil", ":material/badge:", "mi-perfil")
 REPASO = ("vistas/repaso.py", "Repaso", ":material/style:", "repaso")
 CLASES = ("vistas/clases_maestro.py", "Clases", ":material/groups:", "clases")
+TAREAS = ("vistas/tareas_maestro.py", "Tareas", ":material/event_note:", "tareas")
 CUENTA = ("vistas/cuenta.py", "Mi cuenta", ":material/manage_accounts:", "cuenta")
 RETICULA = ("vistas/reticula.py", "Retícula", ":material/account_tree:", "reticula")
 MATERIAL = ("vistas/panel_maestro.py", "Material de la IA", ":material/upload_file:", "material")
@@ -35,8 +36,8 @@ ADMIN = ("vistas/admin.py", "Administración", ":material/admin_panel_settings:"
 # rol -> secciones del menú
 PAGINAS_POR_ROL = {
     "alumno": {"Aprender": [CHAT, REPASO, PROGRESO, MI_PERFIL, MIS_CLASES, HISTORIAL], "Cuenta": [CUENTA]},
-    "maestro": {"Docencia": [CLASES, RETICULA, MATERIAL, ESTADISTICAS], "Cuenta": [CUENTA]},
-    "admin": {"Administración": [ADMIN], "Docencia": [CLASES, RETICULA, MATERIAL, ESTADISTICAS], "Cuenta": [CUENTA]},
+    "maestro": {"Docencia": [CLASES, TAREAS, RETICULA, MATERIAL, ESTADISTICAS], "Cuenta": [CUENTA]},
+    "admin": {"Administración": [ADMIN], "Docencia": [CLASES, TAREAS, RETICULA, MATERIAL, ESTADISTICAS], "Cuenta": [CUENTA]},
 }
 
 user = st.session_state.get("user")

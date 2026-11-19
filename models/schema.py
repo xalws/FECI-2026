@@ -129,6 +129,8 @@ class Tarea(Base):
     instrucciones: Mapped[str | None] = mapped_column(Text, nullable=True)
     fecha_limite: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     creada: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+    # Tarea programada: los alumnos la ven (y se cuenta lo que hacen) a partir de esta fecha. None = publicada de inmediato
+    visible_desde: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Tarjeta(Base):

@@ -1,7 +1,7 @@
 """Genera apuntes de estudio para los temas con poco material y los guarda en la base (5 fragmentos por tema).
 
 Cada tema recibe cinco secciones: conceptos clave, procedimiento o reglas, dos ejemplos resueltos y errores comunes con
-práctica. Se guardan como el documento «<materia> - apuntes ampliados.pdf», así el tutor los cita igual que un PDF.
+práctica. Se guardan como el documento «Manual de <materia>.pdf», así el tutor los cita igual que un PDF.
 
 Son apuntes de apoyo escritos por el modelo de lenguaje: lo ideal es que el maestro suba su propio material.
 
@@ -9,7 +9,7 @@ Uso, desde la carpeta del proyecto y con el entorno virtual activo:
     python scripts/ampliar_apuntes.py --lista                      # qué temas tienen poco material
     python scripts/ampliar_apuntes.py --temas 56-60,32-35          # esos temas, en ese orden
     python scripts/ampliar_apuntes.py --materia "Inglés I"         # todos los temas flacos de una materia
-    python scripts/ampliar_apuntes.py --temas 61-78 --reemplazar-prueba   # y borra sus «apuntes de prueba» viejos
+    python scripts/ampliar_apuntes.py --temas 61-78 --reemplazar-prueba   # y borra su «Antología» vieja (la primera carga)
 
 Se puede detener y volver a correr: salta los temas que ya tienen apuntes ampliados. Usa la misma clave de Groq que
 el tutor; si se agota la cuota diaria se detiene solo para no dejar al tutor sin servicio.
@@ -30,8 +30,10 @@ from core import llm, rag  # noqa: E402
 from core.db import get_session  # noqa: E402
 from models.schema import Documento, Fragmento, Materia, Tema, Unidad, Usuario  # noqa: E402
 
-SUFIJO = " - apuntes ampliados.pdf"
-SUFIJO_PRUEBA = " - apuntes de prueba.pdf"
+# Nombres de los documentos: «Manual de <materia>.pdf» (los apuntes ampliados) y «Antología de <materia>.pdf» (los de la
+# primera carga). Son títulos propios del curso; no se atribuyen a libros ni autores reales.
+PATRON_MANUAL = "Manual de %.pdf"
+PATRON_ANTOLOGIA = "Antología de %.pdf"
 TITULOS = ["Conceptos clave", "Procedimiento o reglas", "Ejemplo resuelto 1", "Ejemplo resuelto 2", "Errores comunes y práctica"]
 SISTEMA = """Eres un profesor universitario. Escribes apuntes de estudio claros y CORRECTOS, en español, para estudiantes
 de ingeniería de primer cuatrimestre. Responde SOLO con JSON: {"secciones": [{"titulo": "...", "texto": "..."}]} con
@@ -56,7 +58,7 @@ class SinCuotaDiaria(Exception):
 def temas_con_poco_material(minimo: int = 4) -> list[dict]:
     with get_session() as s:
         cuenta = dict(s.execute(select(Fragmento.tema_id, func.count()).group_by(Fragmento.tema_id)).all())
-        ampliados = set(s.scalars(select(Documento.tema_id).where(Documento.nombre_archivo.like(f"%{SUFIJO}"))))
+        ampliados = set(s.scalars(select(Documento.tema_id).where(Documento.nombre_archivo.like(PATRON_MANUAL))))
         filas = s.execute(select(Tema.id, Tema.nombre, Tema.objetivos, Unidad.nombre, Materia.nombre)
                           .join(Unidad, Unidad.id == Tema.unidad_id).join(Materia, Materia.id == Unidad.materia_id)
                           .order_by(Materia.id, Unidad.id, Tema.id)).all()
@@ -101,7 +103,7 @@ def generar(t: dict, esfuerzo: str) -> list[dict] | None:
 
 
 def guardar(t: dict, secciones: list[dict], reemplazar_prueba: bool) -> int:
-    archivo = f"{t['materia']}{SUFIJO}"
+    archivo = f"Manual de {t['materia']}.pdf"
     with get_session() as s:
         autor = s.scalar(select(Usuario.id).where(Usuario.rol == "admin").order_by(Usuario.id))
         d = Documento(tema_id=t["id"], maestro_id=autor, nombre_archivo=archivo, num_chunks=0)
@@ -118,7 +120,7 @@ def guardar(t: dict, secciones: list[dict], reemplazar_prueba: bool) -> int:
         s.get(Documento, doc_id).num_chunks = n
         if reemplazar_prueba:  # los apuntes de prueba viejos de este tema dejan de usarse
             viejos = list(s.scalars(select(Documento.id).where(Documento.tema_id == t["id"],
-                                                               Documento.nombre_archivo.like(f"%{SUFIJO_PRUEBA}"))))
+                                                               Documento.nombre_archivo.like(PATRON_ANTOLOGIA))))
             if viejos:
                 s.execute(delete(Fragmento).where(Fragmento.documento_id.in_(viejos)))
                 s.execute(delete(Documento).where(Documento.id.in_(viejos)))
@@ -134,7 +136,7 @@ def main() -> None:
     p.add_argument("--lista", action="store_true", help="solo muestra los temas con poco material")
     p.add_argument("--temas", help="ids de temas, p. ej. 56-60,32-35 (en ese orden)")
     p.add_argument("--materia", action="append", help="nombre exacto de una materia (se puede repetir)")
-    p.add_argument("--reemplazar-prueba", action="store_true", help="borra los «apuntes de prueba» del tema al terminar")
+    p.add_argument("--reemplazar-prueba", action="store_true", help="borra la «Antología» (primera carga) del tema al terminar")
     p.add_argument("--esfuerzo", default="low", choices=["low", "medium"], help="razonamiento del modelo")
     p.add_argument("--pausa", type=float, default=12, help="segundos entre temas (para no saturar el cupo por minuto)")
     a = p.parse_args()

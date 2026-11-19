@@ -94,6 +94,7 @@ COLUMNAS_NUEVAS = [
     ("usuarios", "meta_diaria_min", "INTEGER"),
     ("usuarios", "vitrina", "TEXT"),
     ("avisos", "tarea_id", "INTEGER"),
+    ("tareas", "visible_desde", "TIMESTAMP WITH TIME ZONE"),
 ]
 
 

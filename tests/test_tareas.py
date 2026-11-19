@@ -256,6 +256,99 @@ class TestConBase(unittest.TestCase):
         self.assertIn("Repasen sus apuntes.", avisos[0]["texto"])
         self.assertLessEqual(len(avisos[0]["texto"]), 500)
 
+    # ---- editar y programar ----
+    def test_el_maestro_edita_una_tarea_y_se_actualiza_su_aviso(self):
+        tid = self.asignar("preguntas", 3, dias=5)
+        nueva = datetime.now(timezone.utc) + timedelta(days=12)
+        ok, msg = tareas.editar(self.prof, tid, self.tema_a, "ejercicios", 4, nueva, "Con procedimiento", ZONA)
+        self.assertTrue(ok, msg)
+        t = tareas.tareas_de_clase(self.prof, self.clase)[0]
+        self.assertEqual((t["tipo"], t["meta"], t["instrucciones"]), ("ejercicios", 4, "Con procedimiento"))
+        self.assertAlmostEqual((t["fecha_limite"] - nueva).total_seconds(), 0, delta=1)
+        aviso = clases.avisos_para_alumno(self.ana)[0]["texto"]
+        self.assertIn("resolver 4 ejercicios", aviso)
+        self.assertIn(f"{nueva.astimezone(ZONA):%d/%m/%Y}", aviso)
+        self.assertIn("Con procedimiento", aviso)
+
+    def test_editar_valida_y_solo_lo_hace_su_maestro(self):
+        tid = self.asignar()
+        futuro = datetime.now(timezone.utc) + timedelta(days=3)
+        self.assertFalse(tareas.editar(self.otro_prof, tid, self.tema_a, "preguntas", 3, futuro)[0])
+        self.assertFalse(tareas.editar(self.ana, tid, self.tema_a, "preguntas", 3, futuro)[0])
+        self.assertFalse(tareas.editar(self.prof, tid, self.tema_b, "preguntas", 3, futuro)[0])  # tema de otra materia
+        self.assertFalse(tareas.editar(self.prof, tid, self.tema_a, "preguntas", 99, futuro)[0])
+        self.assertFalse(tareas.editar(self.prof, tid, self.tema_a, "preguntas", 3,
+                                       datetime.now(timezone.utc) - timedelta(days=1))[0])  # a una fecha pasada
+        self.assertFalse(tareas.editar(self.prof, 999999, self.tema_a, "preguntas", 3, futuro)[0])
+
+    def test_reprogramar_una_tarea_vencida_la_reabre(self):
+        tid = self.asignar(dias=3)
+        with get_session() as s:
+            s.get(Tarea, tid).fecha_limite = datetime.now(timezone.utc) - timedelta(days=1)
+        self.assertEqual(tareas.tareas_del_alumno(self.ana)[0]["estado"], "vencida")
+        nueva = datetime.now(timezone.utc) + timedelta(days=7)
+        self.assertTrue(tareas.editar(self.prof, tid, self.tema_a, "preguntas", 3, nueva)[0])
+        self.assertEqual(tareas.tareas_del_alumno(self.ana)[0]["estado"], "pendiente")
+
+    def test_se_puede_editar_otra_cosa_de_una_tarea_vencida_sin_cambiar_su_fecha(self):
+        tid = self.asignar(dias=3)
+        pasada = datetime.now(timezone.utc) - timedelta(days=1)
+        with get_session() as s:
+            s.get(Tarea, tid).fecha_limite = pasada
+        ok, msg = tareas.editar(self.prof, tid, self.tema_a, "preguntas", 5, pasada, "Nueva nota")
+        self.assertTrue(ok, msg)
+
+    def test_una_tarea_programada_no_se_ve_hasta_su_fecha(self):
+        ahora = datetime.now(timezone.utc)
+        ok, msg, tid = tareas.crear(self.prof, self.clase, self.tema_a, "preguntas", 3, ahora + timedelta(days=9),
+                                    visible_desde=ahora + timedelta(days=2))
+        self.assertTrue(ok, msg)
+        self.assertIn("programada", msg)
+        self.assertEqual(tareas.tareas_del_alumno(self.ana), [])           # el alumno todavía no la ve
+        self.assertEqual(clases.avisos_para_alumno(self.ana), [])          # ni su aviso
+        mia = tareas.tareas_de_clase(self.prof, self.clase)[0]
+        self.assertTrue(mia["programada"])                                 # el maestro sí, marcada como programada
+        self.assertEqual([t["id"] for t in tareas.del_maestro(self.prof)], [tid])
+        with get_session() as s:                                           # llega su fecha
+            s.get(Tarea, tid).visible_desde = ahora - timedelta(minutes=1)
+            s.query(Aviso).filter_by(tarea_id=tid).update({"fecha": ahora - timedelta(minutes=1)})
+        self.assertEqual([t["id"] for t in tareas.tareas_del_alumno(self.ana)], [tid])
+        self.assertEqual(len(clases.avisos_para_alumno(self.ana)), 1)
+        self.assertFalse(tareas.tareas_de_clase(self.prof, self.clase)[0]["programada"])
+
+    def test_lo_hecho_antes_de_publicarse_no_cuenta(self):
+        ahora = datetime.now(timezone.utc)
+        self.responder(self.ana, 5)  # antes de que la tarea exista
+        ok, _, tid = tareas.crear(self.prof, self.clase, self.tema_a, "preguntas", 3, ahora + timedelta(days=9),
+                                  visible_desde=ahora + timedelta(days=1))
+        self.assertTrue(ok)
+        with get_session() as s:
+            s.get(Tarea, tid).visible_desde = ahora - timedelta(minutes=1)  # ya se publicó
+        self.assertEqual(tareas.tareas_del_alumno(self.ana)[0]["avance"], 0)
+        self.responder(self.ana, 2)
+        self.assertEqual(tareas.tareas_del_alumno(self.ana)[0]["avance"], 2)
+
+    def test_programar_valida_la_fecha_de_publicacion(self):
+        ahora = datetime.now(timezone.utc)
+        ok, _, _ = tareas.crear(self.prof, self.clase, self.tema_a, "preguntas", 3, ahora + timedelta(days=3),
+                                visible_desde=ahora + timedelta(days=4))  # se publicaría después de vencer
+        self.assertFalse(ok)
+        ok, _, tid = tareas.crear(self.prof, self.clase, self.tema_a, "preguntas", 3, ahora + timedelta(days=3),
+                                  visible_desde=ahora - timedelta(days=1))  # fecha pasada: se publica ya
+        self.assertTrue(ok)
+        self.assertEqual(len(tareas.tareas_del_alumno(self.ana)), 1)
+        self.assertFalse(tareas.tareas_de_clase(self.prof, self.clase)[0]["programada"])
+
+    def test_publicar_ya_una_tarea_programada(self):
+        ahora = datetime.now(timezone.utc)
+        _, _, tid = tareas.crear(self.prof, self.clase, self.tema_a, "preguntas", 3, ahora + timedelta(days=9),
+                                 visible_desde=ahora + timedelta(days=5))
+        self.assertEqual(tareas.tareas_del_alumno(self.ana), [])
+        self.assertTrue(tareas.editar(self.prof, tid, self.tema_a, "preguntas", 3, ahora + timedelta(days=9),
+                                      visible_desde=None)[0])
+        self.assertEqual([t["id"] for t in tareas.tareas_del_alumno(self.ana)], [tid])
+        self.assertEqual(len(clases.avisos_para_alumno(self.ana)), 1)
+
     def test_matriz_de_cumplimiento(self):
         vacia = tareas.matriz(self.prof, self.clase)
         self.assertEqual(list(vacia.columns), ["Alumno"])

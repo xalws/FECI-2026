@@ -9,9 +9,9 @@ El maestro solo puede asignar temas de la materia de la clase, y solo ve a los a
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 
-from core import niveles
+from core import clases, niveles
 from core.cache import memo, solo_lectura
 from core.clases import ACTIVO, _puede_gestionar
 from core.db import get_session
@@ -60,19 +60,44 @@ def texto_plazo(limite: datetime, ahora: datetime, zona) -> str:
 # ----------------------------------------------------------------------------------------------------------------
 # Maestro
 # ----------------------------------------------------------------------------------------------------------------
-def crear(usuario_id: int, clase_id: int, tema_id: int, tipo: str, meta: int, fecha_limite: datetime,
-          instrucciones: str = "", zona=timezone.utc) -> tuple[bool, str, int | None]:
-    """Asigna una tarea y publica un aviso en la clase para que los alumnos se enteren (la fecha del aviso va en `zona`)."""
+def _texto_aviso(tipo: str, meta: int, tema: str, limite: datetime, zona, instrucciones: str,
+                 visible_desde: datetime | None = None) -> str:
+    cuando = f" Disponible desde el {_utc(visible_desde).astimezone(zona):%d/%m/%Y}." if visible_desde else ""
+    return (f"Nueva tarea: {descripcion(tipo, meta).lower()} en «{tema}». Fecha límite: "
+            f"{_utc(limite).astimezone(zona):%d/%m/%Y}." + cuando + (f" {instrucciones}" if instrucciones else ""))[:500]
+
+
+def _validar(tipo: str, meta, fecha_limite: datetime, instrucciones: str, visible_desde: datetime | None,
+             ahora: datetime, limite_original: datetime | None = None) -> str | None:
+    """Mensaje de error si los datos de la tarea no son válidos; None si lo son."""
     if tipo not in TIPOS:
-        return False, "Elige qué debe hacer el alumno.", None
+        return "Elige qué debe hacer el alumno."
     minimo, maximo, _ = LIMITES[tipo]
     if not isinstance(meta, int) or not minimo <= meta <= maximo:
-        return False, f"La meta debe estar entre {minimo} y {maximo}.", None
-    if _utc(fecha_limite) <= datetime.now(timezone.utc):
-        return False, "La fecha límite debe ser futura.", None
+        return f"La meta debe estar entre {minimo} y {maximo}."
+    # al editar se puede dejar la fecha límite como estaba aunque ya haya pasado, pero no moverla a otra fecha pasada
+    if _utc(fecha_limite) <= ahora and not (limite_original and _utc(fecha_limite) == _utc(limite_original)):
+        return "La fecha límite debe ser futura."
+    if visible_desde is not None and _utc(visible_desde) >= _utc(fecha_limite):
+        return "La tarea debe publicarse antes de su fecha límite."
+    if len((instrucciones or "").strip()) > MAX_INSTRUCCIONES:
+        return f"Las indicaciones son demasiado largas (máximo {MAX_INSTRUCCIONES} caracteres)."
+    return None
+
+
+def crear(usuario_id: int, clase_id: int, tema_id: int, tipo: str, meta: int, fecha_limite: datetime,
+          instrucciones: str = "", zona=timezone.utc, visible_desde: datetime | None = None) -> tuple[bool, str, int | None]:
+    """Asigna una tarea y publica un aviso en la clase (la fecha del aviso va en `zona`).
+
+    Con `visible_desde` en el futuro la tarea queda **programada**: los alumnos la ven, y su aviso aparece, hasta esa fecha.
+    """
+    ahora = datetime.now(timezone.utc)
+    if visible_desde is not None and _utc(visible_desde) <= ahora:
+        visible_desde = None  # una fecha pasada o de ahora mismo es publicar de inmediato
     instrucciones = (instrucciones or "").strip()
-    if len(instrucciones) > MAX_INSTRUCCIONES:
-        return False, f"Las indicaciones son demasiado largas (máximo {MAX_INSTRUCCIONES} caracteres).", None
+    error = _validar(tipo, meta, fecha_limite, instrucciones, visible_desde, ahora)
+    if error:
+        return False, error, None
     with get_session() as s:
         clase = s.get(Clase, clase_id)
         if not _puede_gestionar(s, usuario_id, clase):
@@ -81,14 +106,56 @@ def crear(usuario_id: int, clase_id: int, tema_id: int, tipo: str, meta: int, fe
         if materia_del_tema != clase.materia_id:
             return False, "Elige un tema de la materia de la clase.", None
         t = Tarea(clase_id=clase_id, tema_id=tema_id, autor_id=usuario_id, tipo=tipo, meta=meta,
-                  instrucciones=instrucciones or None, fecha_limite=_utc(fecha_limite))
+                  instrucciones=instrucciones or None, fecha_limite=_utc(fecha_limite),
+                  visible_desde=_utc(visible_desde) if visible_desde else None)
         s.add(t)
         s.flush()
         tema = s.scalar(select(Tema.nombre).where(Tema.id == tema_id))
-        s.add(Aviso(clase_id=clase_id, autor_id=usuario_id, tarea_id=t.id, texto=(
-            f"Nueva tarea: {descripcion(tipo, meta).lower()} en «{tema}». Fecha límite: "
-            f"{_utc(fecha_limite).astimezone(zona):%d/%m/%Y}." + (f" {instrucciones}" if instrucciones else ""))[:500]))
-        return True, "Tarea asignada y avisada a la clase.", t.id
+        s.add(Aviso(clase_id=clase_id, autor_id=usuario_id, tarea_id=t.id,
+                    fecha=_utc(visible_desde) if visible_desde else ahora,
+                    texto=_texto_aviso(tipo, meta, tema, fecha_limite, zona, instrucciones, visible_desde)))
+        mensaje = ("Tarea programada: los alumnos la verán desde la fecha de publicación." if visible_desde
+                   else "Tarea asignada y avisada a la clase.")
+        return True, mensaje, t.id
+
+
+def editar(usuario_id: int, tarea_id: int, tema_id: int, tipo: str, meta: int, fecha_limite: datetime,
+           instrucciones: str = "", zona=timezone.utc, visible_desde: datetime | None = None) -> tuple[bool, str]:
+    """Cambia una tarea: su tema, lo que se pide, la fecha límite, las indicaciones y cuándo se publica.
+
+    Lo que los alumnos ya hicieron se conserva. Su aviso en la clase se actualiza con los datos nuevos.
+    """
+    ahora = datetime.now(timezone.utc)
+    instrucciones = (instrucciones or "").strip()
+    with get_session() as s:
+        t = s.get(Tarea, tarea_id)
+        clase = s.get(Clase, t.clase_id) if t else None
+        if t is None or not _puede_gestionar(s, usuario_id, clase):
+            return False, "No puedes modificar esta tarea."
+        if visible_desde is not None and _utc(visible_desde) <= ahora:
+            visible_desde = None
+        error = _validar(tipo, meta, fecha_limite, instrucciones, visible_desde, ahora, limite_original=t.fecha_limite)
+        if error:
+            return False, error
+        materia_del_tema = s.scalar(select(Unidad.materia_id).join(Tema, Tema.unidad_id == Unidad.id).where(Tema.id == tema_id))
+        if materia_del_tema != clase.materia_id:
+            return False, "Elige un tema de la materia de la clase."
+        antes = t.visible_desde
+        t.tema_id, t.tipo, t.meta = tema_id, tipo, meta
+        t.fecha_limite = _utc(fecha_limite)
+        t.instrucciones = instrucciones or None
+        t.visible_desde = _utc(visible_desde) if visible_desde else None
+        if visible_desde is None and antes is not None:
+            t.creada = ahora  # se publica ahora: lo que cuenta es lo que hagan desde este momento
+        tema = s.scalar(select(Tema.nombre).where(Tema.id == tema_id))
+        aviso = s.scalar(select(Aviso).where(Aviso.tarea_id == tarea_id))
+        if aviso is not None:
+            aviso.texto = _texto_aviso(tipo, meta, tema, fecha_limite, zona, instrucciones, visible_desde)
+            if visible_desde is not None:
+                aviso.fecha = _utc(visible_desde)
+            elif antes is not None:
+                aviso.fecha = ahora
+    return True, "Tarea actualizada."
 
 
 def eliminar(usuario_id: int, tarea_id: int) -> tuple[bool, str]:
@@ -102,6 +169,11 @@ def eliminar(usuario_id: int, tarea_id: int) -> tuple[bool, str]:
     return True, "Tarea borrada."
 
 
+def _desde(tarea: Tarea) -> datetime:
+    """Desde cuándo cuenta lo que hace el alumno: la asignación o, si la tarea se programó, su fecha de publicación."""
+    return max(_utc(tarea.creada), _utc(tarea.visible_desde)) if tarea.visible_desde else _utc(tarea.creada)
+
+
 def _avances(s, tarea: Tarea, alumno_ids: list[int]) -> dict[int, int]:
     """Cuánto lleva cada alumno en la tarea (ya con el tope de la meta no aplicado: el que llama lo ajusta)."""
     if not alumno_ids:
@@ -109,11 +181,11 @@ def _avances(s, tarea: Tarea, alumno_ids: list[int]) -> dict[int, int]:
     if tarea.tipo == "preguntas":
         q = (select(RespuestaQuiz.alumno_id, func.count()).join(Quiz, Quiz.id == RespuestaQuiz.quiz_id)
              .where(Quiz.tema_id == tarea.tema_id, RespuestaQuiz.alumno_id.in_(alumno_ids),
-                    RespuestaQuiz.fecha >= tarea.creada).group_by(RespuestaQuiz.alumno_id))
+                    RespuestaQuiz.fecha >= _desde(tarea)).group_by(RespuestaQuiz.alumno_id))
     elif tarea.tipo == "ejercicios":
         q = (select(IntentoEjercicio.alumno_id, func.count())
              .where(IntentoEjercicio.tema_id == tarea.tema_id, IntentoEjercicio.alumno_id.in_(alumno_ids),
-                    IntentoEjercicio.fecha >= tarea.creada).group_by(IntentoEjercicio.alumno_id))
+                    IntentoEjercicio.fecha >= _desde(tarea)).group_by(IntentoEjercicio.alumno_id))
     else:
         salida = {}
         for aid in alumno_ids:
@@ -126,7 +198,8 @@ def _avances(s, tarea: Tarea, alumno_ids: list[int]) -> dict[int, int]:
 def _tarjeta(t: Tarea, tema: str) -> dict:
     return {"id": t.id, "clase_id": t.clase_id, "tema_id": t.tema_id, "tema": tema, "tipo": t.tipo, "meta": t.meta,
             "descripcion": descripcion(t.tipo, t.meta), "instrucciones": t.instrucciones or "",
-            "fecha_limite": _utc(t.fecha_limite), "creada": _utc(t.creada)}
+            "fecha_limite": _utc(t.fecha_limite), "creada": _utc(t.creada),
+            "visible_desde": _utc(t.visible_desde) if t.visible_desde else None}
 
 
 @solo_lectura
@@ -145,9 +218,21 @@ def tareas_de_clase(usuario_id: int, clase_id: int) -> list[dict]:
             avances = _avances(s, t, alumnos)
             d = _tarjeta(t, tema)
             d.update({"alumnos": len(alumnos), "hechas": sum(1 for a in alumnos if avances.get(a, 0) >= t.meta),
-                      "vencida": ahora > d["fecha_limite"]})
+                      "vencida": ahora > d["fecha_limite"],
+                      "programada": bool(d["visible_desde"] and d["visible_desde"] > ahora)})
             salida.append(d)
         return salida
+
+
+@solo_lectura
+def del_maestro(usuario_id: int) -> list[dict]:
+    """Todas las tareas de las clases que administra el maestro (todas, si es administrador), con su clase y su cumplimiento."""
+    salida = []
+    for c in clases.clases_del_maestro(usuario_id):
+        for d in tareas_de_clase(usuario_id, c["id"]):
+            salida.append({**d, "clase": c["nombre"], "materia": c["materia"], "materia_id": c["materia_id"],
+                           "clase_activa": c["activa"]})
+    return salida
 
 
 @solo_lectura
@@ -204,7 +289,8 @@ def tareas_del_alumno(alumno_id: int) -> list[dict]:
             .join(Clase, Clase.id == Tarea.clase_id).join(Tema, Tema.id == Tarea.tema_id)
             .join(Materia, Materia.id == Clase.materia_id)
             .join(Inscripcion, Inscripcion.clase_id == Clase.id)
-            .where(Inscripcion.alumno_id == alumno_id, Inscripcion.estado == ACTIVO, Clase.activa.is_(True))).all()
+            .where(Inscripcion.alumno_id == alumno_id, Inscripcion.estado == ACTIVO, Clase.activa.is_(True),
+                   or_(Tarea.visible_desde.is_(None), Tarea.visible_desde <= ahora))).all()
         salida = []
         for t, tema, clase, materia in filas:
             avance = min(_avances(s, t, [alumno_id]).get(alumno_id, 0), t.meta)

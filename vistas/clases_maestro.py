@@ -76,6 +76,13 @@ if ss.get("clase_elegida") not in etiquetas:
 clase_id = st.selectbox("Clase", list(etiquetas), format_func=etiquetas.get, key="clase_elegida")
 c = next(x for x in lista if x["id"] == clase_id)
 
+@st.dialog("Cambiar el nombre de la clase")
+def renombrar_clase(id_clase: int, actual: str) -> None:
+    nuevo = st.text_input("Nombre de la clase", value=actual, max_chars=clases.MAX_NOMBRE, key=f"nombre_nuevo_{id_clase}")
+    if st.button("Guardar", type="primary", icon=":material/save:", width="stretch", key=f"nombre_ok_{id_clase}"):
+        listo(clases.actualizar(user["id"], id_clase, nombre=nuevo))
+
+
 with st.container(border=True, key="tarjeta_clase"):
     col_cod, col_info = st.columns([1, 2], vertical_alignment="center")
     with col_cod:
@@ -83,6 +90,8 @@ with st.container(border=True, key="tarjeta_clase"):
         st.code(c["codigo"], language=None)
     with col_info:
         titulo("book", c["nombre"], nivel=4)
+        if st.button("Cambiar nombre", key=f"renombrar_{clase_id}", icon=":material/edit:"):
+            renombrar_clase(clase_id, c["nombre"])
         insignias((c["materia"], "indigo", "book"),
                   ("Activa" if c["activa"] else "Desactivada", "verde" if c["activa"] else "rojo", "check" if c["activa"] else "x"),
                   ("Con aprobación" if c["aprobacion"] else "Entrada libre", "ambar" if c["aprobacion"] else "cielo", "lock"))
@@ -137,6 +146,8 @@ if t_solicitudes.open is not False:
 if t_tareas.open is not False:
     with t_tareas:
         zona = zona_horaria()
+        st.page_link("vistas/tareas_maestro.py", label="Para programar la publicación, editar o reprogramar fechas, "
+                     "usa la pantalla «Tareas»", icon=":material/event_note:")
         with st.container(border=True, key=f"nueva_tarea_{clase_id}"):
             titulo("clipboard", "Asignar una tarea", nivel=4)
             st.caption("Elige un tema de la materia y qué debe lograr cada alumno. Se cumple sola con lo que hacen en «Estudio».")
