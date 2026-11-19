@@ -372,11 +372,15 @@ def vista_conversacion() -> None:
     if (mensajes and mensajes[-1]["rol"] == "assistant" and not fallo and not pregunta
             and _clave_intro(ss.conv_id) in ss.intro_hecha):
         atajos = [("Explícamelo más simple", ":material/lightbulb:"), ("Dame un ejemplo", ":material/science:"),
-                  ("Hazme una pregunta", ":material/quiz:"), ("Resumen del tema", ":material/summarize:")]
-        for col, (texto, icono) in zip(st.columns(len(atajos)), atajos):
-            if col.button(texto, key=f"atajo_{ss.conv_id}_{len(mensajes)}_{texto}", icon=icono, width="stretch"):
-                ss["pregunta_rapida"] = texto
-                st.rerun()
+                  ("Hazme una pregunta", ":material/quiz:"), ("Resumen del tema", ":material/summarize:"),
+                  # avanzar: lo mismo que escribir «siguiente lección» (sigue con un punto nuevo) o «siguiente tema»
+                  ("Siguiente lección", ":material/arrow_forward:"), ("Siguiente tema", ":material/skip_next:")]
+        for fila in (atajos[:4], atajos[4:]):
+            for col, (texto, icono) in zip(st.columns(4), fila):
+                if col.button(texto, key=f"atajo_{ss.conv_id}_{len(mensajes)}_{texto}", icon=icono, width="stretch",
+                              type="primary" if texto.startswith("Siguiente") else "secondary"):
+                    ss["pregunta_rapida"] = texto
+                    st.rerun()
 
     if not pregunta and not reintento:
         return
