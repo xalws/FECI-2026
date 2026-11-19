@@ -138,7 +138,9 @@ def borrar() -> None:
 
 
 def _hora(rng: random.Random, dia: int) -> datetime:
-    return (ahora - timedelta(days=dia)).replace(hour=rng.randint(14, 23), minute=rng.randint(0, 59), second=rng.randint(0, 59))
+    f = (ahora - timedelta(days=dia)).replace(hour=rng.randint(14, 23), minute=rng.randint(0, 59), second=rng.randint(0, 59))
+    # nunca en el futuro: si no, lo de «hoy» contaría como hecho después de cualquier tarea que se cree ahora
+    return f - timedelta(days=1) if f > ahora else f
 
 
 def perfiles(rng: random.Random) -> list[dict]:
