@@ -228,5 +228,34 @@ class TestModeloDeRespaldo(unittest.TestCase):
             self.assertEqual(llm._kwargs([], 0.1, False, "low")["reasoning_effort"], "low")
 
 
+class TestFormulasYFuentesAlMostrar(unittest.TestCase):
+    def test_una_formula_de_varios_renglones_queda_en_uno_y_en_su_parrafo(self):
+        texto = "El cálculo es:\n$$R=\\frac{a}{b}\n  =\\frac{c}{d}\n  =0.0336\\;\\Omega .$$\nEl alumno respondió **0.03 Ω**."
+        r = llm.normalizar_formulas(texto)
+        self.assertIn("$$R=\\frac{a}{b} =\\frac{c}{d} =0.0336\\;\\Omega .$$", r)
+        self.assertNotIn("\n  =", r)
+        self.assertIn("\n\n$$", r)
+        self.assertRegex(r, r"\$\$\n\n+El alumno respondió")  # el texto de después ya no queda pegado a la fórmula
+        self.assertEqual(llm.normalizar_formulas("En línea $$x = 1$$ sigue."), "En línea $$x = 1$$ sigue.")
+
+    def test_dos_formulas_y_texto_sin_formulas(self):
+        r = llm.normalizar_formulas("a $$x\n=1$$ b $$y\n=2$$ c")
+        self.assertEqual(r.count("$$"), 4)
+        self.assertEqual(llm.normalizar_formulas("Sin fórmulas $x$ aquí."), "Sin fórmulas $x$ aquí.")
+
+    def test_el_texto_nuevo_del_tutor_tambien_se_normaliza(self):
+        self.assertIn("$$a =b$$", llm._formato_latex("\\[a\n=b\\]"))
+
+    def test_las_fuentes_viejas_se_muestran_con_el_nombre_actual(self):
+        guardado = ("Respuesta.\n\n*Fuentes: Circuitos Eléctricos - apuntes ampliados.pdf, pág. 3; "
+                    "Inglés I - apuntes de prueba.pdf, pág. 1; Metrología - apuntes ampliados.pdf, pág. 2*")
+        r = llm.para_mostrar(guardado)
+        self.assertIn("Fuentes: Manual de Circuitos Eléctricos.pdf, pág. 3", r)
+        self.assertIn("Antología de Inglés I.pdf, pág. 1", r)
+        self.assertIn("Manual de Metrología.pdf, pág. 2", r)
+        self.assertNotIn("apuntes", r)
+        self.assertEqual(llm.para_mostrar("Fuentes: Manual de Metrología.pdf, pág. 2"), "Fuentes: Manual de Metrología.pdf, pág. 2")
+
+
 if __name__ == "__main__":
     unittest.main()

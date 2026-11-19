@@ -267,11 +267,37 @@ def _como_lo_ve_el_alumno(texto: str) -> str:
     return _CONTEXTO.sub(lambda m: f"{m.group(1)} material", texto)
 
 
+def normalizar_formulas(texto: str) -> str:
+    """Deja cada fórmula en bloque (`$$…$$`) en una sola línea y en su propio párrafo.
+
+    El modelo a veces escribe una fórmula con varios renglones dentro de `$$…$$` (una igualdad por línea, con sangría).
+    Streamlit no la dibuja bien así: el renglón se interpreta como texto y la pantalla muestra código en rojo.
+    """
+    def una_linea(m):
+        if "\n" not in m.group(1):  # ya está en una línea: se deja tal cual
+            return m.group(0)
+        return "\n\n$$" + " ".join(m.group(1).split()) + "$$\n\n"
+    return re.sub(r"\$\$(.+?)\$\$", una_linea, texto, flags=re.S)
+
+
+# Los mensajes guardados antes del cambio de nombre de los documentos citan «<materia> - apuntes ampliados.pdf» y
+# «<materia> - apuntes de prueba.pdf»; hoy esos archivos se llaman «Manual de <materia>.pdf» y «Antología de <materia>.pdf»
+_FUENTE_MANUAL = re.compile(r"(?<=[:;] )([^;*]+?) - apuntes ampliados\.pdf")
+_FUENTE_ANTOLOGIA = re.compile(r"(?<=[:;] )([^;*]+?) - apuntes de prueba\.pdf")
+
+
+def para_mostrar(texto: str) -> str:
+    """Un mensaje guardado, listo para dibujarse: fórmulas bien formadas y fuentes con el nombre actual del documento."""
+    texto = normalizar_formulas(texto)
+    texto = _FUENTE_MANUAL.sub(r"Manual de \1.pdf", texto)
+    return _FUENTE_ANTOLOGIA.sub(r"Antología de \1.pdf", texto)
+
+
 def _formato_latex(texto: str) -> str:
     # Streamlit solo dibuja fórmulas con $...$ y $$...$$, no con \[...\] ni \(...\).
     texto = re.sub(r"\\\[(.+?)\\\]", lambda m: "$$" + m.group(1).strip() + "$$", texto, flags=re.S)
     texto = re.sub(r"\\\((.+?)\\\)", lambda m: "$" + m.group(1).strip() + "$", texto, flags=re.S)
-    return _como_lo_ve_el_alumno(texto)
+    return _como_lo_ve_el_alumno(normalizar_formulas(texto))
 
 
 def _formatear_contexto(fragmentos: list[dict]) -> str:

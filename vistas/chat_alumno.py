@@ -330,7 +330,7 @@ def vista_conversacion() -> None:
         ss.pop("leer_respuesta_siguiente", None)  # vale solo para esta respuesta
     for i, m in enumerate(mensajes):
         with st.chat_message(m["rol"]):
-            st.markdown(m["contenido"])
+            st.markdown(llm.para_mostrar(m["contenido"]))
             if m["rol"] == "assistant":  # el tutor habla: «Escuchar» con la voz del navegador (core/voz.py)
                 voz.lector(m["contenido"], f"{ss.conv_id}-{i}", auto=i >= antes and i == len(mensajes) - 1,
                          forzar=nueva_por_voz and i >= antes and i == len(mensajes) - 1)
@@ -457,7 +457,7 @@ def vista_ejercicio() -> None:
         (st.success if r["puntaje"] >= 6 else st.warning)(
             f"**Calificación: {r['puntaje']}/10**",
             icon=":material/check_circle:" if r["puntaje"] >= 6 else ":material/info:")
-        st.markdown(r["retroalimentacion"])
+        st.markdown(llm.normalizar_formulas(r["retroalimentacion"]))
         if st.button("Otro ejercicio", type="primary", icon=":material/refresh:"):
             ss.ejercicio = None
             st.rerun()
@@ -589,7 +589,7 @@ def vista_examen_en_curso() -> None:
         else:
             st.error(f"Incorrecto. Elegiste {LETRAS[rev['elegida']]}; la correcta era {LETRAS[rev['correcta']]}.",
                      icon=":material/cancel:")
-        st.markdown(rev["explicacion"])
+        st.markdown(llm.normalizar_formulas(rev["explicacion"]))
         ultimo = examen.terminado(ex)
         c1, c2 = st.columns([1, 3])
         if c1.button("Ver resultados" if ultimo else "Siguiente pregunta", type="primary",

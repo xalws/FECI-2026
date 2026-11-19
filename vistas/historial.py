@@ -1,6 +1,6 @@
 import streamlit as st
 
-from core import chat
+from core import llm, chat
 from core.auth import require_login
 from core.estilo import encabezado, fecha_local, insignias
 
@@ -36,4 +36,4 @@ with st.container(border=True):
         st.caption("Esta conversación no tiene mensajes.")
     for m in mensajes:
         with st.chat_message(m["rol"]):
-            st.markdown(m["contenido"])
+            st.markdown(llm.para_mostrar(m["contenido"]))
